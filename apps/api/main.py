@@ -12,7 +12,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from apps.api.routers import feed_status, health, replay, routes, vehicles
+from apps.api.routers import feed_status, health, iroam, replay, routes, trajectories, vehicles
 from core.config import get_settings
 from core.logging import configure_logging, get_logger
 
@@ -61,6 +61,18 @@ def create_app() -> FastAPI:
     app.include_router(vehicles.router)
     app.include_router(routes.router)
     app.include_router(replay.router)
+    app.include_router(trajectories.router)
+    app.include_router(iroam.router)
+
+    # Serve the iROAM dashboard as static files. Mount last so /iroam API
+    # routes (registered above) win over the static mount when paths overlap.
+    from pathlib import Path
+
+    from fastapi.staticfiles import StaticFiles
+
+    static_dir = Path(__file__).parent / "static"
+    if static_dir.is_dir():
+        app.mount("/ui", StaticFiles(directory=static_dir, html=True), name="iroam-ui")
 
     return app
 

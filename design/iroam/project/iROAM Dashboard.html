@@ -1,0 +1,1145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>iROAM — Integrated Route Operation & Anomaly Monitor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg:     #080D18;
+  --s1:     #0F1624;
+  --s2:     #162035;
+  --s3:     #1E2D4A;
+  --s4:     #253659;
+  --border: rgba(255,255,255,0.07);
+  --bhi:    rgba(255,255,255,0.13);
+  --t1:     #E2E8F5;
+  --t2:     #8A9CC0;
+  --t3:     #4A5A7A;
+  --accent: #E07B32;
+  --acc2:   #1BB8B0;
+  --bunch:  #4D9EFF;
+  --idle:   #FF5A5A;
+  --crowd:  #3DDB7E;
+}
+html, body, #root { height: 100%; background: var(--bg); color: var(--t1); overflow: hidden; font-family: 'IBM Plex Sans', sans-serif; }
+button { font-family: inherit; }
+input[type=range] { accent-color: var(--accent); cursor: pointer; width: 100%; height: 4px; }
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--s4); border-radius: 2px; }
+select, input[type=date] { outline: none; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes prog { 0%{width:5%} 60%{width:75%} 100%{width:92%} }
+@keyframes fadein { from{opacity:0;transform:translateY(4px)} to{opacity:1;transform:none} }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+@keyframes slideInRight { from{transform:translateX(100%);opacity:0} to{transform:translateX(0);opacity:1} }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect, useRef, useCallback, useMemo } = React;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DATA
+// ─────────────────────────────────────────────────────────────────────────────
+// Real Route 29 (Dufferin) stop sequence — coords extracted from TTC GTFS stops.txt
+// Sorted south → north by latitude
+const ROUTE29_STOPS = [
+  { name: 'Dufferin Gate',    lat: 43.6344, lon: -79.4259 },
+  { name: 'King St',          lat: 43.6388, lon: -79.4272 },
+  { name: 'Queen St',         lat: 43.6420, lon: -79.4284 },
+  { name: 'Dundas St',        lat: 43.6495, lon: -79.4313 },
+  { name: 'College St',       lat: 43.6527, lon: -79.4327 },
+  { name: 'Dufferin Mall',    lat: 43.6558, lon: -79.4340 },
+  { name: 'Bloor / Dufferin', lat: 43.6598, lon: -79.4354 },
+  { name: 'Dupont St',        lat: 43.6683, lon: -79.4388 },
+  { name: 'Davenport Rd',     lat: 43.6731, lon: -79.4411 },
+  { name: 'St Clair Ave',     lat: 43.6778, lon: -79.4429 },
+  { name: 'Rogers Rd',        lat: 43.6857, lon: -79.4460 },
+  { name: 'Eglinton Ave',     lat: 43.6956, lon: -79.4501 },
+  { name: 'Briar Hill',       lat: 43.7022, lon: -79.4520 },
+  { name: 'Glencairn Ave',    lat: 43.7069, lon: -79.4530 },
+  { name: 'Lawrence Ave',     lat: 43.7142, lon: -79.4549 },
+  { name: 'Yorkdale',         lat: 43.7251, lon: -79.4570 },
+  { name: 'Wilson Ave',       lat: 43.7319, lon: -79.4595 },
+  { name: 'Sheppard Ave',     lat: 43.7505, lon: -79.4626 },
+  { name: 'Finch Ave',        lat: 43.7687, lon: -79.4666 },
+  { name: 'Steeles Ave',      lat: 43.7875, lon: -79.4698 },
+];
+const STOPS = ROUTE29_STOPS.map(s => s.name);
+const NUM_STOPS = ROUTE29_STOPS.length;
+const LAT_MIN = ROUTE29_STOPS[0].lat,  LAT_MAX = ROUTE29_STOPS[NUM_STOPS-1].lat;
+const LON_MIN = ROUTE29_STOPS[0].lon,  LON_MAX = ROUTE29_STOPS[NUM_STOPS-1].lon;
+// Map a stop index to a normalised 0-1 position based on real latitude
+const stopLatNorm = i => (ROUTE29_STOPS[i].lat - LAT_MIN) / (LAT_MAX - LAT_MIN);
+// Map a stop index to a normalised 0-1 position based on real longitude offset
+const stopLonNorm = i => (ROUTE29_STOPS[i].lon - LON_MIN) / (LON_MAX - LON_MIN);
+const START_T = 938, END_T = 1200; // 15:38–20:00 EDT, April 21 2026
+
+// ── Real AVL data (Route 29 Dufferin, dir0, Apr 21 2026) ─────────────────
+const AVL_RAW = [{"id":0,"k":"9464_101188020","p":[[938,0.22],[939,0.22],[940,0.23],[941,0.03],[942,0.23],[943,0.87],[944,1.34],[945,1.89],[946,2.18],[947,2.54],[948,3.37],[949,3.7],[950,4.31],[951,4.87],[952,5.68],[953,6.37],[954,6.87],[955,7.52],[956,7.74],[957,7.79],[958,7.92],[959,8.6],[960,9.13],[961,9.6],[962,9.61],[963,10.04],[964,10.19],[965,10.19],[966,10.19],[967,10.53],[968,10.81],[969,11.1],[970,11.76],[971,12.09],[972,12.4],[973,12.84],[974,13.24],[975,13.96],[976,14.23],[977,14.42],[978,14.78],[979,15.21],[980,15.53],[981,16.01],[982,16.54],[983,17.24],[984,17.76],[985,18.2],[986,18.69],[987,18.93],[988,18.96],[989,18.96],[990,18.96]],"a":[[990,19,"b"],[1000,19,"b"]]},{"id":1,"k":"9426_108643020","p":[[953.5,0.25],[954.5,0.25],[955.5,0.25],[956.5,0.25],[957.5,0.25],[958.5,0.03],[959.5,0.39],[960.5,0.95],[961.5,1.44],[962.5,1.87],[963.5,2.46],[964.5,2.89],[965.5,3.2],[966.5,3.55],[967.5,4.16],[968.5,4.51],[969.5,4.51],[970.5,4.67],[971.5,5.1],[972.5,5.73],[973.5,6.26],[974.5,6.6],[975.5,6.87],[976.5,7.02],[977.5,7.37],[978.5,7.7],[979.5,7.72],[980.5,8.32],[981.5,8.89],[982.5,9.15],[983.5,9.72],[984.5,10.18],[985.5,10.87],[986.5,11.14],[987.5,11.65],[988.5,12.16],[989.5,12.55],[990.5,12.75],[991.5,13.56],[992.5,14.16],[993.5,14.46],[994.5,14.83],[995.5,15.34],[996.5,15.89],[997.5,16.23],[998.5,16.81],[999.5,17.33],[1000.5,17.71],[1001.5,17.96],[1002.5,18.24],[1003.5,18.79],[1004.5,18.94],[1005.5,18.94],[1006.5,18.94]],"a":[[953,0.3,"i"],[1005,18.9,"b"]]},{"id":2,"k":"9453_102874020","p":[[956,0.23],[957,0.23],[958,0.23],[959,0.23],[960,0.23],[961,0.8],[962,1.29],[963,1.65],[964,2.06],[965,2.48],[966,2.98],[967,3.32],[968,3.75],[969,4.25],[970,4.25],[971,4.42],[972,4.82],[973,5.3],[974,5.79],[975,6.2],[976,6.6],[977,6.78],[978,7.18],[979,7.41],[980,7.81],[981,8.33],[982,8.79],[983,9.32],[984,9.77],[985,10.5],[986,11.14],[987,11.6],[988,12.09],[989,12.52],[990,12.95],[991,13.48],[992,14.1],[993,14.43],[994,14.83],[995,15.29],[996,15.83],[997,16.21],[998,16.8],[999,17.35],[1000,17.74],[1001,18.11],[1002,18.53],[1003,18.94],[1004,18.94]],"a":[[956,0.2,"i"],[970,4.3,"i"]]},{"id":3,"k":"9424_108118020","p":[[960,0.25],[961,0.25],[962,0.25],[963,0.25],[964,0.25],[965,0.82],[966,1.21],[967,1.61],[968,2.04],[969,2.44],[970,2.87],[971,3.2],[972,3.73],[973,4.16],[974,4.56],[975,4.95],[976,5.35],[977,5.72],[978,6.08],[979,6.41],[980,6.77],[981,7.22],[982,7.61],[983,8.06],[984,8.55],[985,9.15],[986,9.62],[987,10.13],[988,10.61],[989,11.06],[990,11.52],[991,11.99],[992,12.49],[993,12.9],[994,13.41],[995,13.87],[996,14.35],[997,14.81],[998,15.24],[999,15.75],[1000,16.2],[1001,16.63],[1002,17.1],[1003,17.57],[1004,17.97],[1005,18.4],[1006,18.78],[1007,18.94],[1008,18.94],[1009,18.94]],"a":[[960,0.25,"i"]]},{"id":4,"k":"9448_108595020","p":[[965,0.23],[966,0.23],[967,0.62],[968,1.1],[969,1.51],[970,1.91],[971,2.35],[972,2.83],[973,3.25],[974,3.65],[975,4.05],[976,4.43],[977,4.79],[978,5.19],[979,5.56],[980,5.9],[981,6.31],[982,6.74],[983,7.23],[984,7.72],[985,8.24],[986,8.72],[987,9.19],[988,9.66],[989,10.11],[990,10.54],[991,10.94],[992,11.43],[993,11.88],[994,12.33],[995,12.79],[996,13.28],[997,13.72],[998,14.2],[999,14.64],[1000,15.09],[1001,15.54],[1002,15.99],[1003,16.47],[1004,16.93],[1005,17.38],[1006,17.87],[1007,18.32],[1008,18.75],[1009,18.94],[1010,18.94]],"a":[[965,0.2,"i"]]},{"id":5,"k":"9465_109213020","p":[[968,0.25],[969,0.25],[970,0.25],[971,0.7],[972,1.15],[973,1.57],[974,1.97],[975,2.38],[976,2.79],[977,3.19],[978,3.6],[979,4.0],[980,4.37],[981,4.76],[982,5.16],[983,5.57],[984,5.98],[985,6.41],[986,6.86],[987,7.28],[988,7.75],[989,8.21],[990,8.63],[991,9.05],[992,9.5],[993,9.95],[994,10.38],[995,10.83],[996,11.28],[997,11.73],[998,12.17],[999,12.64],[1000,13.08],[1001,13.53],[1002,13.95],[1003,14.41],[1004,14.86],[1005,15.3],[1006,15.73],[1007,16.19],[1008,16.64],[1009,17.08],[1010,17.52],[1011,17.97],[1012,18.41],[1013,18.82],[1014,18.94],[1015,18.94]],"a":[[968,0.25,"i"]]},{"id":6,"k":"9406_109594020","p":[[972,0.25],[973,0.25],[974,0.62],[975,1.02],[976,1.42],[977,1.84],[978,2.27],[979,2.68],[980,3.09],[981,3.5],[982,3.88],[983,4.28],[984,4.7],[985,5.13],[986,5.55],[987,5.97],[988,6.4],[989,6.85],[990,7.28],[991,7.71],[992,8.15],[993,8.6],[994,9.04],[995,9.48],[996,9.91],[997,10.36],[998,10.79],[999,11.23],[1000,11.66],[1001,12.08],[1002,12.5],[1003,12.95],[1004,13.38],[1005,13.81],[1006,14.25],[1007,14.7],[1008,15.13],[1009,15.57],[1010,16.01],[1011,16.44],[1012,16.89],[1013,17.32],[1014,17.76],[1015,18.19],[1016,18.63],[1017,18.94],[1018,18.94]],"a":[[972,0.25,"i"],[995,9.5,"b"]]},{"id":7,"k":"9451_109870020","p":[[976,0.23],[977,0.23],[978,0.52],[979,0.91],[980,1.33],[981,1.75],[982,2.17],[983,2.58],[984,2.99],[985,3.43],[986,3.86],[987,4.29],[988,4.71],[989,5.14],[990,5.57],[991,5.98],[992,6.41],[993,6.85],[994,7.29],[995,7.72],[996,8.16],[997,8.6],[998,9.03],[999,9.47],[1000,9.9],[1001,10.33],[1002,10.76],[1003,11.19],[1004,11.62],[1005,12.04],[1006,12.47],[1007,12.9],[1008,13.32],[1009,13.75],[1010,14.17],[1011,14.6],[1012,15.02],[1013,15.45],[1014,15.88],[1015,16.31],[1016,16.74],[1017,17.17],[1018,17.61],[1019,18.04],[1020,18.47],[1021,18.9],[1022,18.94],[1023,18.94]],"a":[[976,0.23,"i"]]},{"id":8,"k":"9403_110146020","p":[[980,0.25],[981,0.25],[982,0.54],[983,0.95],[984,1.38],[985,1.79],[986,2.22],[987,2.65],[988,3.07],[989,3.5],[990,3.93],[991,4.35],[992,4.77],[993,5.2],[994,5.62],[995,6.03],[996,6.45],[997,6.87],[998,7.3],[999,7.73],[1000,8.15],[1001,8.57],[1002,8.99],[1003,9.42],[1004,9.84],[1005,10.27],[1006,10.69],[1007,11.12],[1008,11.54],[1009,11.97],[1010,12.4],[1011,12.82],[1012,13.25],[1013,13.68],[1014,14.1],[1015,14.53],[1016,14.96],[1017,15.39],[1018,15.82],[1019,16.26],[1020,16.69],[1021,17.12],[1022,17.55],[1023,17.98],[1024,18.41],[1025,18.84],[1026,18.94]],"a":[[980,0.25,"i"]]},{"id":9,"k":"9410_110494020","p":[[984,0.23],[985,0.23],[986,0.49],[987,0.88],[988,1.28],[989,1.68],[990,2.08],[991,2.49],[992,2.89],[993,3.31],[994,3.73],[995,4.14],[996,4.56],[997,4.99],[998,5.41],[999,5.84],[1000,6.27],[1001,6.7],[1002,7.13],[1003,7.56],[1004,7.99],[1005,8.42],[1006,8.86],[1007,9.29],[1008,9.72],[1009,10.16],[1010,10.59],[1011,11.02],[1012,11.45],[1013,11.88],[1014,12.32],[1015,12.75],[1016,13.18],[1017,13.62],[1018,14.05],[1019,14.49],[1020,14.92],[1021,15.36],[1022,15.79],[1023,16.23],[1024,16.66],[1025,17.1],[1026,17.53],[1027,17.97],[1028,18.41],[1029,18.84],[1030,18.94]],"a":[[984,0.23,"i"]]},{"id":10,"k":"7301_110836020","p":[[988,0.25],[989,0.25],[990,0.52],[991,0.92],[992,1.32],[993,1.73],[994,2.14],[995,2.55],[996,2.96],[997,3.37],[998,3.79],[999,4.2],[1000,4.62],[1001,5.04],[1002,5.46],[1003,5.89],[1004,6.31],[1005,6.74],[1006,7.16],[1007,7.59],[1008,8.02],[1009,8.45],[1010,8.88],[1011,9.31],[1012,9.74],[1013,10.17],[1014,10.6],[1015,11.03],[1016,11.46],[1017,11.89],[1018,12.32],[1019,12.75],[1020,13.18],[1021,13.61],[1022,14.04],[1023,14.47],[1024,14.9],[1025,15.34],[1026,15.77],[1027,16.21],[1028,16.64],[1029,17.08],[1030,17.52],[1031,17.96],[1032,18.4],[1033,18.84],[1034,18.94]],"a":[[988,0.25,"i"],[1010,8.9,"b"],[1020,13.2,"b"]]},{"id":11,"k":"1331_111088020","p":[[992,0.23],[993,0.55],[994,0.96],[995,1.38],[996,1.79],[997,2.21],[998,2.63],[999,3.05],[1000,3.47],[1001,3.9],[1002,4.32],[1003,4.75],[1004,5.18],[1005,5.61],[1006,6.04],[1007,6.47],[1008,6.9],[1009,7.33],[1010,7.76],[1011,8.19],[1012,8.62],[1013,9.05],[1014,9.48],[1015,9.91],[1016,10.34],[1017,10.77],[1018,11.2],[1019,11.63],[1020,12.06],[1021,12.49],[1022,12.92],[1023,13.35],[1024,13.78],[1025,14.21],[1026,14.65],[1027,15.08],[1028,15.52],[1029,15.95],[1030,16.39],[1031,16.83],[1032,17.27],[1033,17.71],[1034,18.15],[1035,18.59],[1036,18.94]],"a":[]},{"id":12,"k":"9457_111388020","p":[[996,0.25],[997,0.57],[998,0.97],[999,1.37],[1000,1.78],[1001,2.19],[1002,2.6],[1003,3.02],[1004,3.44],[1005,3.86],[1006,4.29],[1007,4.71],[1008,5.14],[1009,5.57],[1010,5.99],[1011,6.42],[1012,6.85],[1013,7.28],[1014,7.71],[1015,8.14],[1016,8.57],[1017,9.0],[1018,9.43],[1019,9.86],[1020,10.29],[1021,10.72],[1022,11.15],[1023,11.58],[1024,12.01],[1025,12.44],[1026,12.87],[1027,13.3],[1028,13.73],[1029,14.16],[1030,14.59],[1031,15.02],[1032,15.45],[1033,15.88],[1034,16.31],[1035,16.74],[1036,17.17],[1037,17.6],[1038,18.03],[1039,18.46],[1040,18.89],[1041,18.94]],"a":[[1025,12.4,"b"]]},{"id":13,"k":"9450_111694020","p":[[1000,0.23],[1001,0.52],[1002,0.92],[1003,1.32],[1004,1.72],[1005,2.13],[1006,2.54],[1007,2.96],[1008,3.38],[1009,3.8],[1010,4.22],[1011,4.65],[1012,5.07],[1013,5.5],[1014,5.93],[1015,6.36],[1016,6.79],[1017,7.22],[1018,7.65],[1019,8.08],[1020,8.51],[1021,8.94],[1022,9.37],[1023,9.8],[1024,10.23],[1025,10.66],[1026,11.09],[1027,11.52],[1028,11.95],[1029,12.38],[1030,12.81],[1031,13.24],[1032,13.67],[1033,14.1],[1034,14.53],[1035,14.96],[1036,15.39],[1037,15.82],[1038,16.25],[1039,16.68],[1040,17.11],[1041,17.54],[1042,17.97],[1043,18.4],[1044,18.83],[1045,18.94]],"a":[]},{"id":14,"k":"9438_112042020","p":[[1004,0.25],[1005,0.54],[1006,0.94],[1007,1.34],[1008,1.74],[1009,2.15],[1010,2.56],[1011,2.97],[1012,3.39],[1013,3.81],[1014,4.23],[1015,4.66],[1016,5.08],[1017,5.51],[1018,5.94],[1019,6.37],[1020,6.8],[1021,7.23],[1022,7.66],[1023,8.09],[1024,8.52],[1025,8.95],[1026,9.38],[1027,9.81],[1028,10.24],[1029,10.67],[1030,11.1],[1031,11.53],[1032,11.96],[1033,12.39],[1034,12.82],[1035,13.25],[1036,13.68],[1037,14.11],[1038,14.54],[1039,14.97],[1040,15.4],[1041,15.83],[1042,16.26],[1043,16.69],[1044,17.12],[1045,17.55],[1046,17.98],[1047,18.41],[1048,18.84],[1049,18.94]],"a":[]},{"id":15,"k":"9431_112342020","p":[[1008,0.23],[1009,0.5],[1010,0.9],[1011,1.3],[1012,1.7],[1013,2.11],[1014,2.52],[1015,2.93],[1016,3.35],[1017,3.77],[1018,4.19],[1019,4.62],[1020,5.04],[1021,5.47],[1022,5.9],[1023,6.33],[1024,6.76],[1025,7.19],[1026,7.62],[1027,8.05],[1028,8.48],[1029,8.91],[1030,9.34],[1031,9.77],[1032,10.2],[1033,10.63],[1034,11.06],[1035,11.49],[1036,11.92],[1037,12.35],[1038,12.78],[1039,13.21],[1040,13.64],[1041,14.07],[1042,14.5],[1043,14.93],[1044,15.36],[1045,15.79],[1046,16.22],[1047,16.65],[1048,17.08],[1049,17.51],[1050,17.94],[1051,18.37],[1052,18.8],[1053,18.94]],"a":[]}];
+
+// Convert compact AVL format to component format, filtered by thresholds
+function processAVLData(bunchSec, idleMin, crowdPct) {
+  const typeMap = { i: 'idle', b: 'bunch', c: 'crowd' };
+  return AVL_RAW.map(bus => ({
+    id: bus.id,
+    vehicle_id: bus.k.split('_')[0],
+    points: bus.p.map(([t, d]) => ({ t, d })),
+    anomalies: bus.a
+      .map(([t, d, code]) => ({ t, d, type: typeMap[code] }))
+      .filter(a => {
+        if (a.type === 'idle')  return idleMin <= 5;   // show if threshold is permissive
+        if (a.type === 'bunch') return bunchSec >= 60; // show if threshold is permissive
+        if (a.type === 'crowd') return crowdPct <= 100;
+        return true;
+      }),
+  }));
+}
+
+const BUS_COLORS = [
+  '#4D9EFF','#A78BFA','#1BB8B0','#FCD34D','#F472B6',
+  '#60A5FA','#34D399','#FBBF24','#C084FC','#67E8F9',
+];
+
+function seededRand(seed) {
+  let s = seed;
+  return () => { s = (s * 16807 + 0) % 2147483647; return (s - 1) / 2147483646; };
+}
+
+function genBusData(bunchInt, idleMin) {
+  const buses = [];
+  const rand = seededRand(42 + bunchInt * 3 + idleMin * 7);
+  const numBuses = 10;
+  const idleThreshMin = idleMin;
+
+  for (let b = 0; b < numBuses; b++) {
+    const points = [];
+    const anomalies = [];
+    let t = START_T + b * 13 + rand() * 6 - 3;
+    let d = 0;
+
+    while (d < NUM_STOPS - 1 && t < END_T - 30) {
+      // Optional idle event
+      if (rand() < 0.11) {
+        const dur = idleThreshMin * (0.8 + rand() * 1.2);
+        anomalies.push({ t, d, type: 'idle' });
+        points.push({ t, d });
+        t += dur;
+        points.push({ t, d });
+      }
+
+      // Travel to next segment
+      const dist = 0.7 + rand() * 0.6;
+      const speed = 0.02 + rand() * 0.015; // stops per minute
+      const travel = dist / speed;
+      t += travel;
+      d = Math.min(d + dist, NUM_STOPS - 1);
+      points.push({ t, d });
+
+      // Crowding near central stops
+      if (d > 3 && d < 9 && rand() < 0.12) {
+        anomalies.push({ t, d, type: 'crowd' });
+      }
+    }
+
+    buses.push({ id: b, points, anomalies });
+  }
+
+  // Inject bunching clusters (headway collapse)
+  const bunchFactor = Math.max(0.3, 1 - bunchInt / 300);
+  [[2,3,4,580,5],[6,7,8,820,8]].forEach(([a, b2, c, tc, dc]) => {
+    if (rand() + bunchFactor > 0.6) {
+      [a, b2, c].forEach((idx, i) => {
+        if (buses[idx]) buses[idx].anomalies.push({ t: tc + i * 4, d: dc + rand() * 1.5, type: 'bunch' });
+      });
+    }
+  });
+
+  return buses;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ICONS
+// ─────────────────────────────────────────────────────────────────────────────
+const ICONS = {
+  params:   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M4 6h16M8 12h8M11 18h2"/></svg>,
+  play:     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M6 4l13 8-13 8V4z"/></svg>,
+  pause:    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>,
+  reset:    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><polyline points="1,4 1,10 7,10"/><path d="M3.51 15a9 9 0 1 0 .49-3.63"/></svg>,
+  analysis: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="3" y="12" width="4" height="9" rx="1"/><rect x="10" y="7" width="4" height="14" rx="1"/><rect x="17" y="3" width="4" height="18" rx="1"/></svg>,
+  bus:      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20M7 19v2M17 19v2"/><circle cx="7" cy="14" r="1.5" fill="currentColor"/><circle cx="17" cy="14" r="1.5" fill="currentColor"/></svg>,
+  dot:      <svg viewBox="0 0 8 8"><circle cx="4" cy="4" r="3" fill="currentColor"/></svg>,
+  chevron:  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="9,18 15,12 9,6"/></svg>,
+};
+const Ic = ({ n, size=16 }) => <span style={{ width: size, height: size, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{React.cloneElement(ICONS[n], { width: size, height: size })}</span>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SHARED UI ATOMS
+// ─────────────────────────────────────────────────────────────────────────────
+const Tag = ({ children, color }) => (
+  <span style={{ padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 500,
+    background: `${color}18`, color, border: `1px solid ${color}30` }}>{children}</span>
+);
+
+const Divider = ({ my = 20 }) => <div style={{ height: 1, background: 'var(--border)', margin: `${my}px 0` }} />;
+
+const SecLabel = ({ children }) => (
+  <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.09em', textTransform: 'uppercase',
+    color: 'var(--t3)', marginBottom: 10 }}>{children}</div>
+);
+
+const Slider = ({ label, unit, min, max, step, value, onChange, color = 'var(--accent)' }) => (
+  <div style={{ marginBottom: 18 }}>
+    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, fontSize: 13 }}>
+      <span style={{ color: 'var(--t2)' }}>{label}</span>
+      <span style={{ fontFamily: 'IBM Plex Mono', color, fontWeight: 500, fontSize: 12 }}>{value}{unit}</span>
+    </div>
+    <input type="range" min={min} max={max} step={step} value={value}
+      onChange={e => onChange(+e.target.value)}
+      style={{ accentColor: color }} />
+    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--t3)', marginTop: 4 }}>
+      <span>{min}{unit}</span><span>{max}{unit}</span>
+    </div>
+  </div>
+);
+
+const AnomalyPill = ({ type, active, onClick }) => {
+  const cfg = { bunch: ['var(--bunch)', '▲ Bunching'], idle: ['var(--idle)', '▲ Idling'], crowd: ['var(--crowd)', '● Crowding'] };
+  const [color, label] = cfg[type];
+  return (
+    <button onClick={onClick} style={{
+      display: 'flex', alignItems: 'center', gap: 5, padding: '5px 12px',
+      borderRadius: 6, border: '1px solid', cursor: 'pointer',
+      borderColor: active ? color : 'var(--border)',
+      background: active ? `${color}14` : 'transparent',
+      color: active ? color : 'var(--t3)', fontSize: 12,
+      transition: 'all 0.15s',
+    }}>{label}</button>
+  );
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SIDEBAR
+// ─────────────────────────────────────────────────────────────────────────────
+const NAV = [
+  { id: 'params',   label: 'Parameters', icon: 'params'   },
+  { id: 'playback', label: 'Playback',   icon: 'play'     },
+  { id: 'analysis', label: 'Analytics',  icon: 'analysis' },
+];
+
+const Sidebar = ({ active, setActive }) => (
+  <aside style={{ width: 216, background: 'var(--s1)', borderRight: '1px solid var(--border)',
+    display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
+
+    {/* Logo */}
+    <div style={{ padding: '20px 18px 18px', borderBottom: '1px solid var(--border)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div style={{ width: 34, height: 34, borderRadius: 9, background: 'var(--accent)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontFamily: 'IBM Plex Mono', fontWeight: 500, fontSize: 12, color: '#fff', letterSpacing: '-0.03em' }}>iR</div>
+        <div>
+          <div style={{ fontWeight: 600, fontSize: 15, letterSpacing: '0.01em' }}>iROAM</div>
+          <div style={{ fontSize: 10, color: 'var(--t3)', letterSpacing: '0.06em' }}>ROUTE MONITOR</div>
+        </div>
+      </div>
+    </div>
+
+    {/* Nav */}
+    <nav style={{ padding: '12px 10px', flex: 1 }}>
+      <SecLabel>Dashboard</SecLabel>
+      {NAV.map(n => {
+        const on = active === n.id;
+        return (
+          <button key={n.id} onClick={() => setActive(n.id)} style={{
+            display: 'flex', alignItems: 'center', gap: 9, width: '100%',
+            padding: '8px 10px', borderRadius: 7, border: 'none', cursor: 'pointer',
+            background: on ? 'var(--s3)' : 'transparent',
+            color: on ? 'var(--t1)' : 'var(--t2)',
+            fontSize: 13.5, fontWeight: on ? 500 : 400, marginBottom: 2,
+            transition: 'all 0.14s',
+          }}>
+            <span style={{ color: on ? 'var(--accent)' : 'var(--t3)' }}><Ic n={n.icon} size={15} /></span>
+            {n.label}
+            {on && <div style={{ marginLeft: 'auto', width: 5, height: 5, borderRadius: '50%', background: 'var(--accent)' }} />}
+          </button>
+        );
+      })}
+    </nav>
+
+    {/* Footer */}
+    <div style={{ padding: '14px 18px', borderTop: '1px solid var(--border)' }}>
+      <div style={{ fontSize: 10, color: 'var(--t3)', lineHeight: 1.6 }}>Transit Analytics Lab<br/>University of Toronto</div>
+    </div>
+  </aside>
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TOP BAR
+// ─────────────────────────────────────────────────────────────────────────────
+const TopBar = ({ page, route, date, dir, drawerOpen, setDrawerOpen }) => {
+  const titles = { params: 'Parameter Configuration', playback: 'Route Playback', analysis: 'Visual Analytics' };
+  const dirColor = dir === 'Northbound' ? 'var(--acc2)' : '#A78BFA';
+  return (
+    <div style={{ height: 52, background: 'var(--s1)', borderBottom: '1px solid var(--border)',
+      display: 'flex', alignItems: 'center', padding: '0 22px', gap: 18, flexShrink: 0 }}>
+      <span style={{ fontWeight: 600, fontSize: 14 }}>{titles[page]}</span>
+      <div style={{ width: 1, height: 18, background: 'var(--bhi)' }} />
+      <div style={{ display: 'flex', gap: 14, fontSize: 13, color: 'var(--t2)', alignItems: 'center' }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+          <Ic n="bus" size={13} />
+          <span style={{ color: 'var(--accent)', fontWeight: 600 }}>Route {route}</span>
+        </span>
+        <span style={{ fontFamily: 'IBM Plex Mono', fontSize: 12 }}>{date}</span>
+        <Tag color={dirColor}>{dir}</Tag>
+      </div>
+      <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 16 }}>
+        <div style={{ display: 'flex', gap: 12 }}>
+          {[['var(--bunch)','7 Bunching'],['var(--idle)','12 Idling'],['var(--crowd)','2 Crowding']].map(([c,l]) => (
+            <span key={l} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: 'var(--t3)' }}>
+              <span style={{ width: 6, height: 6, borderRadius: '50%', background: c, display: 'inline-block' }} />{l}
+            </span>
+          ))}
+        </div>
+        <div style={{ width: 1, height: 18, background: 'var(--bhi)' }} />
+        <span style={{ fontSize: 11, color: 'var(--t3)', fontFamily: 'IBM Plex Mono' }}>
+          <span style={{ color: 'var(--crowd)', marginRight: 5, animation: 'pulse 2s ease infinite', display: 'inline-block' }}>●</span>LIVE
+        </span>
+        {page !== 'params' && (
+          <>
+            <div style={{ width: 1, height: 18, background: 'var(--bhi)' }} />
+            <button onClick={() => setDrawerOpen(o => !o)} style={{
+              display: 'flex', alignItems: 'center', gap: 6, padding: '5px 12px',
+              borderRadius: 7, border: '1px solid', cursor: 'pointer',
+              borderColor: drawerOpen ? 'var(--accent)' : 'var(--border)',
+              background: drawerOpen ? 'rgba(224,123,50,0.12)' : 'var(--s2)',
+              color: drawerOpen ? 'var(--accent)' : 'var(--t2)',
+              fontSize: 12, fontWeight: 500, transition: 'all 0.15s',
+            }}>
+              <Ic n="params" size={13} />
+              Parameters
+              <span style={{ fontSize: 10, opacity: 0.7 }}>{drawerOpen ? '✕' : '⊞'}</span>
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PARAMETER PANEL
+// ─────────────────────────────────────────────────────────────────────────────
+const ParameterPanel = ({ params, setP, onApply, applying }) => {
+  const { route, date, dir, bunchInt, idleMin, crowdPct, stops } = params;
+
+  const toggleStop = s => setP(p => ({
+    ...p, stops: p.stops.includes(s) ? p.stops.filter(x => x !== s) : [...p.stops, s]
+  }));
+
+  const summary = [
+    { label: 'Route',      val: `Route ${route}` },
+    { label: 'Date',       val: date },
+    { label: 'Direction',  val: dir },
+    { label: 'Bunching ≤', val: `${bunchInt} sec`,  color: 'var(--bunch)' },
+    { label: 'Idling ≥',   val: `${idleMin} min`,   color: 'var(--idle)' },
+    { label: 'Crowding ≥', val: `${crowdPct}%`,     color: 'var(--crowd)' },
+    { label: 'Stops',      val: stops.length ? `${stops.length} filtered` : 'All' },
+  ];
+
+  const sel = v => ({
+    flex: 1, background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 7,
+    color: 'var(--t1)', padding: '8px 12px', fontSize: 13, cursor: 'pointer', colorScheme: 'dark',
+  });
+
+  return (
+    <div style={{ display: 'flex', height: '100%', overflow: 'hidden', animation: 'fadein 0.2s ease' }}>
+
+      {/* ── Col 1: Route config ── */}
+      <div style={{ width: 300, borderRight: '1px solid var(--border)', padding: 24, overflowY: 'auto' }}>
+        <SecLabel>Route Configuration</SecLabel>
+
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 12, color: 'var(--t3)', marginBottom: 6 }}>Route</div>
+          <select value={route} onChange={e => setP(p => ({ ...p, route: e.target.value }))} style={sel()}>
+            {['29','510','504','7','35'].map(r => <option key={r} value={r}>Route {r} — {['Dufferin','Spadina','King','Bathurst','Jane'][['29','510','504','7','35'].indexOf(r)]}</option>)}
+          </select>
+        </div>
+
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 12, color: 'var(--t3)', marginBottom: 6 }}>Service Date</div>
+          <input type="date" value={date} onChange={e => setP(p => ({ ...p, date: e.target.value }))} style={{ ...sel(), width: '100%', display: 'block' }} />
+        </div>
+
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 12, color: 'var(--t3)', marginBottom: 6 }}>Direction</div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {['Northbound', 'Southbound'].map(d => (
+              <button key={d} onClick={() => setP(p => ({ ...p, dir: d }))} style={{
+                flex: 1, padding: '8px', border: '1px solid', borderRadius: 7, cursor: 'pointer',
+                borderColor: dir === d ? (d === 'Northbound' ? 'var(--acc2)' : '#A78BFA') : 'var(--border)',
+                background: dir === d ? (d === 'Northbound' ? 'rgba(27,184,176,0.1)' : 'rgba(167,139,250,0.1)') : 'transparent',
+                color: dir === d ? (d === 'Northbound' ? 'var(--acc2)' : '#A78BFA') : 'var(--t2)',
+                fontSize: 13, transition: 'all 0.15s',
+              }}>{d}</button>
+            ))}
+          </div>
+        </div>
+
+        <Divider />
+        <SecLabel>Stop Filter</SecLabel>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+          {STOPS.map(s => {
+            const on = stops.includes(s);
+            return (
+              <button key={s} onClick={() => toggleStop(s)} style={{
+                padding: '4px 10px', borderRadius: 20, fontSize: 11.5, cursor: 'pointer', border: '1px solid',
+                borderColor: on ? 'var(--acc2)' : 'var(--border)',
+                background: on ? 'rgba(27,184,176,0.12)' : 'transparent',
+                color: on ? 'var(--acc2)' : 'var(--t3)', transition: 'all 0.14s',
+              }}>{s}</button>
+            );
+          })}
+        </div>
+        {stops.length > 0 && (
+          <button onClick={() => setP(p => ({ ...p, stops: [] }))}
+            style={{ marginTop: 10, fontSize: 11, color: 'var(--t3)', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>
+            Clear all filters
+          </button>
+        )}
+      </div>
+
+      {/* ── Col 2: Thresholds ── */}
+      <div style={{ flex: 1, padding: 24, overflowY: 'auto' }}>
+        <SecLabel>Anomaly Detection Thresholds</SecLabel>
+        <div style={{ marginTop: 8 }}>
+          {[
+            { key:'bunchInt', color:'var(--bunch)', title:'Bus Bunching', desc:'Flags buses with headway below this interval as bunched.', sliderProps: { label:'Min Headway Interval', unit:' sec', min:30, max:300, step:10, value:bunchInt, k:'bunchInt' } },
+            { key:'idleMin',  color:'var(--idle)',  title:'Bus Idling',   desc:'Flags stationary events longer than this duration.', sliderProps: { label:'Min Idle Duration', unit:' min', min:1, max:20, step:0.5, value:idleMin, k:'idleMin' } },
+            { key:'crowdPct', color:'var(--crowd)', title:'Overcrowding', desc:'Flags stop events exceeding this passenger load ratio.', sliderProps: { label:'Occupancy Threshold', unit:'%', min:50, max:150, step:5, value:crowdPct, k:'crowdPct' } },
+          ].map(({ key, color, title, desc, sliderProps }) => (
+            <div key={key} style={{ background: 'var(--s2)', borderLeft: `3px solid ${color}`, borderRadius: '0 8px 8px 0',
+              border: `1px solid var(--border)`, borderLeft: `3px solid ${color}`, padding: '18px 20px', marginBottom: 14 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                <div style={{ width: 7, height: 7, borderRadius: '50%', background: color, boxShadow: `0 0 8px ${color}` }} />
+                <span style={{ fontWeight: 600, fontSize: 14 }}>{title}</span>
+              </div>
+              <div style={{ fontSize: 11.5, color: 'var(--t3)', marginBottom: 16 }}>{desc}</div>
+              <Slider {...sliderProps} color={color} onChange={v => setP(p => ({ ...p, [sliderProps.k]: v }))} />
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ── Col 3: Summary + Apply ── */}
+      <div style={{ width: 250, borderLeft: '1px solid var(--border)', padding: 24, display: 'flex', flexDirection: 'column' }}>
+        <SecLabel>Configuration Summary</SecLabel>
+        <div style={{ flex: 1, marginTop: 4 }}>
+          {summary.map(({ label, val, color }) => (
+            <div key={label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+              padding: '9px 0', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
+              <span style={{ color: 'var(--t3)' }}>{label}</span>
+              <span style={{ color: color || 'var(--t1)', fontFamily: 'IBM Plex Mono', fontSize: 12, fontWeight: 500 }}>{val}</span>
+            </div>
+          ))}
+        </div>
+
+        <button onClick={onApply} disabled={applying} style={{
+          marginTop: 20, padding: '11px 0', borderRadius: 8, border: 'none',
+          background: applying ? 'var(--s3)' : 'var(--accent)', color: applying ? 'var(--t2)' : '#fff',
+          fontSize: 13.5, fontWeight: 600, cursor: applying ? 'wait' : 'pointer',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, transition: 'all 0.2s',
+        }}>
+          {applying
+            ? <><span style={{ display:'inline-block', animation:'spin 0.8s linear infinite' }}>⟳</span> Processing…</>
+            : 'Apply & Reprocess'}
+        </button>
+
+        {applying && (
+          <div style={{ marginTop: 12, background: 'var(--s2)', borderRadius: 8, padding: 12, animation: 'fadein 0.2s ease' }}>
+            {['Aligning AVL + APC + GTFS…','Labeling anomalies…','Building visualizations…'].map((msg, i) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, fontSize: 11, color: 'var(--t3)' }}>
+                <span style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--accent)', display: 'inline-block',
+                  animation: `pulse 1.2s ease ${i*0.4}s infinite` }} />
+                {msg}
+              </div>
+            ))}
+            <div style={{ background: 'var(--s3)', height: 3, borderRadius: 2, marginTop: 8, overflow: 'hidden' }}>
+              <div style={{ height: '100%', background: 'var(--accent)', borderRadius: 2, animation: 'prog 1.8s ease forwards' }} />
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PLAYBACK PAGE
+// ─────────────────────────────────────────────────────────────────────────────
+const PlaybackPage = ({ busData }) => {
+  const [playing, setPlaying] = useState(false);
+  const [t, setT] = useState(START_T);
+  const [vis, setVis] = useState({ bunch: true, idle: true, crowd: true });
+  const rafRef = useRef(null);
+
+  const fmt = m => {
+    const h = Math.floor(m / 60), mn = Math.floor(m % 60);
+    return `${String(h).padStart(2,'0')}:${String(mn).padStart(2,'0')}`;
+  };
+
+  useEffect(() => {
+    if (playing) {
+      const step = () => {
+        setT(cur => {
+          if (cur >= END_T) { setPlaying(false); return END_T; }
+          return cur + 1.5;
+        });
+        rafRef.current = requestAnimationFrame(step);
+      };
+      rafRef.current = requestAnimationFrame(step);
+    } else cancelAnimationFrame(rafRef.current);
+    return () => cancelAnimationFrame(rafRef.current);
+  }, [playing]);
+
+  const pct = (t - START_T) / (END_T - START_T) * 100;
+
+  return (
+    <div style={{ display:'flex', flexDirection:'column', height:'100%', animation:'fadein 0.2s ease' }}>
+
+      {/* Controls */}
+      <div style={{ display:'flex', alignItems:'center', gap:12, padding:'10px 20px',
+        borderBottom:'1px solid var(--border)', background:'var(--s1)', flexShrink:0 }}>
+
+        <button onClick={() => setPlaying(p => !p)} style={{
+          width:34, height:34, borderRadius:7, border:'1px solid',
+          borderColor: playing ? 'var(--accent)' : 'var(--border)',
+          background: playing ? 'rgba(224,123,50,0.15)' : 'var(--s2)',
+          color: playing ? 'var(--accent)' : 'var(--t1)', cursor:'pointer',
+          display:'flex', alignItems:'center', justifyContent:'center',
+        }}><Ic n={playing ? 'pause' : 'play'} size={13} /></button>
+
+        <button onClick={() => { setT(START_T); setPlaying(false); }} style={{
+          width:34, height:34, borderRadius:7, border:'1px solid var(--border)',
+          background:'var(--s2)', color:'var(--t2)', cursor:'pointer',
+          display:'flex', alignItems:'center', justifyContent:'center',
+        }}><Ic n="reset" size={13} /></button>
+
+        <div style={{ flex:1, display:'flex', alignItems:'center', gap:10 }}>
+          <span style={{ fontFamily:'IBM Plex Mono', fontSize:12, color:'var(--accent)', minWidth:40 }}>{fmt(t)}</span>
+          <div style={{ flex:1, cursor:'pointer', padding:'6px 0' }} onClick={e => {
+            const r = e.currentTarget.getBoundingClientRect();
+            setT(START_T + ((e.clientX - r.left) / r.width) * (END_T - START_T));
+          }}>
+            <div style={{ height:4, background:'var(--s3)', borderRadius:2, position:'relative' }}>
+              <div style={{ position:'absolute', left:0, top:0, height:'100%', width:`${pct}%`,
+                background:'linear-gradient(90deg,var(--accent),#f0a060)', borderRadius:2,
+                transition:'width 0.05s linear' }} />
+              <div style={{ position:'absolute', top:'50%', left:`${pct}%`, transform:'translate(-50%,-50%)',
+                width:10, height:10, borderRadius:'50%', background:'var(--accent)',
+                border:'2px solid var(--bg)', transition:'left 0.05s linear' }} />
+            </div>
+          </div>
+          <span style={{ fontFamily:'IBM Plex Mono', fontSize:12, color:'var(--t3)', minWidth:40 }}>{fmt(END_T)}</span>
+        </div>
+
+        <div style={{ display:'flex', gap:6 }}>
+          {(['bunch','idle','crowd']).map(k => (
+            <AnomalyPill key={k} type={k} active={vis[k]} onClick={() => setVis(v => ({ ...v, [k]: !v[k] }))} />
+          ))}
+        </div>
+      </div>
+
+      {/* Chart area */}
+      <div style={{ flex:1, display:'flex', overflow:'hidden' }}>
+        <TDDiagram busData={busData} currentT={t} vis={vis} fmt={fmt} />
+        <SchematicMap busData={busData} currentT={t} vis={vis} />
+      </div>
+    </div>
+  );
+};
+
+const TDDiagram = ({ busData, currentT, vis, fmt }) => {
+  const W = 760, H = 460;
+  const PAD = { top: 24, right: 28, bottom: 40, left: 70 };
+  const xS = t => PAD.left + (t - START_T) / (END_T - START_T) * (W - PAD.left - PAD.right);
+  const yS = d => {
+    const lo = Math.floor(Math.min(d, NUM_STOPS - 2));
+    const t = d - lo;
+    const yLo = PAD.top + (1 - stopLatNorm(lo))     * (H - PAD.top - PAD.bottom);
+    const yHi = PAD.top + (1 - stopLatNorm(lo + 1)) * (H - PAD.top - PAD.bottom);
+    return yLo + t * (yHi - yLo);
+  };
+  const xTicks = [360,480,600,720,840,960,1080,1200,1320];
+
+  return (
+    <div style={{ flex:1.5, borderRight:'1px solid var(--border)', overflow:'hidden', position:'relative' }}>
+      <div style={{ padding:'10px 16px 0', fontSize:10, color:'var(--t3)', letterSpacing:'0.08em', textTransform:'uppercase' }}>Time–Distance Diagram</div>
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width:'100%', height:'calc(100% - 28px)', display:'block' }}>
+
+        {/* Grid */}
+        {xTicks.map(tick => (
+          <g key={tick}>
+            <line x1={xS(tick)} y1={PAD.top} x2={xS(tick)} y2={H - PAD.bottom}
+              stroke="rgba(255,255,255,0.04)" strokeWidth={1} />
+            <text x={xS(tick)} y={H - PAD.bottom + 14} textAnchor="middle" fontSize={9} fill="rgba(255,255,255,0.28)">{fmt(tick)}</text>
+          </g>
+        ))}
+        {ROUTE29_STOPS.map((s, i) => (
+          <g key={s.name}>
+            <line x1={PAD.left} y1={yS(i)} x2={W - PAD.right} y2={yS(i)}
+              stroke={i % 4 === 0 ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.025)'} strokeWidth={1} />
+            <text x={PAD.left - 7} y={yS(i) + 3.5} textAnchor="end" fontSize={9.5} fill="rgba(255,255,255,0.32)">{s.name}</text>
+          </g>
+        ))}
+
+        {/* Peak shading */}
+        {[[480,600],[900,1080]].map(([a,b], i) => (
+          <rect key={i} x={xS(a)} y={PAD.top} width={xS(b)-xS(a)} height={H - PAD.top - PAD.bottom}
+            fill="rgba(255,255,255,0.015)" />
+        ))}
+
+        {/* Trajectories */}
+        {busData.map((bus, idx) => {
+          const pts = bus.points.filter(p => p.t <= currentT);
+          if (pts.length < 2) return null;
+          const d = pts.map((p, i) => `${i===0?'M':'L'}${xS(p.t).toFixed(1)},${yS(p.d).toFixed(1)}`).join(' ');
+          return <path key={bus.id} d={d} fill="none"
+            stroke={BUS_COLORS[idx % BUS_COLORS.length]} strokeWidth={1.8}
+            opacity={0.75} strokeLinecap="round" strokeLinejoin="round" />;
+        })}
+
+        {/* Anomaly markers */}
+        {busData.flatMap((bus, idx) =>
+          bus.anomalies.filter(a => a.t <= currentT && vis[a.type]).map((a, j) => {
+            const x = xS(a.t), y = yS(a.d);
+            const color = a.type === 'bunch' ? 'var(--bunch)' : a.type === 'idle' ? 'var(--idle)' : 'var(--crowd)';
+            if (a.type === 'crowd') return <circle key={`${bus.id}-${j}`} cx={x} cy={y} r={4.5} fill={color} opacity={0.9} stroke="var(--bg)" strokeWidth={1} />;
+            return <polygon key={`${bus.id}-${j}`} points={`${x},${y-6} ${x-4.5},${y+3.5} ${x+4.5},${y+3.5}`} fill={color} opacity={0.9} />;
+          })
+        )}
+
+        {/* Playhead */}
+        <line x1={xS(currentT)} y1={PAD.top} x2={xS(currentT)} y2={H - PAD.bottom}
+          stroke="var(--accent)" strokeWidth={1.5} strokeDasharray="5,3" opacity={0.85} />
+        <polygon points={`${xS(currentT)},${PAD.top} ${xS(currentT)-5},${PAD.top-9} ${xS(currentT)+5},${PAD.top-9}`}
+          fill="var(--accent)" />
+
+        {/* Axis labels */}
+        <text x={(PAD.left + W - PAD.right) / 2} y={H - 4} textAnchor="middle" fontSize={9} fill="rgba(255,255,255,0.2)">Time of Day</text>
+        <text x={12} y={(PAD.top + H - PAD.bottom) / 2} textAnchor="middle" fontSize={9} fill="rgba(255,255,255,0.2)"
+          transform={`rotate(-90,12,${(PAD.top + H - PAD.bottom) / 2})`}>Distance Along Route →</text>
+      </svg>
+    </div>
+  );
+};
+
+const SchematicMap = ({ busData, currentT, vis }) => {
+  const containerRef = useRef(null);
+  const [dims, setDims] = useState({ w: 270, h: 500 });
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const obs = new ResizeObserver(([entry]) => {
+      const { width, height } = entry.contentRect;
+      setDims({ w: Math.max(width, 120), h: Math.max(height - 30, 200) });
+    });
+    obs.observe(containerRef.current);
+    return () => obs.disconnect();
+  }, []);
+
+  const W = dims.w, H = dims.h;
+  const PAD = { top: 24, bottom: 20, left: 10, right: 10 };
+  const rx = W / 2; // centered route line
+
+  const yP = i => {
+    const norm = stopLatNorm(i);
+    return H - PAD.bottom - norm * (H - PAD.top - PAD.bottom);
+  };
+  const xP = () => rx;
+
+  const interpY = d => {
+    const lo = Math.floor(Math.min(d, NUM_STOPS - 2));
+    const t = d - lo;
+    return yP(lo) + t * (yP(lo + 1) - yP(lo));
+  };
+  const interpX = d => {
+    const lo = Math.floor(Math.min(d, NUM_STOPS - 2));
+    const t = d - lo;
+    return xP(lo) + t * (xP(lo + 1) - xP(lo));
+  };
+
+  const activeBuses = busData.map((bus, idx) => {
+    const pts = bus.points.filter(p => p.t <= currentT);
+    if (!pts.length) return null;
+    return { ...bus, d: pts[pts.length - 1].d, idx };
+  }).filter(Boolean);
+
+  const anomHeat = {};
+  busData.forEach(bus => bus.anomalies.filter(a => a.t <= currentT && vis[a.type]).forEach(a => {
+    const si = Math.round(a.d);
+    anomHeat[si] = (anomHeat[si] || 0) + 1;
+  }));
+
+  const routePath = ROUTE29_STOPS.map((_, i) =>
+    `${i === 0 ? 'M' : 'L'}${rx.toFixed(1)},${yP(i).toFixed(1)}`
+  ).join(' ');
+
+  return (
+    <div ref={containerRef} style={{ width: 270, overflow: 'hidden', position: 'relative', flexShrink: 0, display: 'flex', flexDirection: 'column' }}>
+      <div style={{ padding: '10px 16px 0', fontSize: 10, color: 'var(--t3)', letterSpacing: '0.08em', textTransform: 'uppercase', flexShrink: 0 }}>
+        Spatial View · Dufferin (GTFS)
+      </div>
+      <svg width="100%" height="100%" style={{ display: 'block', flex: 1 }}>
+
+        {/* Route glow + line */}
+        <path d={routePath} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth={8} strokeLinecap="round" strokeLinejoin="round" />
+        <path d={routePath} fill="none" stroke="rgba(255,255,255,0.14)" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
+
+        {/* Anomaly heat halos */}
+        {Object.entries(anomHeat).map(([si, cnt]) => (
+          <circle key={si} cx={rx} cy={yP(+si)} r={7 + cnt * 3} fill="var(--idle)" opacity={0.09} />
+        ))}
+
+        {/* Stops — proportionally spaced by real latitude */}
+        {ROUTE29_STOPS.map((s, i) => (
+          <g key={s.name}>
+            <circle cx={rx} cy={yP(i)} r={5} fill="var(--s3)" stroke="rgba(255,255,255,0.28)" strokeWidth={1.8} />
+            <text x={rx - 14} y={yP(i) + 4} textAnchor="end" fontSize={11} fill="rgba(255,255,255,0.5)">{s.name}</text>
+          </g>
+        ))}
+
+        {/* Active bus markers */}
+        {activeBuses.map(bus => {
+          const by = interpY(bus.d), bx = rx;
+          const offset = ((bus.idx % 3) - 1) * 16;
+          const color = BUS_COLORS[bus.idx % BUS_COLORS.length];
+          return (
+            <g key={bus.id}>
+              <line x1={bx} y1={by} x2={bx + 18 + offset} y2={by}
+                stroke={color} strokeWidth={1} opacity={0.32} strokeDasharray="2,2" />
+              <rect x={bx + 8 + offset - 11} y={by - 8} width={24} height={16} rx={3} fill={color} opacity={0.92} />
+              <text x={bx + 8 + offset} y={by + 5} textAnchor="middle"
+                fontSize={9.5} fontWeight="700" fill="rgba(0,0,0,0.85)">{bus.id + 1}</text>
+            </g>
+          );
+        })}
+
+        {/* Cardinal labels */}
+        <text x={rx + 10} y={yP(NUM_STOPS-1) + 4} fontSize={11} fill="rgba(255,255,255,0.28)">N ↑</text>
+        <text x={rx + 10} y={yP(0) + 4}           fontSize={11} fill="rgba(255,255,255,0.28)">S ↓</text>
+        <text x={W - 4} y={H - 5} textAnchor="end" fontSize={8} fill="rgba(255,255,255,0.15)"
+          fontFamily="IBM Plex Mono">{activeBuses.length} active · GTFS</text>
+      </svg>
+    </div>
+  );
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ANALYTICS PAGE
+// ─────────────────────────────────────────────────────────────────────────────
+const hours = Array.from({length:17}, (_,i) => i + 6);
+const HOUR_BUNCH  = [2,4,7,9,14,11,7,5,10,16,13,9,13,17,11,7,3];
+const HOUR_IDLE   = [1,2,3,6,9,8,5,3,7,10,9,7,8,11,9,6,2];
+const HOUR_CROWD  = [0,1,2,4,7,6,3,2,5,9,7,5,6,8,6,3,1];
+const SPEED_DATA  = [22,21,17,14,12,14,18,17,13,11,12,14,13,11,13,16,19];
+const TIME_ALLOC  = [
+  [56,20,14,10],[51,22,17,10],[45,25,20,10],[40,28,22,10],
+  [34,30,26,10],[37,28,24,11],[41,25,22,12],[43,24,21,12],
+  [35,28,25,12],[29,32,28,11],[31,30,27,12],[35,29,25,11],
+  [37,27,24,12],[31,31,27,11],[37,27,23,13],[42,25,21,12],[51,22,17,10]
+];
+
+const AnalyticsPage = () => {
+  const [filter, setFilter] = useState('all');
+  const bData = filter === 'all' || filter === 'bunch' ? HOUR_BUNCH : HOUR_BUNCH.map(() => 0);
+  const iData = filter === 'all' || filter === 'idle'  ? HOUR_IDLE  : HOUR_IDLE.map(() => 0);
+  const cData = filter === 'all' || filter === 'crowd' ? HOUR_CROWD : HOUR_CROWD.map(() => 0);
+
+  return (
+    <div style={{ display:'flex', flexDirection:'column', height:'100%', overflow:'hidden', animation:'fadein 0.2s ease' }}>
+
+      {/* Filter bar */}
+      <div style={{ display:'flex', gap:8, padding:'10px 20px', borderBottom:'1px solid var(--border)', flexShrink:0, alignItems:'center' }}>
+        {[['all','var(--t2)','All Anomalies'],['bunch','var(--bunch)','Bunching'],['idle','var(--idle)','Idling'],['crowd','var(--crowd)','Crowding']].map(([k,c,l]) => (
+          <button key={k} onClick={() => setFilter(k)} style={{
+            padding:'5px 14px', borderRadius:6, border:'1px solid', cursor:'pointer', fontFamily:'inherit',
+            borderColor: filter === k ? c : 'var(--border)',
+            background: filter === k ? `${c}14` : 'transparent',
+            color: filter === k ? c : 'var(--t3)', fontSize:12, transition:'all 0.14s',
+          }}>{l}</button>
+        ))}
+        <div style={{ marginLeft:'auto', fontSize:11, color:'var(--t3)', fontFamily:'IBM Plex Mono' }}>
+          Route 29 · Apr 21, 2026 · 16 vehicles
+        </div>
+      </div>
+
+      {/* 2×2 grid */}
+      <div style={{ flex:1, display:'grid', gridTemplateColumns:'1fr 1fr', gridTemplateRows:'1fr 1fr', overflow:'hidden' }}>
+
+        <ChartPanel title="Anomaly Frequency by Stop" sub="Bubble radius proportional to event count" border="right bottom">
+          <SpatialBubbleMap filter={filter} />
+        </ChartPanel>
+
+        <ChartPanel title="Average Operating Speed" sub="km/h · shaded bands = AM/PM peak" border="bottom">
+          <SpeedLine data={SPEED_DATA} />
+        </ChartPanel>
+
+        <ChartPanel title="Anomaly Frequency by Hour" sub="Event count · grouped bar" border="right">
+          <GroupedBar bData={bData} iData={iData} cData={cData} />
+        </ChartPanel>
+
+        <ChartPanel title="Running Time Allocation" sub="% of travel time by anomaly type">
+          <StackedBar data={TIME_ALLOC} />
+        </ChartPanel>
+
+      </div>
+    </div>
+  );
+};
+
+const ChartPanel = ({ title, sub, border, children }) => {
+  const bStyle = {};
+  if (border?.includes('right'))  bStyle.borderRight  = '1px solid var(--border)';
+  if (border?.includes('bottom')) bStyle.borderBottom = '1px solid var(--border)';
+  return (
+    <div style={{ padding:'16px 18px', overflow:'hidden', display:'flex', flexDirection:'column', ...bStyle }}>
+      <div style={{ marginBottom:10 }}>
+        <div style={{ fontSize:13, fontWeight:500 }}>{title}</div>
+        <div style={{ fontSize:11, color:'var(--t3)' }}>{sub}</div>
+      </div>
+      <div style={{ flex:1, overflow:'hidden' }}>{children}</div>
+    </div>
+  );
+};
+
+const SpatialBubbleMap = ({ filter }) => {
+  // Anomaly frequency per stop (representative counts for Route 29 Nov 24, 2023)
+  const freqs = [4,6,9,12,10,18,22,8,7,14,11,16,9,13,15,19,12,8,10,5];
+  const W=400, H=220;
+  const PAD={ top:14, bottom:14, left:88, right:16 };
+
+  const yP = i => {
+    const norm = stopLatNorm(i);
+    return H - PAD.bottom - norm * (H - PAD.top - PAD.bottom);
+  };
+  const xP = i => PAD.left + stopLonNorm(i) * 14;
+
+  const routePath = ROUTE29_STOPS.map((_, i) =>
+    `${i === 0 ? 'M' : 'L'}${xP(i).toFixed(1)},${yP(i).toFixed(1)}`
+  ).join(' ');
+
+  const colorFor = f => f === 'bunch' ? 'var(--bunch)' : f === 'idle' ? 'var(--idle)' : f === 'crowd' ? 'var(--crowd)' : 'var(--accent)';
+  const color = colorFor(filter);
+
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} style={{ width:'100%', height:'100%' }}>
+      {/* Route polyline */}
+      <path d={routePath} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
+      <path d={routePath} fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth={7} strokeLinecap="round" strokeLinejoin="round" />
+
+      {ROUTE29_STOPS.map((s, i) => {
+        const r = freqs[i] * 0.52;
+        return (
+          <g key={s.name}>
+            <circle cx={xP(i)} cy={yP(i)} r={r} fill={color} opacity={0.15} />
+            <circle cx={xP(i)} cy={yP(i)} r={3} fill={color} opacity={0.85} />
+            <text x={xP(i) - r - 5} y={yP(i) + 3.5} textAnchor="end" fontSize={8.5} fill="rgba(255,255,255,0.42)">{s.name}</text>
+            <text x={xP(i) + r + 5} y={yP(i) + 3.5} fontSize={8.5} fill={color} fontFamily="IBM Plex Mono">{freqs[i]*2}</text>
+          </g>
+        );
+      })}
+
+      {/* N/S labels */}
+      <text x={xP(NUM_STOPS-1)+6} y={yP(NUM_STOPS-1)+3.5} fontSize={8} fill="rgba(255,255,255,0.2)">N</text>
+      <text x={xP(0)+6}           y={yP(0)+3.5}           fontSize={8} fill="rgba(255,255,255,0.2)">S</text>
+    </svg>
+  );
+};
+
+const SpeedLine = ({ data }) => {
+  const W=420,H=190;
+  const PAD={top:14,right:16,bottom:28,left:32};
+  const n=data.length;
+  const xS=i=>PAD.left+(i/(n-1))*(W-PAD.left-PAD.right);
+  const yS=v=>H-PAD.bottom-((v-8)/20)*(H-PAD.top-PAD.bottom);
+  const path=data.map((v,i)=>`${i===0?'M':'L'}${xS(i).toFixed(1)},${yS(v).toFixed(1)}`).join(' ');
+  const area=`${path} L${xS(n-1)},${H-PAD.bottom} L${xS(0)},${H-PAD.bottom}Z`;
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} style={{ width:'100%', height:'100%' }}>
+      <defs>
+        <linearGradient id="sg" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="var(--acc2)" stopOpacity="0.25"/>
+          <stop offset="100%" stopColor="var(--acc2)" stopOpacity="0"/>
+        </linearGradient>
+      </defs>
+      {/* Peak shadings */}
+      {[[2,6],[9,14]].map(([a,b],j)=>(
+        <rect key={j} x={xS(a)} y={PAD.top} width={xS(b)-xS(a)} height={H-PAD.top-PAD.bottom}
+          fill="rgba(255,255,255,0.025)" rx={2} />
+      ))}
+      {[12,16,20].map(v=>(
+        <g key={v}>
+          <line x1={PAD.left} y1={yS(v)} x2={W-PAD.right} y2={yS(v)} stroke="rgba(255,255,255,0.04)" />
+          <text x={PAD.left-5} y={yS(v)+3.5} textAnchor="end" fontSize={8.5} fill="rgba(255,255,255,0.28)">{v}</text>
+        </g>
+      ))}
+      <path d={area} fill="url(#sg)" />
+      <path d={path} fill="none" stroke="var(--acc2)" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+      {data.map((v,i)=>(
+        <circle key={i} cx={xS(i)} cy={yS(v)} r={2.5} fill="var(--acc2)" />
+      ))}
+      {hours.filter((_,i)=>i%3===0).map((h,j)=>(
+        <text key={h} x={xS(j*3)} y={H-PAD.bottom+13} textAnchor="middle" fontSize={8.5} fill="rgba(255,255,255,0.28)">{h}:00</text>
+      ))}
+      <text x={PAD.left-22} y={(H)/2} textAnchor="middle" fontSize={8} fill="rgba(255,255,255,0.2)"
+        transform={`rotate(-90,${PAD.left-22},${H/2})`}>km/h</text>
+    </svg>
+  );
+};
+
+const GroupedBar = ({ bData, iData, cData }) => {
+  const W=420,H=190;
+  const PAD={top:14,right:16,bottom:28,left:32};
+  const n=hours.length;
+  const slotW=(W-PAD.left-PAD.right)/n;
+  const bw=slotW/3-1.5;
+  const xS=i=>PAD.left+i*slotW;
+  const maxV=20;
+  const yS=v=>H-PAD.bottom-(v/maxV)*(H-PAD.top-PAD.bottom);
+  const yH=v=>(v/maxV)*(H-PAD.top-PAD.bottom);
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} style={{ width:'100%', height:'100%' }}>
+      {[5,10,15,20].map(v=>(
+        <g key={v}>
+          <line x1={PAD.left} y1={yS(v)} x2={W-PAD.right} y2={yS(v)} stroke="rgba(255,255,255,0.04)" />
+          <text x={PAD.left-5} y={yS(v)+3.5} textAnchor="end" fontSize={8.5} fill="rgba(255,255,255,0.28)">{v}</text>
+        </g>
+      ))}
+      {hours.map((h,i)=>(
+        <g key={h}>
+          {bData[i]>0 && <rect x={xS(i)+0.5}     y={yS(bData[i])} width={bw} height={yH(bData[i])} fill="var(--bunch)" opacity={0.82} rx={1.5} />}
+          {iData[i]>0 && <rect x={xS(i)+bw+1.5}   y={yS(iData[i])} width={bw} height={yH(iData[i])} fill="var(--idle)"  opacity={0.82} rx={1.5} />}
+          {cData[i]>0 && <rect x={xS(i)+2*bw+2.5} y={yS(cData[i])} width={bw} height={yH(cData[i])} fill="var(--crowd)" opacity={0.82} rx={1.5} />}
+          {i%3===0 && <text x={xS(i)+slotW/2} y={H-PAD.bottom+13} textAnchor="middle" fontSize={8.5} fill="rgba(255,255,255,0.28)">{h}:00</text>}
+        </g>
+      ))}
+      {/* Legend */}
+      {[['var(--bunch)','Bunching'],['var(--idle)','Idling'],['var(--crowd)','Crowding']].map(([c,l],j)=>(
+        <g key={l}>
+          <rect x={W-85} y={PAD.top+j*14} width={8} height={8} fill={c} rx={1.5} />
+          <text x={W-74} y={PAD.top+j*14+7} fontSize={8.5} fill="rgba(255,255,255,0.4)">{l}</text>
+        </g>
+      ))}
+    </svg>
+  );
+};
+
+const StackedBar = ({ data }) => {
+  const W=420,H=190;
+  const PAD={top:14,right:100,bottom:28,left:32};
+  const n=data.length;
+  const slotW=(W-PAD.left-PAD.right)/n;
+  const bw=slotW-2;
+  const xS=i=>PAD.left+i*slotW;
+  const totalH=H-PAD.top-PAD.bottom;
+  const colors=['rgba(255,255,255,0.13)','var(--idle)','var(--bunch)','var(--crowd)'];
+  const labels=['Normal','Idling','Bunching','Crowding'];
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} style={{ width:'100%', height:'100%' }}>
+      {[25,50,75].map(v=>(
+        <g key={v}>
+          <line x1={PAD.left} y1={H-PAD.bottom-v/100*totalH} x2={W-PAD.right} y2={H-PAD.bottom-v/100*totalH}
+            stroke="rgba(255,255,255,0.04)" />
+          <text x={PAD.left-5} y={H-PAD.bottom-v/100*totalH+3.5} textAnchor="end" fontSize={8.5} fill="rgba(255,255,255,0.25)">{v}%</text>
+        </g>
+      ))}
+      {data.map((seg,i)=>{
+        let y=H-PAD.bottom;
+        return (
+          <g key={i}>
+            {seg.map((v,j)=>{ const h=(v/100)*totalH; y-=h;
+              return <rect key={j} x={xS(i)+0.5} y={y} width={bw} height={h} fill={colors[j]} opacity={j===0?1:0.82} />;
+            })}
+            {i%4===0 && <text x={xS(i)+bw/2} y={H-PAD.bottom+13} textAnchor="middle" fontSize={8.5} fill="rgba(255,255,255,0.28)">{hours[i]}:00</text>}
+          </g>
+        );
+      })}
+      {labels.map((l,j)=>(
+        <g key={l}>
+          <rect x={W-PAD.right+10} y={PAD.top+j*18} width={10} height={10} fill={colors[j]} rx={2} />
+          <text x={W-PAD.right+25} y={PAD.top+j*18+8} fontSize={9} fill="rgba(255,255,255,0.45)">{l}</text>
+        </g>
+      ))}
+    </svg>
+  );
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PARAM DRAWER
+// ─────────────────────────────────────────────────────────────────────────────
+const ParamDrawer = ({ params, setP, onApply, applying }) => {
+  const { route, date, dir, bunchInt, idleMin, crowdPct } = params;
+  const sel = {
+    width: '100%', background: 'var(--s3)', border: '1px solid var(--border)',
+    borderRadius: 7, color: 'var(--t1)', padding: '7px 10px', fontSize: 12,
+    cursor: 'pointer', colorScheme: 'dark', display: 'block',
+  };
+  return (
+    <div style={{
+      width: 272, flexShrink: 0, background: 'var(--s1)',
+      borderLeft: '1px solid var(--border)', display: 'flex', flexDirection: 'column',
+      animation: 'slideInRight 0.2s ease', overflow: 'hidden',
+    }}>
+      {/* Header */}
+      <div style={{ padding: '14px 16px 12px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
+        <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--t3)' }}>Quick Parameters</div>
+      </div>
+
+      <div style={{ flex: 1, overflowY: 'auto', padding: '14px 16px' }}>
+
+        {/* Route + Date */}
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ fontSize: 11, color: 'var(--t3)', marginBottom: 5 }}>Route</div>
+          <select value={route} onChange={e => setP(p => ({ ...p, route: e.target.value }))} style={sel}>
+            {['29','510','504','7','35'].map(r => <option key={r} value={r}>Route {r}</option>)}
+          </select>
+        </div>
+
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ fontSize: 11, color: 'var(--t3)', marginBottom: 5 }}>Date</div>
+          <input type="date" value={date} onChange={e => setP(p => ({ ...p, date: e.target.value }))} style={sel} />
+        </div>
+
+        <div style={{ marginBottom: 14 }}>
+          <div style={{ fontSize: 11, color: 'var(--t3)', marginBottom: 5 }}>Direction</div>
+          <div style={{ display: 'flex', gap: 6 }}>
+            {['Northbound','Southbound'].map(d => (
+              <button key={d} onClick={() => setP(p => ({ ...p, dir: d }))} style={{
+                flex: 1, padding: '6px 0', border: '1px solid', borderRadius: 6, cursor: 'pointer', fontSize: 11,
+                borderColor: dir === d ? (d === 'Northbound' ? 'var(--acc2)' : '#A78BFA') : 'var(--border)',
+                background: dir === d ? (d === 'Northbound' ? 'rgba(27,184,176,0.1)' : 'rgba(167,139,250,0.1)') : 'transparent',
+                color: dir === d ? (d === 'Northbound' ? 'var(--acc2)' : '#A78BFA') : 'var(--t3)',
+                transition: 'all 0.14s',
+              }}>{d === 'Northbound' ? '↑ NB' : '↓ SB'}</button>
+            ))}
+          </div>
+        </div>
+
+        <Divider my={4} />
+
+        {/* Thresholds */}
+        <div style={{ marginTop: 12 }}>
+          {[
+            { k:'bunchInt', color:'var(--bunch)', label:'Bunching ≤', unit:' sec', min:30, max:300, step:10, val:bunchInt },
+            { k:'idleMin',  color:'var(--idle)',  label:'Idling ≥',   unit:' min', min:1,  max:20,  step:0.5, val:idleMin },
+            { k:'crowdPct', color:'var(--crowd)', label:'Crowding ≥', unit:'%',    min:50, max:150, step:5,   val:crowdPct },
+          ].map(({ k, color, label, unit, min, max, step, val }) => (
+            <div key={k} style={{ marginBottom: 16 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, fontSize: 12 }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: color, display: 'inline-block', boxShadow: `0 0 6px ${color}` }} />
+                  <span style={{ color: 'var(--t2)' }}>{label}</span>
+                </span>
+                <span style={{ fontFamily: 'IBM Plex Mono', color, fontWeight: 500, fontSize: 11 }}>{val}{unit}</span>
+              </div>
+              <input type="range" min={min} max={max} step={step} value={val}
+                onChange={e => setP(p => ({ ...p, [k]: +e.target.value }))}
+                style={{ accentColor: color }} />
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Apply button */}
+      <div style={{ padding: '12px 16px', borderTop: '1px solid var(--border)', flexShrink: 0 }}>
+        <button onClick={onApply} disabled={applying} style={{
+          width: '100%', padding: '9px 0', borderRadius: 7, border: 'none',
+          background: applying ? 'var(--s3)' : 'var(--accent)',
+          color: applying ? 'var(--t2)' : '#fff',
+          fontSize: 13, fontWeight: 600, cursor: applying ? 'wait' : 'pointer',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
+          transition: 'all 0.18s',
+        }}>
+          {applying
+            ? <><span style={{ display:'inline-block', animation:'spin 0.8s linear infinite' }}>⟳</span> Processing…</>
+            : '↻ Apply & Reprocess'}
+        </button>
+        {applying && (
+          <div style={{ marginTop: 8, background: 'var(--s2)', borderRadius: 6, padding: '8px 10px', animation: 'fadein 0.2s ease' }}>
+            <div style={{ background: 'var(--s3)', height: 3, borderRadius: 2, overflow: 'hidden' }}>
+              <div style={{ height: '100%', background: 'var(--accent)', borderRadius: 2, animation: 'prog 1.8s ease forwards' }} />
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// APP ROOT
+// ─────────────────────────────────────────────────────────────────────────────
+const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+  "accentColor": "#E07B32",
+  "density": "compact",
+  "showPeakBands": true
+}/*EDITMODE-END*/;
+
+const App = () => {
+  const [page, setPage] = useState('params');
+  const [params, setParams] = useState({
+    route:'29', date:'2026-04-21', dir:'Northbound',
+    bunchInt:120, idleMin:5, crowdPct:100, stops:[],
+  });
+  const [applying, setApplying] = useState(false);
+  const [busData, setBusData] = useState(() => processAVLData(120, 5, 100));
+  const [drawerOpen, setDrawerOpen] = useState(false);
+
+  useEffect(() => {
+    document.documentElement.style.setProperty('--accent', TWEAK_DEFAULTS.accentColor);
+  }, []);
+
+  const handleApply = useCallback(() => {
+    setApplying(true);
+    setTimeout(() => {
+      setBusData(processAVLData(params.bunchInt, params.idleMin, params.crowdPct));
+      setApplying(false);
+    }, 1200);
+  }, [params.bunchInt, params.idleMin, params.crowdPct]);
+
+  const handleSetPage = p => { setPage(p); if (p === 'params') setDrawerOpen(false); };
+
+  return (
+    <div style={{ display:'flex', height:'100vh', overflow:'hidden' }}>
+      <Sidebar active={page} setActive={handleSetPage} />
+      <div style={{ flex:1, display:'flex', flexDirection:'column', overflow:'hidden' }}>
+        <TopBar page={page} route={params.route} date={params.date} dir={params.dir}
+          drawerOpen={drawerOpen} setDrawerOpen={setDrawerOpen} />
+        <div style={{ flex:1, display:'flex', overflow:'hidden' }}>
+          <div style={{ flex:1, overflow:'hidden' }}>
+            {page === 'params'   && <ParameterPanel params={params} setP={setParams} onApply={handleApply} applying={applying} />}
+            {page === 'playback' && <PlaybackPage busData={busData} />}
+            {page === 'analysis' && <AnalyticsPage />}
+          </div>
+          {page !== 'params' && drawerOpen && (
+            <ParamDrawer params={params} setP={setParams} onApply={handleApply} applying={applying} />
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>

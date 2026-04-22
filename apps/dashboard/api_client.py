@@ -114,6 +114,38 @@ def route_metrics(route_id: str, *, window_minutes: int = 15) -> dict[str, Any]:
     )
 
 
+def trajectory_service_dates(limit: int = 30) -> list[str]:
+    return _get("/trajectories/service-dates", params={"limit": limit})
+
+
+def trajectory_routes(service_date: str) -> list[str]:
+    return _get("/trajectories/routes", params={"service_date": service_date})
+
+
+def trajectory_trips(
+    service_date: str,
+    *,
+    route_id: str | None = None,
+    limit: int = 500,
+) -> list[dict[str, Any]]:
+    params: dict[str, Any] = {"service_date": service_date, "limit": limit}
+    if route_id:
+        params["route_id"] = route_id
+    return _get("/trajectories/trips", params=params)
+
+
+def trajectory_detail(
+    trip_id: str,
+    *,
+    start_date: str,
+    include_shape: bool = False,
+) -> dict[str, Any]:
+    params: dict[str, Any] = {"start_date": start_date}
+    if include_shape:
+        params["include"] = "shape"
+    return _get(f"/trajectories/trips/{trip_id}", params=params)
+
+
 def replay_vehicles(
     *,
     start: datetime,
