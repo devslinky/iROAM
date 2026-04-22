@@ -176,11 +176,16 @@ Configured entirely via environment variables (see `.env.example`). Important kn
 | var | default | note |
 |-|-|-|
 | `DATABASE_URL` | `postgresql+psycopg://ttc:ttc@postgres:5432/ttc_gtfsrt` | psycopg v3 dialect |
-| `GTFS_RT_TRIP_UPDATES_URL` | `https://gtfsrt.ttc.ca/trips/update?format=binary` | `?format=binary` matters — see below |
-| `COLLECTOR_INTERVAL_SECONDS` | `30` | TTC updates ~every 30 s |
+| `GTFS_RT_VEHICLE_POSITIONS_URL` | `https://gtfsrt.ttc.ca/vehicles/position?format=binary` | `?format=binary` matters — see below |
+| `COLLECTOR_INTERVAL_SECONDS` | `20` | TTC vehicles update ~every 20 s |
 | `COLLECTOR_HTTP_RETRIES` | `2` | retry connect/timeout/5xx |
-| `ACTIVE_TRIP_WINDOW_MINUTES` | `15` | default window for `/routes/{id}/active-trips` |
-| `MAX_PAGE_SIZE` | `1000` | hard cap on any `limit=` parameter |
+| `COLLECTOR_ROUTE_ALLOWLIST` | *(empty)* | Comma-separated `route_id` list. Empty ⇒ ingest every route. When set, the normalizer drops entities whose `trip.route_id` is missing or not in the list. |
+| `ACTIVE_VEHICLE_WINDOW_MINUTES` | `5` | staleness bound for "active" vehicle queries |
+| `MAX_PAGE_SIZE` | `5000` | hard cap on any `limit=` parameter |
+| `ANALYTICS_UPSAMPLE_RESOLUTION_S` | `10` | upsampling grid for trip trajectories |
+| `ANALYTICS_MAX_ORTHOGONAL_DISTANCE_M` | `200` | drop trajectory points farther than this from the shape |
+| `ANALYTICS_WORKER_INTERVAL_SECONDS` | `120` | analytics worker tick; smaller = fresher trajectories, higher load |
+| `ANALYTICS_WORKER_SERVICE_DATE_TZ` | `America/Toronto` | used by the worker to compute "today" |
 | `LOG_JSON` | `true` | structured JSON logging |
 
 ### Note on the TTC feed URL
@@ -255,10 +260,28 @@ per upsampled point, `observed=True/False`) with a parent `analytics_runs` row
 per invocation.
 
 ```bash
-make analytics-run DATE=2026-04-20                       # all routes
+make analytics-run DATE=2026-04-20                       # all routes (full refresh)
 make analytics-run DATE=2026-04-20 ROUTE=29              # one route
 python -m apps.analytics.main --date 2026-04-20 \
   --export-csv ./out/2026-04-20                          # also emit legacy-style CSVs
+python -m apps.analytics.main --date 2026-04-20 \
+  --since 2026-04-20T12:00:00+00:00                      # incremental: only trips with new VP data
+```
+
+### Continuous refresh — `analytics-worker`
+
+An optional long-running service in compose that re-runs the analytics for
+"today" every `ANALYTICS_WORKER_INTERVAL_SECONDS`, scoped to trip instances
+whose raw `vehicle_positions` rows have grown since the last tick. Output
+lands in the same `trip_trajectories` table, overwriting each trip
+instance's prior rows atomically (delete-then-insert per `(trip_id,
+start_date)`, enforced by a schema-level unique index). Manual
+`make analytics-run` and the worker can coexist — last writer wins per
+trip instance, and no duplicates are possible.
+
+```bash
+make up                        # brings up the analytics-worker too
+make analytics-worker-logs     # tail the worker loop
 ```
 
 Read them back from a notebook (host port 5433):
@@ -293,4 +316,37 @@ make lint            # ruff check
 make api             # run the API locally (no docker)
 make dashboard       # run the dashboard locally (no docker)
 make analytics-run DATE=2026-04-20 [ROUTE=29]  # batch analytics pipeline
+make analytics-worker-logs                     # tail the analytics-worker loop
+make db-reset                                  # dry-run — print row counts that would be truncated
+make db-reset-confirm                          # DESTRUCTIVE — TRUNCATE every data table
+```
+
+---
+
+## Runbook: resetting and re-ingesting
+
+When the data scope changes (e.g. editing `COLLECTOR_ROUTE_ALLOWLIST`) or
+the trajectory pipeline needs a clean slate, follow this sequence. The
+data-reset is separate from schema migrations so migrations don't
+implicitly destroy data.
+
+```bash
+# 1. Verify what would be wiped.
+make db-reset                      # dry-run: prints row counts per table
+
+# 2. Actually wipe. Leaves schema + alembic_version intact.
+make db-reset-confirm
+
+# 3. Apply any new migrations (e.g. 0004 adds a unique index on
+#    trip_trajectories; its guard refuses to run if duplicates exist,
+#    so db-reset first).
+make migrate
+
+# 4. Restart services so the collector picks up the new allowlist and
+#    the analytics worker starts its loop against the fresh data.
+docker compose restart collector analytics-worker
+
+# 5. Watch the streams.
+make logs                          # everything
+make analytics-worker-logs         # just the trajectory refresh loop
 ```
