@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
+from functools import partial
 from typing import Callable
 
 from google.transit import gtfs_realtime_pb2
@@ -41,11 +42,17 @@ def build_registry() -> dict[str, FeedSpec]:
     simple without having to invalidate module-level state.
     """
     settings = get_settings()
+    allowlist = settings.route_allowlist_set
+    vp_normalize = (
+        partial(normalize_vehicle_positions, route_allowlist=allowlist)
+        if allowlist
+        else normalize_vehicle_positions
+    )
     return {
         FEED_VEHICLE_POSITIONS: FeedSpec(
             name=FEED_VEHICLE_POSITIONS,
             url=settings.gtfs_rt_vehicle_positions_url,
-            normalize=normalize_vehicle_positions,
+            normalize=vp_normalize,
         ),
     }
 

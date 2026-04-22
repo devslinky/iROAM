@@ -6,6 +6,7 @@ No DB access happens here. The runner is responsible for attaching a
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -53,12 +54,22 @@ def normalize_vehicle_positions(
     *,
     fetched_at: datetime,
     feed_header_timestamp: datetime | None,
+    route_allowlist: Iterable[str] | None = None,
 ) -> list[VehiclePosition]:
     """Convert every ``FeedEntity`` carrying a ``vehicle`` into a row.
 
     Returns detached ``VehiclePosition`` instances; the caller attaches
     ``snapshot_id`` before adding them to the session.
+
+    When ``route_allowlist`` is non-empty, entities whose ``trip.route_id``
+    is not in the set are dropped — including entities that have no
+    ``route_id`` at all, since they cannot be attributed to an allowed
+    route. Passing ``None`` or an empty iterable disables filtering
+    (every vehicle entity is kept, as before).
     """
+    allow: frozenset[str] | None = (
+        frozenset(route_allowlist) if route_allowlist else None
+    )
     rows: list[VehiclePosition] = []
 
     for entity in message.entity:
@@ -69,6 +80,11 @@ def normalize_vehicle_positions(
         trip = vp.trip if vp.HasField("trip") else None
         descriptor = vp.vehicle if vp.HasField("vehicle") else None
         pos = vp.position if vp.HasField("position") else None
+
+        if allow is not None:
+            route_id = trip.route_id if trip and trip.route_id else None
+            if route_id is None or route_id not in allow:
+                continue
 
         trip_sr: str | None = None
         if trip is not None and trip.HasField("schedule_relationship"):
