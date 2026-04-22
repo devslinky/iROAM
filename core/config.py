@@ -43,6 +43,10 @@ class Settings(BaseSettings):
     collector_http_timeout_seconds: float = 10.0
     collector_http_retries: int = 2
     collector_user_agent: str = "ttc-gtfsrt-platform/0.2"
+    # Comma-separated route_id allowlist. Empty / unset ⇒ ingest every route
+    # (back-compat). When set, the normalizer drops entities whose trip.route_id
+    # isn't in the list (and entities with no route_id).
+    collector_route_allowlist: str = ""
 
     # API
     api_host: str = "0.0.0.0"
@@ -67,6 +71,8 @@ class Settings(BaseSettings):
     )
     analytics_upsample_resolution_s: int = 10
     analytics_max_orthogonal_distance_m: float = 200.0
+    analytics_worker_interval_seconds: int = 120
+    analytics_worker_service_date_tz: str = "America/Toronto"
 
     @property
     def cors_origin_list(self) -> list[str]:
@@ -74,6 +80,17 @@ class Settings(BaseSettings):
         if raw == "*" or not raw:
             return ["*"]
         return [o.strip() for o in raw.split(",") if o.strip()]
+
+    @property
+    def route_allowlist_set(self) -> frozenset[str]:
+        """Parsed ``COLLECTOR_ROUTE_ALLOWLIST`` as a frozenset.
+
+        Empty / unset ⇒ empty set, meaning "no filter" to the normalizer.
+        """
+        raw = self.collector_route_allowlist.strip()
+        if not raw:
+            return frozenset()
+        return frozenset(tok.strip() for tok in raw.split(",") if tok.strip())
 
 
 @lru_cache(maxsize=1)
