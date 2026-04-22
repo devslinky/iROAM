@@ -61,6 +61,23 @@ services:
         condition: service_completed_successfully
     restart: unless-stopped
 
+  analytics-worker:
+    build:
+      context: .
+      target: analytics-worker
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://ttc:ttc@postgres:5432/ttc_gtfsrt
+      GTFS_STATIC_DIR: /gtfs
+    volumes:
+      - "./Complete GTFS:/gtfs:ro"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrator:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
   dashboard:
     build:
       context: .

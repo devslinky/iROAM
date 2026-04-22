@@ -1,4 +1,4 @@
-.PHONY: help install up down logs ps migrate test fmt lint capture-sample collect-once api dashboard analytics-run db-reset db-reset-confirm
+.PHONY: help install up down logs ps migrate test fmt lint capture-sample collect-once api dashboard analytics-run analytics-worker-logs db-reset db-reset-confirm
 
 help:
 	@echo "Common targets:"
@@ -16,6 +16,7 @@ help:
 	@echo "  api             - run API locally (uvicorn)"
 	@echo "  dashboard       - run dashboard locally (streamlit)"
 	@echo "  analytics-run   - run analytics for a service date (DATE=YYYY-MM-DD [ROUTE=X])"
+	@echo "  analytics-worker-logs - tail the analytics-worker container logs"
 	@echo "  db-reset        - print row counts that would be truncated (dry run)"
 	@echo "  db-reset-confirm- actually TRUNCATE every data table (DESTRUCTIVE)"
 
@@ -62,6 +63,9 @@ dashboard:
 analytics-run:
 	@if [ -z "$(DATE)" ]; then echo "DATE=YYYY-MM-DD required"; exit 2; fi
 	docker compose run --rm api python -m apps.analytics.main --date $(DATE) $(if $(ROUTE),--route $(ROUTE),)
+
+analytics-worker-logs:
+	docker compose logs -f --tail=200 analytics-worker
 
 db-reset:
 	docker compose exec api python -m scripts.db_reset

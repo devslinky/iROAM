@@ -59,6 +59,10 @@ CMD ["uvicorn", "apps.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
 FROM base AS collector
 CMD ["python", "-m", "apps.collector.main", "--loop"]
 
+# ── Analytics worker: polling loop that incrementally re-runs analytics ────
+FROM base AS analytics-worker
+CMD ["python", "-m", "apps.analytics.worker"]
+
 # ── Dashboard: Streamlit ───────────────────────────────────────────────────
 FROM base AS dashboard
 EXPOSE 8501
