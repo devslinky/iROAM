@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Architecture — iROAM docs</title>
+<link rel="stylesheet" href="assets/styles.css" />
+<link rel="stylesheet" href="assets/highlight-github.css" />
+</head>
+<body>
+<button class="nav-toggle" aria-label="Toggle navigation">☰</button>
+<aside class="sidebar">
+  <div class="sidebar-header">
+    <a class="brand" href="index.html">iROAM <span>docs</span></a>
+  </div>
+  <div class="search-box">
+    <input id="search-input" type="search" placeholder="Search docs…" autocomplete="off" />
+    <div id="search-results" class="search-results" hidden></div>
+  </div>
+  <nav class="nav"><div class="nav-section"><h4>Start here</h4><ul>
+<li><a href="index.html">Overview</a></li>
+<li class="active"><a href="architecture.html">Architecture</a></li>
+<li><a href="data-model.html">Data model</a></li>
+<li><a href="database-dataflow.html">Database dataflow</a></li>
+<li><a href="frontend.html">Frontend</a></li>
+<li><a href="operations.html">Operations</a></li>
+<li><a href="examples.html">Examples</a></li>
+</ul></div>
+<div class="nav-section"><h4>Reference</h4><ul>
+<li><a href="api.html">API reference</a></li>
+</ul></div>
+<div class="nav-section"><h4>Modules</h4><ul>
+<li><a href="modules/apps-collector.html">Collector</a></li>
+<li><a href="modules/apps-analytics.html">Analytics</a></li>
+<li><a href="modules/apps-api.html">API</a></li>
+<li><a href="modules/apps-dashboard.html">Dashboard</a></li>
+<li><a href="modules/core.html">Core</a></li>
+<li><a href="modules/db.html">Database</a></li>
+<li><a href="modules/scripts.html">Scripts</a></li>
+<li><a href="modules/deployment-bunching.html">Bunching predictor</a></li>
+<li><a href="modules/legacy.html">Legacy</a></li>
+</ul></div></nav>
+  <div class="sidebar-footer">Built 2026-04-24<br/>89 files · 178 symbols</div>
+</aside>
+<main class="content">
+  <div class="breadcrumb"><a href="index.html">Overview</a> / Architecture</div>
+  <article><h1 id="architecture"><a class="anchor" href="#architecture" aria-hidden="true">#</a>Architecture</h1>
+<p>iROAM is a layered application. Each layer encapsulates one runtime concern and connects to its neighbours through stable data contracts. Five layers, plus a forecasting bundle that hangs off the API.</p>
+<h2 id="top-level-data-flow"><a class="anchor" href="#top-level-data-flow" aria-hidden="true">#</a>Top-level data flow</h2>
+<div class="mermaid">flowchart TB
+    subgraph L1[Acquisition · apps/collector]
+        FEED[TTC GTFS-RT&lt;br/&gt;VehiclePositions feed]
+        FETCH[fetcher.fetch_bytes]
+        PARSE[parser.parse_feed_message]
+        NORM[normalize_vehicles.normalize_vehicle_positions]
+        RUN1[runner.run_once]
+        FEED --&gt; FETCH --&gt; PARSE --&gt; NORM --&gt; RUN1
+    end
+
+    subgraph L2[Storage · Postgres + PostGIS]
+        T1[(feed_fetch_logs&lt;br/&gt;every attempt)]
+        T2[(raw_gtfsrt_snapshots&lt;br/&gt;fetch metadata + content hash)]
+        T3[(vehicle_positions&lt;br/&gt;normalized AVL)]
+        T4[(analytics_runs)]
+        T5[(trip_trajectories&lt;br/&gt;upsampled, observed/synthetic)]
+    end
+
+    RUN1 --&gt;|one txn per cycle| T1
+    RUN1 --&gt; T2
+    RUN1 --&gt; T3
+
+    subgraph L3[Analytics · apps/analytics]
+        WORKER[worker.main]
+        RUN3[runner.run_for_date]
+        PIPE[pipeline.process_trip_instance]
+        PROJ[project_to_shape.project_trajectory]
+        UPS[upsample.upsample_df]
+        ANOM[anomalies.detect_all]
+    end
+
+    STATIC[Static GTFS&lt;br/&gt;trips, stops, shapes, stop_times, routes] --&gt; RUN3
+    T3 --&gt; WORKER --&gt; RUN3 --&gt; PIPE --&gt; PROJ --&gt; UPS
+    PIPE --&gt;|delete-then-insert per trip instance| T4
+    PIPE --&gt; T5
+
+    subgraph L4[API · apps/api FastAPI]
+        R_VEH[routers/vehicles]
+        R_TRAJ[routers/trajectories]
+        R_IROAM[routers/iroam]
+        R_FCST[/iroam/forecast/]
+    end
+
+    T3 --&gt; R_VEH
+    T5 --&gt; R_TRAJ
+    T5 --&gt; R_IROAM
+    T5 --&gt; R_FCST
+
+    subgraph L5[UI]
+        DASH[apps/dashboard&lt;br/&gt;Streamlit pages]
+        IROAM_UI[apps/api/static/iroam.html&lt;br/&gt;time-distance diagram]
+    end
+
+    R_VEH --&gt; DASH
+    R_TRAJ --&gt; DASH
+    R_IROAM --&gt; IROAM_UI
+
+    subgraph L6[Forecast · deployment/bunching_lightgbm]
+        FEATS[services/forecast_features.build_bus_window]
+        PRED[services/bunching_predictor.get_predictor]
+        BOOST[30 LightGBM boosters&lt;br/&gt;booster_h00…h29.txt]
+        FCST[services/forecast.run_forecast]
+        ANOM --&gt; R_IROAM
+        T5 --&gt; FEATS --&gt; FCST
+        BOOST --&gt; PRED --&gt; FCST
+        FCST --&gt; R_FCST --&gt; IROAM_UI
+    end</div>
+<p>The system separates <strong>transaction owners</strong> (runners) from <strong>pure transforms</strong> (parsers, normalizers, projectors). Every layer except the runners is side-effect free, which makes the pipeline reproducible, testable, and resilient to partial failures.</p>
+<p>---</p>
+<h2 id="layer-1-acquisition"><a class="anchor" href="#layer-1-acquisition" aria-hidden="true">#</a>Layer 1 — Acquisition</h2>
+<p><code>apps/collector</code> polls the TTC <code>VehiclePositions</code> feed every 20 seconds (configurable), parses the protobuf payload, normalizes each <code>FeedEntity.vehicle</code>, and persists results in one atomic transaction per cycle.</p>
+<p>Key files:</p>
+<ul><li><strong><code>fetcher.py</code></strong> — HTTP layer with retries and timing. One function, <code>fetch_bytes</code>.</li><li><strong><code>parser.py</code></strong> — protobuf decode with text-format fallback (the TTC endpoint occasionally drops <code>?format=binary</code>).</li><li><strong><code>feed_specs.py</code></strong> — registry binding feed name → URL → normalizer. Adding a future TripUpdates or Alerts feed touches only this file.</li><li><strong><code>normalize_vehicles.py</code></strong> — pure function: <code>FeedMessage → list[VehiclePosition]</code>. No DB calls.</li><li><strong><code>runner.py</code></strong> — the only DB writer. Single transaction:</li></ul>
+<ol><li>Always: a <code>feed_fetch_logs</code> row (success or failure).</li><li>On success: a <code>raw_gtfsrt_snapshots</code> metadata row (content hash, header info).</li><li>On success: N normalized <code>vehicle_positions</code> rows.</li></ol>
+<ul><li><strong><code>main.py</code></strong> — CLI entry. <code>--once</code> for a single fetch; <code>--loop</code> for the polling daemon.</li></ul>
+<div class="mermaid">sequenceDiagram
+    participant Main as main.py
+    participant Run as runner.run_once
+    participant Net as TTC endpoint
+    participant DB as Postgres
+    loop every 20s
+        Main-&gt;&gt;Run: one cycle
+        Run-&gt;&gt;Net: GET ?format=binary
+        Net--&gt;&gt;Run: protobuf bytes
+        Run-&gt;&gt;Run: parse + normalize (pure)
+        Run-&gt;&gt;DB: BEGIN
+        Run-&gt;&gt;DB: INSERT feed_fetch_logs
+        Run-&gt;&gt;DB: INSERT raw_gtfsrt_snapshots
+        Run-&gt;&gt;DB: INSERT vehicle_positions (N)
+        Run-&gt;&gt;DB: COMMIT
+    end</div>
+<p><strong>Failure handling.</strong> Network or 5xx errors log a <code>feed_fetch_logs</code> row with <code>success=false</code> and skip the other inserts. The FK between <code>raw_gtfsrt_snapshots</code> and its fetch log stays clean.</p>
+<p>---</p>
+<h2 id="layer-2-storage"><a class="anchor" href="#layer-2-storage" aria-hidden="true">#</a>Layer 2 — Storage</h2>
+<p>PostgreSQL 16 with PostGIS, SQLAlchemy 2.x typed-<code>Mapped</code> ORM, four Alembic migrations.</p>
+<p>Two design policies coexist:</p>
+<ul><li><strong>Append-only ingestion</strong> for everything in Layer 1. &quot;Latest&quot; is a query (<code>DISTINCT ON (key) ORDER BY key, fetched_at DESC</code>), never a mutation. This preserves observation history at minimal cost.</li><li><strong>Refresh-by-trip-instance</strong> for the derived <code>trip_trajectories</code>. Each trip instance&#x27;s rows are deleted and reinserted on every analytics tick — atomic per <code>(trip_id, start_date)</code>, enforced by a unique index.</li></ul>
+<p>The raw protobuf bytes are <strong>not</strong> persisted — migration <code>0005</code> dropped <code>raw_gtfsrt_snapshots.payload</code> (BYTEA), which had been the largest on-disk cost (~700 KB × 2 polls/min ≈ 2 GB/day). Re-normalization after a parser change replays from the decoded per-entity JSON in <code>vehicle_positions.raw_entity</code>; the snapshot row retains <code>content_sha256</code> so feed-staleness stays observable. <code>vehicle_positions</code> is now the dominant on-disk cost and the candidate for Phase-2 partitioning.</p>
+<p>See <strong><a href="data-model.html">Data model</a></strong> for tables, columns, indexes, and retention.</p>
+<p>---</p>
+<h2 id="layer-3-analytics"><a class="anchor" href="#layer-3-analytics" aria-hidden="true">#</a>Layer 3 — Analytics</h2>
+<p><code>apps/analytics</code> reconstructs per-trip trajectories from <code>vehicle_positions</code> plus static GTFS.</p>
+<div class="mermaid">flowchart LR
+    A[vehicle_positions&lt;br/&gt;raw GPS points] --&gt; B[trajectory_extract&lt;br/&gt;build per-trip DF]
+    GTFS[Static GTFS&lt;br/&gt;trips, shapes] --&gt; B
+    B --&gt; C[project_to_shape&lt;br/&gt;distance-along-shape]
+    C --&gt; D[upsample&lt;br/&gt;fixed 10s grid]
+    D --&gt; E[(trip_trajectories&lt;br/&gt;observed=True/False)]
+    E --&gt; F[anomalies&lt;br/&gt;idle / bunch / crowd]</div>
+<p>Pipeline stages (<code>apps/analytics/</code>):</p>
+<ol><li><strong><code>gtfs_static.load_all</code></strong> — read <code>Complete GTFS/*.txt</code> into pandas, cached per-process by directory mtime.</li><li><strong><code>pipeline.list_trip_instances</code></strong> — distinct <code>(trip_id, effective_start_date)</code> for the service date, derived from <code>vehicle_timestamp</code> in Toronto local time.</li><li><strong><code>trajectory_extract.build_trip_trajectory</code></strong> — fetch rows for the instance, resolve <code>shape_id</code> and <code>direction_id</code>, parse the GTFS overnight start_time (<code>27:15:00</code>).</li><li><strong><code>project_to_shape.project_trajectory</code></strong> — re-project to EPSG:3857, compute <code>travel_distance_m</code> along the shape and <code>orthogonal_distance_m</code> to it; drop outliers &gt; 200 m.</li><li><strong><code>upsample.compute_moving_speed</code> + <code>upsample_df</code></strong> — finite-difference speed, then upsample to a 10-second grid. Synthetic rows are flagged <code>observed=False</code>.</li><li><strong><code>anomalies.detect_all</code></strong> — pure detectors over the upsampled trajectory:</li></ol>
+<ul><li><strong>idle</strong>: speed ≤ 0.5 m/s for ≥ <code>idle_min</code>.</li><li><strong>crowd</strong>: OccupancyStatus mapped to a percentage, ≥ <code>crowd_pct</code>.</li><li><strong>bunch (time)</strong>: two consecutive buses cross the same stop within <code>bunch_seconds</code>.</li><li><strong>bunch (distance)</strong>: two consecutive buses maintain a route-distance separation below <code>bunch_distance_m</code>.</li></ul>
+<p>Anomaly thresholds are query parameters, not table columns. The detectors re-run client-side on every slider change without touching the DB.</p>
+<p><strong>Two run modes:</strong></p>
+<ul><li><strong><code>apps.analytics.main</code></strong> — one-shot batch for a <code>--date</code>, optionally <code>--route</code>. Full refresh.</li><li><strong><code>apps.analytics.worker</code></strong> — long-running. Every <code>ANALYTICS_WORKER_INTERVAL_SECONDS</code> (default 120 s), rebuilds only the trip instances whose underlying <code>vehicle_positions</code> rows changed since the last tick.</li></ul>
+<p>---</p>
+<h2 id="layer-4-api"><a class="anchor" href="#layer-4-api" aria-hidden="true">#</a>Layer 4 — API</h2>
+<p><code>apps/api</code> is a FastAPI app. Read-only, no auth (intended to run behind a reverse proxy). The routers organize by surface area:</p>
+<table><thead><tr><th>Router</th><th>Endpoints</th><th>Source data</th></tr></thead><tbody><tr><td><code>health</code></td><td><code>GET /health</code></td><td>(none)</td></tr><tr><td><code>feed_status</code></td><td><code>GET /feed-status/vehicle-positions</code></td><td><code>feed_fetch_logs</code></td></tr><tr><td><code>vehicles</code></td><td><code>GET /vehicles/latest</code>, <code>…/{vehicle_id}/latest</code>, <code>…/{vehicle_id}/history</code></td><td><code>vehicle_positions</code></td></tr><tr><td><code>routes</code></td><td><code>GET /routes</code>, <code>…/{route_id}/vehicles/latest</code>, <code>…/{route_id}/metrics</code></td><td><code>vehicle_positions</code></td></tr><tr><td><code>replay</code></td><td><code>GET /replay/vehicles</code></td><td><code>vehicle_positions</code></td></tr><tr><td><code>trajectories</code></td><td><code>GET /trajectories/service-dates</code>, <code>…/trips</code>, <code>…/trips/{id}</code></td><td><code>trip_trajectories</code></td></tr><tr><td><code>iroam</code></td><td><code>GET /iroam/{routes,stops,buses,analytics,forecast}</code></td><td><code>trip_trajectories</code> + <code>anomalies</code> + predictor</td></tr></tbody></table>
+<p>Pydantic schemas live alongside in <code>apps/api/schemas/</code>. Every endpoint depends on <code>apps/api/deps.get_db</code> for a scoped SQLAlchemy session.</p>
+<p>---</p>
+<h2 id="layer-5-ui"><a class="anchor" href="#layer-5-ui" aria-hidden="true">#</a>Layer 5 — UI</h2>
+<p>Two surfaces share the API:</p>
+<ul><li><strong><code>apps/dashboard</code></strong> — Streamlit multipage app. Home, Feed Health, Live Fleet Map, Route Explorer, Vehicle Detail, Replay, Trajectories. All data comes from the API via <code>apps/dashboard/api_client.py</code>. No direct DB reads.</li><li><strong><code>apps/api/static/iroam.html</code></strong> — a static HTML interface served at <code>/ui</code> for the iROAM time-distance diagram, schematic route map, and forecast panel. Hits <code>/iroam/buses</code>, <code>/iroam/analytics</code>, <code>/iroam/forecast</code>.</li></ul>
+<p>---</p>
+<h2 id="layer-6-forecast-lightgbm-bunching-predictor"><a class="anchor" href="#layer-6-forecast-lightgbm-bunching-predictor" aria-hidden="true">#</a>Layer 6 — Forecast (LightGBM bunching predictor)</h2>
+<p><code>deployment/bunching_lightgbm</code> is a self-contained model bundle. The API loads it lazily on first <code>/iroam/forecast</code> request.</p>
+<p><strong>Bundle contents</strong> (<code>deployment/bunching_lightgbm/model/</code>):</p>
+<ul><li><code>booster_h00.txt</code> … <code>booster_h29.txt</code> — 30 per-horizon LightGBM boosters (one model per future minute).</li><li><code>scaler.json</code> — per-channel mean/std for the 9 input channels.</li><li><code>thresholds.json</code> — F2-optimal decision threshold per horizon.</li><li><code>metadata.json</code> — training config (<code>seq_len=60</code>, <code>pred_len=30</code>, <code>n_channels=9</code>).</li></ul>
+<p><strong>Feature window</strong> (<code>apps/api/services/forecast_features.py</code>): for each eligible running bus, build a <code>60 × 9</code> window of:</p>
+<pre><code>[target_speed, target_gap_ahead, target_aux,
+ upstream1_speed, upstream1_gap, upstream1_aux,
+ upstream2_speed, upstream2_gap, upstream2_aux]</code></pre>
+<p>at 10-second steps over the past 10 minutes. Eligibility checks: fresh sample (≤ 90 s old), not near route ends, contiguous history with gaps ≤ 20 s, all values finite.</p>
+<p><strong>Inference</strong> (<code>apps/api/services/forecast.py</code>): batch eligible windows through all 30 boosters, return per-bus probabilities and a horizon summary.</p>
+<div class="mermaid">flowchart LR
+    A[trip_trajectories&lt;br/&gt;last 10 min] --&gt; B[forecast_features&lt;br/&gt;build_bus_window]
+    B --&gt; C{eligibility&lt;br/&gt;checks}
+    C --&gt;|reject| X[skip bus]
+    C --&gt;|accept| D[60×9 window]
+    D --&gt; E[30 boosters&lt;br/&gt;booster_h00 ... booster_h29]
+    E --&gt; F[prob per horizon&lt;br/&gt;thresholds.json]
+    F --&gt; G[per-bus risk + summary]
+    G --&gt; H[/GET /iroam/forecast/]</div>
+<p>---</p>
+<h2 id="key-engineering-decisions"><a class="anchor" href="#key-engineering-decisions" aria-hidden="true">#</a>Key engineering decisions</h2>
+<ol><li><strong>Append-only schema.</strong> &quot;Latest&quot; is a query, not an upsert. Upgradable to a materialized view without an API change.</li><li><strong>Raw + normalized dual storage.</strong> Future parser bugs can be fixed and replayed without touching the live feed.</li><li><strong>Pure transforms + narrow transaction boundaries.</strong> Normalizers, projectors, and detectors have no DB side effects; only <code>runner.py</code> modules write.</li><li><strong>Sync SQLAlchemy.</strong> At ~2 polls/min and low-QPS internal API, async adds transaction complexity for no latency benefit.</li><li><strong>TIMESTAMPTZ everywhere.</strong> UTC at rest; only display layers convert to <code>America/Toronto</code>.</li><li><strong>Streamlit → API → DB.</strong> Never Streamlit → DB. A future React rewrite is a UI swap, not a data-layer change.</li><li><strong>Threshold sliders are query params, not stored data.</strong> Anomaly detectors re-run on the API instance per request; the heavy data (upsampled trajectories) is pre-computed.</li><li><strong>Lazy model loading.</strong> The LightGBM bundle loads on first forecast request, not at startup. The API stays cheap when forecasting is unused.</li></ol></article>
+  <div class="content-toc"><h4>On this page</h4><ul><li class="toc-h2"><a href="#top-level-data-flow">Top-level data flow</a></li><li class="toc-h2"><a href="#layer-1-acquisition">Layer 1 — Acquisition</a></li><li class="toc-h2"><a href="#layer-2-storage">Layer 2 — Storage</a></li><li class="toc-h2"><a href="#layer-3-analytics">Layer 3 — Analytics</a></li><li class="toc-h2"><a href="#layer-4-api">Layer 4 — API</a></li><li class="toc-h2"><a href="#layer-5-ui">Layer 5 — UI</a></li><li class="toc-h2"><a href="#layer-6-forecast-lightgbm-bunching-predictor">Layer 6 — Forecast (LightGBM bunching predictor)</a></li><li class="toc-h2"><a href="#key-engineering-decisions">Key engineering decisions</a></li></ul></div>
+</main>
+<script src="assets/lunr.min.js"></script>
+<script src="assets/highlight.min.js"></script>
+<script>hljs.highlightAll();</script>
+<script src="assets/mermaid.min.js"></script>
+<script>mermaid.initialize({startOnLoad:true, theme:'neutral', securityLevel:'loose', flowchart:{curve:'basis'}});</script>
+<script>window.SEARCH_INDEX_URL = "search-index.json";</script>
+<script src="assets/app.js"></script>
+</body>
+</html>

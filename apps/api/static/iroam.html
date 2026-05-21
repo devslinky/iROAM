@@ -1815,21 +1815,27 @@ const App = () => {
     setParams(p => ({ ...p, dir: pick || valid[0] }));
   }, [params.route, routeCatalog]);
 
-  // Load route catalog once; default to the first (route, dir, most-recent date).
+  // Load route catalog once; default to the slice with the freshest data.
+  // Picking cat[0] blindly lands on whatever route sorts first by
+  // (route_id, direction_id) — which, right after the Toronto service-date
+  // rollover, is usually a route with no data for today. That strands the
+  // dashboard on a stale historical date with LIVE auto-refresh disabled
+  // (isLive needs params.date === todayInToronto()), so new trajectories
+  // never appear. Instead, default to the entry carrying the globally newest
+  // service_date; ISO YYYY-MM-DD strings compare correctly with `>`.
   useEffect(() => {
     loadRouteCatalog().then(cat => {
       setRouteCatalog(cat);
-      if (cat.length > 0) {
-        const first = cat[0];
-        const date = (first.service_dates && first.service_dates[0]) || '';
-        const labels = directionsFor(first.route_id);
-        setParams(p => ({
-          ...p,
-          route: first.route_id,
-          date,
-          dir: labels[first.direction_id] || labels[0],
-        }));
-      }
+      if (cat.length === 0) return;
+      const newestOf = c => (c.service_dates && c.service_dates[0]) || '';
+      const best = cat.reduce((a, b) => (newestOf(b) > newestOf(a) ? b : a));
+      const labels = directionsFor(best.route_id);
+      setParams(p => ({
+        ...p,
+        route: best.route_id,
+        date: newestOf(best),
+        dir: labels[best.direction_id] || labels[0],
+      }));
     });
   }, []);
 

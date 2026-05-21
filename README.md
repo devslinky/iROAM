@@ -2,7 +2,7 @@
 
 A production-structured MVP that continuously ingests the [Toronto Transit Commission
 GTFS-Realtime VehiclePositions feed](https://gtfsrt.ttc.ca/vehicles/position), persists
-both raw protobuf snapshots and normalized relational rows **append-only** in PostgreSQL
+fetch metadata and normalized relational rows **append-only** in PostgreSQL
 (with PostGIS for geom), exposes query APIs via FastAPI, and visualizes feed health +
 vehicle movement in a Streamlit dashboard. An `apps/analytics/` pipeline joins the live
 feed against static GTFS to produce per-trip upsampled trajectories.
@@ -36,9 +36,10 @@ model.
 Three long-running processes plus Postgres, orchestrated by `docker-compose`.
 
 - **Append-only** — every poll writes new rows; "latest" is a *query*, not a mutation.
-- **Raw + normalized** — raw protobuf bytes are preserved in
-  `raw_gtfsrt_snapshots.payload` so the feed can be re-normalized later if the parser
-  changes, or replayed into tests.
+- **Normalized + provenance** — each `FeedEntity.vehicle` is normalized into
+  `vehicle_positions` with its decoded JSON kept in `raw_entity`, so the feed can be
+  re-normalized later if the parser changes. A `raw_gtfsrt_snapshots` metadata row
+  records each fetch's `content_sha256`; the raw protobuf bytes are not persisted.
 - **Clean module seams** — `db/`, `core/`, `apps/api`, `apps/collector`,
   `apps/dashboard`. Each `apps/*` entry depends on `core` + `db` but not on each
   other.
@@ -101,7 +102,7 @@ output tables land in `0003_trip_trajectories.py`:
 | table | purpose | key columns |
 |-|-|-|
 | `feed_fetch_logs` | every fetch attempt — success or failure | `feed_name`, `fetched_at`, `success`, `http_status`, `duration_ms`, `entity_count`, `error_type`, `error_message` |
-| `raw_gtfsrt_snapshots` | raw protobuf payload per successful fetch (1:1 with the log row) | `fetch_log_id` UNIQUE, `content_sha256`, `payload` BYTEA |
+| `raw_gtfsrt_snapshots` | fetch metadata per successful fetch (1:1 with the log row) | `fetch_log_id` UNIQUE, `content_sha256`, `feed_header_timestamp` |
 | `vehicle_positions` | one row per `FeedEntity.vehicle` per snapshot | `snapshot_id`, `trip_id`, `route_id`, `vehicle_id`, `latitude`, `longitude`, `speed_mps`, `occupancy_status`, **denormalized** `fetched_at`, PostGIS `geom(Point, 4326)` GENERATED |
 | `analytics_runs` | one row per `apps/analytics` invocation | `service_date`, `route_id`, `status`, `rows_written`, `config_json`, `started_at`, `finished_at` |
 | `trip_trajectories` | upsampled per-trip trajectory points | `run_id`, `trip_id`, `start_date`, `service_date`, `datetime`, `travel_distance_m`, `moving_speed_m_s`, `observed` |
@@ -122,7 +123,7 @@ safe because both tables are append-only — `fetched_at` cannot drift.
 
 ### Why no dedup on `content_sha256`
 
-Each poll is a distinct *observation*, even when the payload bytes are identical.
+Each poll is a distinct *observation*, even when `content_sha256` is identical.
 Preserving every poll keeps the monitoring signal "feed is reachable but hasn't
 changed" — dedup would silently hide that.
 
@@ -220,10 +221,9 @@ way.
 
 ## Known limits
 
-- `raw_gtfsrt_snapshots.payload` is the dominant on-disk cost
-  (~700 KB per poll × 2 polls/min ≈ 2 GB/day). Retention / partitioning comes
-  in Phase 2 (see `0004_partition_trip_updates_by_month.py` placeholder in the
-  migrations plan).
+- `vehicle_positions` is the dominant on-disk cost (~6.5M rows/day, chiefly the
+  `raw_entity` JSONB column). The raw protobuf payload was dropped in migration
+  `0005`. Retention / partitioning comes in Phase 2.
 - No auth on the API. Suitable for internal use or behind a reverse proxy.
 - No Prometheus metrics or tracing yet.
 - Static GTFS (under `Complete GTFS/`) is consumed by `apps/analytics/` but

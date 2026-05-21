@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Operations — iROAM docs</title>
+<link rel="stylesheet" href="assets/styles.css" />
+<link rel="stylesheet" href="assets/highlight-github.css" />
+</head>
+<body>
+<button class="nav-toggle" aria-label="Toggle navigation">☰</button>
+<aside class="sidebar">
+  <div class="sidebar-header">
+    <a class="brand" href="index.html">iROAM <span>docs</span></a>
+  </div>
+  <div class="search-box">
+    <input id="search-input" type="search" placeholder="Search docs…" autocomplete="off" />
+    <div id="search-results" class="search-results" hidden></div>
+  </div>
+  <nav class="nav"><div class="nav-section"><h4>Start here</h4><ul>
+<li><a href="index.html">Overview</a></li>
+<li><a href="architecture.html">Architecture</a></li>
+<li><a href="data-model.html">Data model</a></li>
+<li><a href="database-dataflow.html">Database dataflow</a></li>
+<li><a href="frontend.html">Frontend</a></li>
+<li class="active"><a href="operations.html">Operations</a></li>
+<li><a href="examples.html">Examples</a></li>
+</ul></div>
+<div class="nav-section"><h4>Reference</h4><ul>
+<li><a href="api.html">API reference</a></li>
+</ul></div>
+<div class="nav-section"><h4>Modules</h4><ul>
+<li><a href="modules/apps-collector.html">Collector</a></li>
+<li><a href="modules/apps-analytics.html">Analytics</a></li>
+<li><a href="modules/apps-api.html">API</a></li>
+<li><a href="modules/apps-dashboard.html">Dashboard</a></li>
+<li><a href="modules/core.html">Core</a></li>
+<li><a href="modules/db.html">Database</a></li>
+<li><a href="modules/scripts.html">Scripts</a></li>
+<li><a href="modules/deployment-bunching.html">Bunching predictor</a></li>
+<li><a href="modules/legacy.html">Legacy</a></li>
+</ul></div></nav>
+  <div class="sidebar-footer">Built 2026-04-24<br/>89 files · 178 symbols</div>
+</aside>
+<main class="content">
+  <div class="breadcrumb"><a href="index.html">Overview</a> / Operations</div>
+  <article><h1 id="operations"><a class="anchor" href="#operations" aria-hidden="true">#</a>Operations</h1>
+<p>Everything you need to start, stop, debug, and configure the stack. The iROAM repository ships a <code>Makefile</code>, a <code>docker-compose.yml</code>, a multi-stage <code>Dockerfile</code>, and a generously-commented <code>.env.example</code>. This page is a runtime reference.</p>
+<h2 id="one-line-start"><a class="anchor" href="#one-line-start" aria-hidden="true">#</a>One-line start</h2>
+<pre><code class="language-bash">cp .env.example .env
+make up                # build images, start every service in the background</code></pre>
+<p><code>make up</code> wraps <code>docker compose up -d --build</code>. After ~30 seconds, five services are running plus the database; a one-shot <code>migrator</code> exits cleanly.</p>
+<h2 id="service-topology"><a class="anchor" href="#service-topology" aria-hidden="true">#</a>Service topology</h2>
+<div class="mermaid">flowchart TB
+    PG[(postgres&lt;br/&gt;postgis/postgis:16-3.4&lt;br/&gt;host port 5433)]
+    MIG[migrator&lt;br/&gt;alembic upgrade head&lt;br/&gt;one-shot]
+    API[api&lt;br/&gt;uvicorn :8000]
+    COLL[collector&lt;br/&gt;polling loop]
+    AW[analytics-worker&lt;br/&gt;polling loop]
+    DASH[dashboard&lt;br/&gt;Streamlit :8501]
+
+    PG -- healthy --&gt; MIG
+    MIG -- completed --&gt; API
+    MIG -- completed --&gt; COLL
+    MIG -- completed --&gt; AW
+    PG --&gt; API
+    PG --&gt; COLL
+    PG --&gt; AW
+    API --&gt; DASH</div>
+<p>Every long-running service depends on <code>migrator</code> having finished and on <code>postgres</code> being healthy (<code>pg_isready</code>). The dashboard depends on the API (it never reads Postgres directly).</p>
+<table><thead><tr><th>Service</th><th>Image stage</th><th>Process</th><th>Host port</th><th>Volumes</th></tr></thead><tbody><tr><td><code>postgres</code></td><td><code>postgis/postgis:16-3.4</code></td><td>postgres</td><td>5433 → 5432</td><td><code>pg_data</code></td></tr><tr><td><code>migrator</code></td><td><code>migrator</code></td><td><code>alembic upgrade head</code></td><td>—</td><td>—</td></tr><tr><td><code>api</code></td><td><code>api</code></td><td><code>uvicorn apps.api.main:app</code></td><td>8000 → 8000</td><td><code>./Complete GTFS</code> (ro)</td></tr><tr><td><code>collector</code></td><td><code>collector</code></td><td><code>python -m apps.collector.main --loop</code></td><td>—</td><td>—</td></tr><tr><td><code>analytics-worker</code></td><td><code>analytics-worker</code></td><td><code>python -m apps.analytics.worker</code></td><td>—</td><td><code>./Complete GTFS</code> (ro)</td></tr><tr><td><code>dashboard</code></td><td><code>dashboard</code></td><td><code>streamlit run apps/dashboard/Home.py</code></td><td>8501 → 8501</td><td>—</td></tr></tbody></table>
+<p>The Postgres volume <code>pg_data</code> survives <code>make down</code>; it is wiped only by <code>docker compose down -v</code>.</p>
+<h2 id="makefile-cheatsheet"><a class="anchor" href="#makefile-cheatsheet" aria-hidden="true">#</a>Makefile cheatsheet</h2>
+<table><thead><tr><th>Target</th><th>What it does</th></tr></thead><tbody><tr><td><code>make up</code></td><td><code>docker compose up -d --build</code></td></tr><tr><td><code>make down</code></td><td><code>docker compose down</code> (keeps volumes)</td></tr><tr><td><code>make logs</code></td><td><code>docker compose logs -f --tail=200</code></td></tr><tr><td><code>make ps</code></td><td>service status</td></tr><tr><td><code>make migrate</code></td><td><code>docker compose run --rm migrator alembic upgrade head</code></td></tr><tr><td><code>make collect-once</code></td><td>one fetch+persist cycle (via compose)</td></tr><tr><td><code>make analytics-run DATE=2026-04-20 [ROUTE=29]</code></td><td>batch analytics pipeline</td></tr><tr><td><code>make analytics-worker-logs</code></td><td>tail the analytics-worker logs</td></tr><tr><td><code>make capture-sample</code></td><td>save a fresh protobuf fixture under <code>tests/fixtures/</code></td></tr><tr><td><code>make api</code></td><td>run the API locally on port 8000 (no docker)</td></tr><tr><td><code>make dashboard</code></td><td>run the dashboard locally on port 8501 (no docker)</td></tr><tr><td><code>make test</code></td><td><code>pytest</code> (host)</td></tr><tr><td><code>make fmt</code> / <code>make lint</code></td><td><code>ruff format --fix .</code> / <code>ruff check .</code></td></tr><tr><td><code>make db-reset</code></td><td>dry-run: row counts that would be truncated</td></tr><tr><td><code>make db-reset-confirm</code></td><td>DESTRUCTIVE: <code>TRUNCATE</code> every data table (schema preserved)</td></tr><tr><td><code>make install</code></td><td><code>pip install -e &#x27;.[dev]&#x27;</code></td></tr></tbody></table>
+<h2 id="dockerfile-stages"><a class="anchor" href="#dockerfile-stages" aria-hidden="true">#</a>Dockerfile stages</h2>
+<p>One <code>Dockerfile</code>, five build targets. Source layout under <code>/app</code>:</p>
+<div class="mermaid">flowchart LR
+    BASE[base&lt;br/&gt;python:3.12-slim&lt;br/&gt;+libpq5 libgomp1 curl&lt;br/&gt;+all deps via pip] --&gt; MIG[migrator&lt;br/&gt;CMD: alembic upgrade head]
+    BASE --&gt; API[api&lt;br/&gt;EXPOSE 8000&lt;br/&gt;CMD: uvicorn]
+    BASE --&gt; COLL[collector&lt;br/&gt;CMD: python -m apps.collector.main --loop]
+    BASE --&gt; AW[analytics-worker&lt;br/&gt;CMD: python -m apps.analytics.worker]
+    BASE --&gt; DASH[dashboard&lt;br/&gt;EXPOSE 8501&lt;br/&gt;CMD: streamlit run]</div>
+<p>Dependencies install once in the <code>base</code> layer; source is copied last, so a code edit doesn&#x27;t bust the pip cache. Health checks: <code>api</code> on <code>GET /health</code>, <code>dashboard</code> on Streamlit&#x27;s <code>/_stcore/health</code>.</p>
+<h2 id="environment-variables"><a class="anchor" href="#environment-variables" aria-hidden="true">#</a>Environment variables</h2>
+<p>Configured entirely via <code>.env</code> (<code>.env.example</code> is the documented template). The runtime values are read by <code>core.config.Settings</code> (Pydantic <code>BaseSettings</code>).</p>
+<h3 id="database"><a class="anchor" href="#database" aria-hidden="true">#</a>Database</h3>
+<table><thead><tr><th>Var</th><th>Default</th><th>Notes</th></tr></thead><tbody><tr><td><code>DATABASE_URL</code></td><td><code>postgresql+psycopg://ttc:ttc@postgres:5432/ttc_gtfsrt</code></td><td>psycopg v3 dialect. For host-side runs, switch to <code>localhost:5433</code>.</td></tr></tbody></table>
+<h3 id="realtime-feeds"><a class="anchor" href="#realtime-feeds" aria-hidden="true">#</a>Realtime feeds</h3>
+<table><thead><tr><th>Var</th><th>Default</th><th>Notes</th></tr></thead><tbody><tr><td><code>GTFS_RT_VEHICLE_POSITIONS_URL</code></td><td><code>https://gtfsrt.ttc.ca/vehicles/position?format=binary</code></td><td><code>?format=binary</code> matters — text format is ~7× larger.</td></tr><tr><td><code>GTFS_RT_TRIP_UPDATES_URL</code></td><td><code>https://gtfsrt.ttc.ca/trips/update?format=binary</code></td><td>reserved; unused today</td></tr><tr><td><code>GTFS_RT_ALERTS_URL</code></td><td><code>https://gtfsrt.ttc.ca/alerts?format=binary</code></td><td>reserved; unused today</td></tr></tbody></table>
+<h3 id="collector"><a class="anchor" href="#collector" aria-hidden="true">#</a>Collector</h3>
+<table><thead><tr><th>Var</th><th>Default</th><th>Notes</th></tr></thead><tbody><tr><td><code>COLLECTOR_INTERVAL_SECONDS</code></td><td><code>20</code></td><td>TTC vehicles update ~every 20 s.</td></tr><tr><td><code>COLLECTOR_HTTP_TIMEOUT_SECONDS</code></td><td><code>10</code></td><td>per-request timeout</td></tr><tr><td><code>COLLECTOR_HTTP_RETRIES</code></td><td><code>2</code></td><td>connect / 5xx / timeout retries</td></tr><tr><td><code>COLLECTOR_USER_AGENT</code></td><td><code>ttc-gtfsrt-platform/0.2 (+...)</code></td><td>what the TTC sees</td></tr><tr><td><code>COLLECTOR_ROUTE_ALLOWLIST</code></td><td><code>29,929,25,925,36,501,506</code></td><td>comma-separated <code>route_id</code>s; empty → ingest every route</td></tr></tbody></table>
+<h3 id="api-dashboard"><a class="anchor" href="#api-dashboard" aria-hidden="true">#</a>API + dashboard</h3>
+<table><thead><tr><th>Var</th><th>Default</th><th>Notes</th></tr></thead><tbody><tr><td><code>API_HOST</code></td><td><code>0.0.0.0</code></td><td></td></tr><tr><td><code>API_PORT</code></td><td><code>8000</code></td><td></td></tr><tr><td><code>API_CORS_ORIGINS</code></td><td><code>*</code></td><td>comma-separated list in prod</td></tr><tr><td><code>DASHBOARD_API_BASE_URL</code></td><td><code>http://api:8000</code></td><td>for host-side dashboard, switch to <code>http://localhost:8000</code></td></tr></tbody></table>
+<h3 id="tuning-pagination"><a class="anchor" href="#tuning-pagination" aria-hidden="true">#</a>Tuning / pagination</h3>
+<table><thead><tr><th>Var</th><th>Default</th><th>Notes</th></tr></thead><tbody><tr><td><code>ACTIVE_VEHICLE_WINDOW_MINUTES</code></td><td><code>5</code></td><td>staleness bound for &quot;active&quot; queries</td></tr><tr><td><code>MAX_PAGE_SIZE</code></td><td><code>5000</code></td><td>hard cap on any <code>limit=</code> parameter</td></tr></tbody></table>
+<h3 id="analytics"><a class="anchor" href="#analytics" aria-hidden="true">#</a>Analytics</h3>
+<table><thead><tr><th>Var</th><th>Default</th><th>Notes</th></tr></thead><tbody><tr><td><code>ANALYTICS_UPSAMPLE_RESOLUTION_S</code></td><td><code>10</code></td><td>upsampling grid for trajectories</td></tr><tr><td><code>ANALYTICS_MAX_ORTHOGONAL_DISTANCE_M</code></td><td><code>200</code></td><td>drop trajectory points off-shape by more than this</td></tr><tr><td><code>ANALYTICS_WORKER_INTERVAL_SECONDS</code></td><td><code>120</code></td><td>worker tick; smaller = fresher trajectories, more load</td></tr><tr><td><code>ANALYTICS_WORKER_SERVICE_DATE_TZ</code></td><td><code>America/Toronto</code></td><td>for &quot;today&quot; calculations</td></tr></tbody></table>
+<h3 id="logging"><a class="anchor" href="#logging" aria-hidden="true">#</a>Logging</h3>
+<table><thead><tr><th>Var</th><th>Default</th><th>Notes</th></tr></thead><tbody><tr><td><code>LOG_LEVEL</code></td><td><code>INFO</code></td><td></td></tr><tr><td><code>LOG_JSON</code></td><td><code>true</code></td><td>structured JSON logging</td></tr></tbody></table>
+<h2 id="reset-and-re-ingest"><a class="anchor" href="#reset-and-re-ingest" aria-hidden="true">#</a>Reset and re-ingest</h2>
+<pre><code class="language-bash">make db-reset                  # dry-run: row counts per table
+make db-reset-confirm          # actually TRUNCATE every data table
+make migrate                   # apply any new migrations
+docker compose restart collector analytics-worker
+make logs                      # everything
+make analytics-worker-logs     # just the trajectory refresh loop</code></pre>
+<p>The data reset is intentionally <strong>separate</strong> from <code>alembic upgrade head</code>; migrations never destroy data. Trigger this when you change <code>COLLECTOR_ROUTE_ALLOWLIST</code> or when the trajectory pipeline needs a clean slate.</p>
+<h2 id="tests"><a class="anchor" href="#tests" aria-hidden="true">#</a>Tests</h2>
+<p>Test suite under <code>tests/</code>:</p>
+<ul><li><code>conftest.py</code> — DB engine, scoped session fixtures.</li><li><code>_factories.py</code> — ORM object factories for test data.</li><li><code>fixtures/</code> — recorded protobuf payloads (generated by <code>make capture-sample</code>).</li><li>Test modules cover the parser, normalizer, latest-row queries, analytics incremental refresh, anomaly detection (distance + time methods), iROAM endpoint grouping, forecast features, and the DB reset script.</li></ul>
+<p>Tests that require Postgres auto-skip when <code>TEST_DATABASE_URL</code> is unreachable:</p>
+<pre><code class="language-bash">pip install -e &#x27;.[dev]&#x27;
+make test
+# or with verbose output:
+pytest -v</code></pre>
+<p><code>make up</code> exposes Postgres on host port 5433, which matches the <code>TEST_DATABASE_URL</code> fallback in <code>core/config.py</code>.</p>
+<h2 id="common-gotchas"><a class="anchor" href="#common-gotchas" aria-hidden="true">#</a>Common gotchas</h2>
+<ul><li><strong>iROAM SPA missing or 404</strong> — the API serves <code>/ui</code> from <code>apps/api/static/iroam.html</code>. Confirm <code>apps/api/main.create_app</code> mounts the static dir. If the file is empty or moved, the route 404s silently.</li><li><strong>Streamlit can&#x27;t reach API</strong> — Inside Docker <code>DASHBOARD_API_BASE_URL=http://api:8000</code> (compose DNS). Locally, set it to <code>http://localhost:8000</code>.</li><li><strong><code>COLLECTOR_ROUTE_ALLOWLIST</code> change has no effect</strong> — the normalizer reads it at process start. Restart the collector container.</li><li><strong>Tests pass locally but fail in CI</strong> — most likely Postgres isn&#x27;t reachable; <code>TEST_DATABASE_URL</code> should point at the test instance.</li><li><strong>Migrations refuse to run</strong> — <code>0004_trip_trajectory_unique.py</code> guards against pre-existing duplicates. <code>make db-reset-confirm</code> first, then <code>make migrate</code>.</li></ul></article>
+  <div class="content-toc"><h4>On this page</h4><ul><li class="toc-h2"><a href="#one-line-start">One-line start</a></li><li class="toc-h2"><a href="#service-topology">Service topology</a></li><li class="toc-h2"><a href="#makefile-cheatsheet">Makefile cheatsheet</a></li><li class="toc-h2"><a href="#dockerfile-stages">Dockerfile stages</a></li><li class="toc-h2"><a href="#environment-variables">Environment variables</a></li><li class="toc-h3 sub"><a href="#database">Database</a></li><li class="toc-h3 sub"><a href="#realtime-feeds">Realtime feeds</a></li><li class="toc-h3 sub"><a href="#collector">Collector</a></li><li class="toc-h3 sub"><a href="#api-dashboard">API + dashboard</a></li><li class="toc-h3 sub"><a href="#tuning-pagination">Tuning / pagination</a></li><li class="toc-h3 sub"><a href="#analytics">Analytics</a></li><li class="toc-h3 sub"><a href="#logging">Logging</a></li><li class="toc-h2"><a href="#reset-and-re-ingest">Reset and re-ingest</a></li><li class="toc-h2"><a href="#tests">Tests</a></li><li class="toc-h2"><a href="#common-gotchas">Common gotchas</a></li></ul></div>
+</main>
+<script src="assets/lunr.min.js"></script>
+<script src="assets/highlight.min.js"></script>
+<script>hljs.highlightAll();</script>
+<script src="assets/mermaid.min.js"></script>
+<script>mermaid.initialize({startOnLoad:true, theme:'neutral', securityLevel:'loose', flowchart:{curve:'basis'}});</script>
+<script>window.SEARCH_INDEX_URL = "search-index.json";</script>
+<script src="assets/app.js"></script>
+</body>
+</html>

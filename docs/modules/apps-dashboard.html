@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>apps/dashboard — iROAM docs</title>
+<link rel="stylesheet" href="../assets/styles.css" />
+<link rel="stylesheet" href="../assets/highlight-github.css" />
+</head>
+<body>
+<button class="nav-toggle" aria-label="Toggle navigation">☰</button>
+<aside class="sidebar">
+  <div class="sidebar-header">
+    <a class="brand" href="../index.html">iROAM <span>docs</span></a>
+  </div>
+  <div class="search-box">
+    <input id="search-input" type="search" placeholder="Search docs…" autocomplete="off" />
+    <div id="search-results" class="search-results" hidden></div>
+  </div>
+  <nav class="nav"><div class="nav-section"><h4>Start here</h4><ul>
+<li><a href="../index.html">Overview</a></li>
+<li><a href="../architecture.html">Architecture</a></li>
+<li><a href="../data-model.html">Data model</a></li>
+<li><a href="../database-dataflow.html">Database dataflow</a></li>
+<li><a href="../frontend.html">Frontend</a></li>
+<li><a href="../operations.html">Operations</a></li>
+<li><a href="../examples.html">Examples</a></li>
+</ul></div>
+<div class="nav-section"><h4>Reference</h4><ul>
+<li><a href="../api.html">API reference</a></li>
+</ul></div>
+<div class="nav-section"><h4>Modules</h4><ul>
+<li><a href="../modules/apps-collector.html">Collector</a></li>
+<li><a href="../modules/apps-analytics.html">Analytics</a></li>
+<li><a href="../modules/apps-api.html">API</a></li>
+<li class="active"><a href="../modules/apps-dashboard.html">Dashboard</a></li>
+<li><a href="../modules/core.html">Core</a></li>
+<li><a href="../modules/db.html">Database</a></li>
+<li><a href="../modules/scripts.html">Scripts</a></li>
+<li><a href="../modules/deployment-bunching.html">Bunching predictor</a></li>
+<li><a href="../modules/legacy.html">Legacy</a></li>
+</ul></div></nav>
+  <div class="sidebar-footer">Built 2026-04-24<br/>89 files · 178 symbols</div>
+</aside>
+<main class="content">
+  <div class="breadcrumb"><a href="../index.html">Overview</a> / <a href="../api.html">Modules</a> / apps/dashboard</div>
+  <article><h1>apps/dashboard</h1>
+<p class="lead">Streamlit multipage operator UI; talks only to the API, never the DB directly.</p>
+<dl class="package-meta"><dt>Entry points</dt><dd><ul><li><code>streamlit run apps/dashboard/Home.py</code></li></ul></dd><dt>Files</dt><dd>9</dd><dt>Public symbols</dt><dd>14</dd></dl>
+<h2 id="files">Files</h2>
+<ul class="file-index">
+<li><a href="#apps-dashboard-home-py"><code>apps/dashboard/Home.py</code></a> — Streamlit dashboard home — platform summary for VehiclePositions.</li>
+<li><a href="#apps-dashboard-init-py"><code>apps/dashboard/__init__.py</code></a> — —</li>
+<li><a href="#apps-dashboard-api-client-py"><code>apps/dashboard/api_client.py</code></a> — Thin HTTP client the Streamlit pages use to talk to the FastAPI backend.</li>
+<li><a href="#apps-dashboard-pages-1-feed-health-py"><code>apps/dashboard/pages/1_Feed_Health.py</code></a> — Feed Health — recent fetches + per-minute success/failure chart.</li>
+<li><a href="#apps-dashboard-pages-2-live-fleet-map-py"><code>apps/dashboard/pages/2_Live_Fleet_Map.py</code></a> — Live Fleet Map — every active vehicle plotted from /vehicles/latest.</li>
+<li><a href="#apps-dashboard-pages-3-route-explorer-py"><code>apps/dashboard/pages/3_Route_Explorer.py</code></a> — Route Explorer — fleet-health aggregates + vehicle map for one route.</li>
+<li><a href="#apps-dashboard-pages-4-vehicle-detail-py"><code>apps/dashboard/pages/4_Vehicle_Detail.py</code></a> — Vehicle Detail — latest state, recent trail, speed chart for one vehicle.</li>
+<li><a href="#apps-dashboard-pages-5-replay-py"><code>apps/dashboard/pages/5_Replay.py</code></a> — Replay — play back a time window on a map using /replay/vehicles.</li>
+<li><a href="#apps-dashboard-pages-6-trajectories-py"><code>apps/dashboard/pages/6_Trajectories.py</code></a> — Trip Trajectories — upsampled 10s-grid output of the analytics worker.</li>
+</ul>
+<section class="file" id="apps-dashboard-home-py">
+<h3 class="file-heading"><a class="anchor" href="#apps-dashboard-home-py" aria-hidden="true">#</a><code>apps/dashboard/Home.py</code></h3>
+<p class="file-summary">Streamlit dashboard home — platform summary for VehiclePositions.</p>
+<p class="file-no-symbols">No public symbols.</p>
+</section>
+<section class="file" id="apps-dashboard-init-py">
+<h3 class="file-heading"><a class="anchor" href="#apps-dashboard-init-py" aria-hidden="true">#</a><code>apps/dashboard/__init__.py</code></h3>
+<p class="file-no-symbols">No public symbols.</p>
+</section>
+<section class="file" id="apps-dashboard-api-client-py">
+<h3 class="file-heading"><a class="anchor" href="#apps-dashboard-api-client-py" aria-hidden="true">#</a><code>apps/dashboard/api_client.py</code></h3>
+<p class="file-summary">Thin HTTP client the Streamlit pages use to talk to the FastAPI backend.</p>
+<div class="file-doc"><p>Thin HTTP client the Streamlit pages use to talk to the FastAPI backend.</p>
+<p>Keeping all HTTP access here means individual pages stay focused on rendering, and the client is the only thing that needs to change if the API contract moves.</p></div>
+<div class="symbol-list"><strong>Public:</strong> <a href="#apps-dashboard-api-client-py-apierror"><code>APIError</code></a>, <a href="#apps-dashboard-api-client-py-health"><code>health</code></a>, <a href="#apps-dashboard-api-client-py-feed-status-vehicle-positions"><code>feed_status_vehicle_positions</code></a>, <a href="#apps-dashboard-api-client-py-vehicles-latest"><code>vehicles_latest</code></a>, <a href="#apps-dashboard-api-client-py-vehicle-latest"><code>vehicle_latest</code></a>, <a href="#apps-dashboard-api-client-py-vehicle-history"><code>vehicle_history</code></a>, <a href="#apps-dashboard-api-client-py-routes-index"><code>routes_index</code></a>, <a href="#apps-dashboard-api-client-py-route-vehicles-latest"><code>route_vehicles_latest</code></a>, <a href="#apps-dashboard-api-client-py-route-metrics"><code>route_metrics</code></a>, <a href="#apps-dashboard-api-client-py-trajectory-service-dates"><code>trajectory_service_dates</code></a>, <a href="#apps-dashboard-api-client-py-trajectory-routes"><code>trajectory_routes</code></a>, <a href="#apps-dashboard-api-client-py-trajectory-trips"><code>trajectory_trips</code></a>, <a href="#apps-dashboard-api-client-py-trajectory-detail"><code>trajectory_detail</code></a>, <a href="#apps-dashboard-api-client-py-replay-vehicles"><code>replay_vehicles</code></a></div>
+<div class="symbol symbol-class" id="apps-dashboard-api-client-py-apierror">
+<div class="symbol-head">
+<span class="symbol-kind">class</span>
+<a class="symbol-name" href="#apps-dashboard-api-client-py-apierror">APIError</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">class APIError(Exception)</code></pre>
+<details class="methods"><summary>Methods</summary>
+<div class="method" id="apps-dashboard-api-client-py-apierror-init">
+<pre><code class="language-python">def __init__(self, status: int, message: str)</code></pre>
+</div>
+</details>
+</div>
+<div class="symbol symbol-function" id="apps-dashboard-api-client-py-health">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-dashboard-api-client-py-health">health</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def health() -&gt; dict[str, Any]</code></pre>
+</div>
+<div class="symbol symbol-function" id="apps-dashboard-api-client-py-feed-status-vehicle-positions">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-dashboard-api-client-py-feed-status-vehicle-positions">feed_status_vehicle_positions</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def feed_status_vehicle_positions() -&gt; dict[str, Any]</code></pre>
+</div>
+<div class="symbol symbol-function" id="apps-dashboard-api-client-py-vehicles-latest">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-dashboard-api-client-py-vehicles-latest">vehicles_latest</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def vehicles_latest(*, route_id: str | None = None, minutes: int = 5, limit: int | None = None, include_raw: bool = False) -&gt; list[dict[str, Any]]</code></pre>
+</div>
+<div class="symbol symbol-function" id="apps-dashboard-api-client-py-vehicle-latest">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-dashboard-api-client-py-vehicle-latest">vehicle_latest</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def vehicle_latest(vehicle_id: str, *, include_raw: bool = False) -&gt; dict[str, Any]</code></pre>
+</div>
+<div class="symbol symbol-function" id="apps-dashboard-api-client-py-vehicle-history">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-dashboard-api-client-py-vehicle-history">vehicle_history</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def vehicle_history(vehicle_id: str, *, start: datetime, end: datetime, limit: int | None = None, include_raw: bool = False) -&gt; list[dict[str, Any]]</code></pre>
+</div>
+<div class="symbol symbol-function" id="apps-dashboard-api-client-py-routes-index">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-dashboard-api-client-py-routes-index">routes_index</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def routes_index(minutes: int = 15) -&gt; list[str]</code></pre>
+</div>
+<div class="symbol symbol-function" id="apps-dashboard-api-client-py-route-vehicles-latest">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-dashboard-api-client-py-route-vehicles-latest">route_vehicles_latest</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def route_vehicles_latest(route_id: str, *, minutes: int = 5, limit: int | None = None, include_raw: bool = False) -&gt; list[dict[str, Any]]</code></pre>
+</div>
+<div class="symbol symbol-function" id="apps-dashboard-api-client-py-route-metrics">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-dashboard-api-client-py-route-metrics">route_metrics</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def route_metrics(route_id: str, *, window_minutes: int = 15) -&gt; dict[str, Any]</code></pre>
+</div>
+<div class="symbol symbol-function" id="apps-dashboard-api-client-py-trajectory-service-dates">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-dashboard-api-client-py-trajectory-service-dates">trajectory_service_dates</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def trajectory_service_dates(limit: int = 30) -&gt; list[str]</code></pre>
+</div>
+<div class="symbol symbol-function" id="apps-dashboard-api-client-py-trajectory-routes">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-dashboard-api-client-py-trajectory-routes">trajectory_routes</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def trajectory_routes(service_date: str) -&gt; list[str]</code></pre>
+</div>
+<div class="symbol symbol-function" id="apps-dashboard-api-client-py-trajectory-trips">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-dashboard-api-client-py-trajectory-trips">trajectory_trips</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def trajectory_trips(service_date: str, *, route_id: str | None = None, limit: int = 500) -&gt; list[dict[str, Any]]</code></pre>
+</div>
+<div class="symbol symbol-function" id="apps-dashboard-api-client-py-trajectory-detail">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-dashboard-api-client-py-trajectory-detail">trajectory_detail</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def trajectory_detail(trip_id: str, *, start_date: str, include_shape: bool = False) -&gt; dict[str, Any]</code></pre>
+</div>
+<div class="symbol symbol-function" id="apps-dashboard-api-client-py-replay-vehicles">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-dashboard-api-client-py-replay-vehicles">replay_vehicles</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def replay_vehicles(*, start: datetime, end: datetime, route_id: str | None = None, limit: int | None = None, include_raw: bool = False) -&gt; list[dict[str, Any]]</code></pre>
+</div>
+<div class="used-by"><strong>Used by</strong><ul><li><code>apps/dashboard/Home.py</code></li><li><code>apps/dashboard/pages/1_Feed_Health.py</code></li><li><code>apps/dashboard/pages/2_Live_Fleet_Map.py</code></li><li><code>apps/dashboard/pages/3_Route_Explorer.py</code></li><li><code>apps/dashboard/pages/4_Vehicle_Detail.py</code></li><li><code>apps/dashboard/pages/5_Replay.py</code></li><li><code>apps/dashboard/pages/6_Trajectories.py</code></li></ul></div>
+</section>
+<section class="file" id="apps-dashboard-pages-1-feed-health-py">
+<h3 class="file-heading"><a class="anchor" href="#apps-dashboard-pages-1-feed-health-py" aria-hidden="true">#</a><code>apps/dashboard/pages/1_Feed_Health.py</code></h3>
+<p class="file-summary">Feed Health — recent fetches + per-minute success/failure chart.</p>
+<p class="file-no-symbols">No public symbols.</p>
+</section>
+<section class="file" id="apps-dashboard-pages-2-live-fleet-map-py">
+<h3 class="file-heading"><a class="anchor" href="#apps-dashboard-pages-2-live-fleet-map-py" aria-hidden="true">#</a><code>apps/dashboard/pages/2_Live_Fleet_Map.py</code></h3>
+<p class="file-summary">Live Fleet Map — every active vehicle plotted from /vehicles/latest.</p>
+<p class="file-no-symbols">No public symbols.</p>
+</section>
+<section class="file" id="apps-dashboard-pages-3-route-explorer-py">
+<h3 class="file-heading"><a class="anchor" href="#apps-dashboard-pages-3-route-explorer-py" aria-hidden="true">#</a><code>apps/dashboard/pages/3_Route_Explorer.py</code></h3>
+<p class="file-summary">Route Explorer — fleet-health aggregates + vehicle map for one route.</p>
+<p class="file-no-symbols">No public symbols.</p>
+</section>
+<section class="file" id="apps-dashboard-pages-4-vehicle-detail-py">
+<h3 class="file-heading"><a class="anchor" href="#apps-dashboard-pages-4-vehicle-detail-py" aria-hidden="true">#</a><code>apps/dashboard/pages/4_Vehicle_Detail.py</code></h3>
+<p class="file-summary">Vehicle Detail — latest state, recent trail, speed chart for one vehicle.</p>
+<p class="file-no-symbols">No public symbols.</p>
+</section>
+<section class="file" id="apps-dashboard-pages-5-replay-py">
+<h3 class="file-heading"><a class="anchor" href="#apps-dashboard-pages-5-replay-py" aria-hidden="true">#</a><code>apps/dashboard/pages/5_Replay.py</code></h3>
+<p class="file-summary">Replay — play back a time window on a map using /replay/vehicles.</p>
+<p class="file-no-symbols">No public symbols.</p>
+</section>
+<section class="file" id="apps-dashboard-pages-6-trajectories-py">
+<h3 class="file-heading"><a class="anchor" href="#apps-dashboard-pages-6-trajectories-py" aria-hidden="true">#</a><code>apps/dashboard/pages/6_Trajectories.py</code></h3>
+<p class="file-summary">Trip Trajectories — upsampled 10s-grid output of the analytics worker.</p>
+<div class="file-doc"><p>Trip Trajectories — upsampled 10s-grid output of the analytics worker.</p>
+<p>Pick a service date → route → trip instance. Shows: <em> summary metrics (duration, distance, point count, mean speed) </em> map with the shape-interpolated path (points color-graded by time) <em> distance-over-time and speed-over-time charts </em> raw rows expander</p>
+<p>The underlying data is append-only-per-trip-instance (delete-then-insert on refresh); no stale-run de-duplication is needed in the client.</p></div>
+<p class="file-no-symbols">No public symbols.</p>
+</section></article>
+  <div class="content-toc"><h4>On this page</h4><ul><li class="toc-h2"><a href="#files">Files</a></li><li class="toc-h3 sub"><a href="#apps-dashboard-home-py">apps/dashboard/Home.py</a></li><li class="toc-h3 sub"><a href="#apps-dashboard-init-py">apps/dashboard/__init__.py</a></li><li class="toc-h3 sub"><a href="#apps-dashboard-api-client-py">apps/dashboard/api_client.py</a></li><li class="toc-h3 sub"><a href="#apps-dashboard-pages-1-feed-health-py">apps/dashboard/pages/1_Feed_Health.py</a></li><li class="toc-h3 sub"><a href="#apps-dashboard-pages-2-live-fleet-map-py">apps/dashboard/pages/2_Live_Fleet_Map.py</a></li><li class="toc-h3 sub"><a href="#apps-dashboard-pages-3-route-explorer-py">apps/dashboard/pages/3_Route_Explorer.py</a></li><li class="toc-h3 sub"><a href="#apps-dashboard-pages-4-vehicle-detail-py">apps/dashboard/pages/4_Vehicle_Detail.py</a></li><li class="toc-h3 sub"><a href="#apps-dashboard-pages-5-replay-py">apps/dashboard/pages/5_Replay.py</a></li><li class="toc-h3 sub"><a href="#apps-dashboard-pages-6-trajectories-py">apps/dashboard/pages/6_Trajectories.py</a></li></ul></div>
+</main>
+<script src="../assets/lunr.min.js"></script>
+<script src="../assets/highlight.min.js"></script>
+<script>hljs.highlightAll();</script>
+<script src="../assets/mermaid.min.js"></script>
+<script>mermaid.initialize({startOnLoad:true, theme:'neutral', securityLevel:'loose', flowchart:{curve:'basis'}});</script>
+<script>window.SEARCH_INDEX_URL = "../search-index.json";</script>
+<script src="../assets/app.js"></script>
+</body>
+</html>

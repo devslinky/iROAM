@@ -42,7 +42,6 @@ def _seed_snapshot(session: Session, *, at: datetime) -> RawGtfsrtSnapshot:
         fetched_at=at,
         feed_header_timestamp=at,
         content_sha256="0" * 64,
-        payload=b"\x00",
     )
     session.add(snap)
     session.flush()

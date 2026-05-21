@@ -144,7 +144,6 @@ def run_once(session: Session, spec: FeedSpec) -> RunOutcome:
         gtfs_realtime_version=header.gtfs_realtime_version,
         incrementality=header.incrementality,
         content_sha256=hashlib.sha256(result.content).hexdigest(),
-        payload=result.content,
     )
     session.add(snapshot)
     session.flush()  # assign snapshot.id

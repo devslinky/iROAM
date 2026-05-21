@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>core — iROAM docs</title>
+<link rel="stylesheet" href="../assets/styles.css" />
+<link rel="stylesheet" href="../assets/highlight-github.css" />
+</head>
+<body>
+<button class="nav-toggle" aria-label="Toggle navigation">☰</button>
+<aside class="sidebar">
+  <div class="sidebar-header">
+    <a class="brand" href="../index.html">iROAM <span>docs</span></a>
+  </div>
+  <div class="search-box">
+    <input id="search-input" type="search" placeholder="Search docs…" autocomplete="off" />
+    <div id="search-results" class="search-results" hidden></div>
+  </div>
+  <nav class="nav"><div class="nav-section"><h4>Start here</h4><ul>
+<li><a href="../index.html">Overview</a></li>
+<li><a href="../architecture.html">Architecture</a></li>
+<li><a href="../data-model.html">Data model</a></li>
+<li><a href="../database-dataflow.html">Database dataflow</a></li>
+<li><a href="../frontend.html">Frontend</a></li>
+<li><a href="../operations.html">Operations</a></li>
+<li><a href="../examples.html">Examples</a></li>
+</ul></div>
+<div class="nav-section"><h4>Reference</h4><ul>
+<li><a href="../api.html">API reference</a></li>
+</ul></div>
+<div class="nav-section"><h4>Modules</h4><ul>
+<li><a href="../modules/apps-collector.html">Collector</a></li>
+<li><a href="../modules/apps-analytics.html">Analytics</a></li>
+<li><a href="../modules/apps-api.html">API</a></li>
+<li><a href="../modules/apps-dashboard.html">Dashboard</a></li>
+<li class="active"><a href="../modules/core.html">Core</a></li>
+<li><a href="../modules/db.html">Database</a></li>
+<li><a href="../modules/scripts.html">Scripts</a></li>
+<li><a href="../modules/deployment-bunching.html">Bunching predictor</a></li>
+<li><a href="../modules/legacy.html">Legacy</a></li>
+</ul></div></nav>
+  <div class="sidebar-footer">Built 2026-04-24<br/>89 files · 178 symbols</div>
+</aside>
+<main class="content">
+  <div class="breadcrumb"><a href="../index.html">Overview</a> / <a href="../api.html">Modules</a> / core</div>
+  <article><h1>core</h1>
+<p class="lead">Settings, logging, time helpers, and GTFS-RT enum constants shared by every app.</p>
+<dl class="package-meta"><dt>Files</dt><dd>5</dd><dt>Public symbols</dt><dd>8</dd></dl>
+<h2 id="files">Files</h2>
+<ul class="file-index">
+<li><a href="#core-init-py"><code>core/__init__.py</code></a> — Shared configuration, logging, time, and constants used by all apps.</li>
+<li><a href="#core-config-py"><code>core/config.py</code></a> — Application configuration, loaded from environment / .env via pydantic-settings.</li>
+<li><a href="#core-constants-py"><code>core/constants.py</code></a> — Shared constants.</li>
+<li><a href="#core-logging-py"><code>core/logging.py</code></a> — Structured logging setup.</li>
+<li><a href="#core-time-py"><code>core/time.py</code></a> — Time helpers. All datetimes in the system are timezone-aware UTC.</li>
+</ul>
+<section class="file" id="core-init-py">
+<h3 class="file-heading"><a class="anchor" href="#core-init-py" aria-hidden="true">#</a><code>core/__init__.py</code></h3>
+<p class="file-summary">Shared configuration, logging, time, and constants used by all apps.</p>
+<p class="file-no-symbols">No public symbols.</p>
+</section>
+<section class="file" id="core-config-py">
+<h3 class="file-heading"><a class="anchor" href="#core-config-py" aria-hidden="true">#</a><code>core/config.py</code></h3>
+<p class="file-summary">Application configuration, loaded from environment / .env via pydantic-settings.</p>
+<div class="file-doc"><p>Application configuration, loaded from environment / .env via pydantic-settings.</p>
+<p>All apps (api, collector, dashboard) import <code>get_settings()</code> to read config. Values are cached; mutate environment + restart the process to re-read.</p></div>
+<div class="symbol-list"><strong>Public:</strong> <a href="#core-config-py-settings"><code>Settings</code></a>, <a href="#core-config-py-get-settings"><code>get_settings</code></a></div>
+<div class="symbol symbol-class" id="core-config-py-settings">
+<div class="symbol-head">
+<span class="symbol-kind">class</span>
+<a class="symbol-name" href="#core-config-py-settings">Settings</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">class Settings(BaseSettings)</code></pre>
+<div class="symbol-doc"><p>Typed view over the environment. See <code>.env.example</code> for documentation.</p></div>
+<details class="methods"><summary>Methods</summary>
+<div class="method" id="core-config-py-settings-cors-origin-list">
+<pre><code class="language-python">def cors_origin_list(self) -&gt; list[str]</code></pre>
+</div>
+<div class="method" id="core-config-py-settings-route-allowlist-set">
+<pre><code class="language-python">def route_allowlist_set(self) -&gt; frozenset[str]</code></pre>
+<div class="symbol-doc"><p>Parsed <code>COLLECTOR_ROUTE_ALLOWLIST</code> as a frozenset.</p>
+<p>Empty / unset ⇒ empty set, meaning &quot;no filter&quot; to the normalizer.</p></div>
+</div>
+</details>
+</div>
+<div class="symbol symbol-function" id="core-config-py-get-settings">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#core-config-py-get-settings">get_settings</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def get_settings() -&gt; Settings</code></pre>
+<div class="symbol-doc"><p>Return the process-wide Settings singleton.</p></div>
+</div>
+<div class="used-by"><strong>Used by</strong><ul><li><code>apps/analytics/gtfs_static.py</code></li><li><code>apps/analytics/main.py</code></li><li><code>apps/analytics/worker.py</code></li><li><code>apps/api/main.py</code></li><li><code>apps/api/routers/replay.py</code></li><li><code>apps/api/routers/routes.py</code></li><li><code>apps/api/routers/vehicles.py</code></li><li><code>apps/collector/feed_specs.py</code></li><li><code>apps/collector/fetcher.py</code></li><li><code>apps/collector/main.py</code></li><li><code>core/logging.py</code></li><li><code>db/migrations/env.py</code></li><li><code>db/session.py</code></li><li><code>scripts/capture_sample.py</code></li></ul></div>
+</section>
+<section class="file" id="core-constants-py">
+<h3 class="file-heading"><a class="anchor" href="#core-constants-py" aria-hidden="true">#</a><code>core/constants.py</code></h3>
+<p class="file-summary">Shared constants.</p>
+<div class="file-doc"><p>Shared constants.</p>
+<p>VehiclePositions is the canonical feed for this MVP. Adding another GTFS-RT feed (trip-updates, alerts) is a one-line change here plus a new <code>FeedSpec</code> and normalizer in <code>apps/collector/feed_specs.py</code>.</p></div>
+<p class="file-no-symbols">No public symbols.</p>
+</section>
+<section class="file" id="core-logging-py">
+<h3 class="file-heading"><a class="anchor" href="#core-logging-py" aria-hidden="true">#</a><code>core/logging.py</code></h3>
+<p class="file-summary">Structured logging setup.</p>
+<div class="file-doc"><p>Structured logging setup.</p>
+<p>Call <code>configure_logging()</code> once at process start (API lifespan, collector main, dashboard bootstrap). Subsequent calls are idempotent.</p></div>
+<div class="symbol-list"><strong>Public:</strong> <a href="#core-logging-py-jsonformatter"><code>JsonFormatter</code></a>, <a href="#core-logging-py-configure-logging"><code>configure_logging</code></a>, <a href="#core-logging-py-get-logger"><code>get_logger</code></a></div>
+<div class="symbol symbol-class" id="core-logging-py-jsonformatter">
+<div class="symbol-head">
+<span class="symbol-kind">class</span>
+<a class="symbol-name" href="#core-logging-py-jsonformatter">JsonFormatter</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">class JsonFormatter(logging.Formatter)</code></pre>
+<div class="symbol-doc"><p>Minimal JSON line formatter — one object per log record.</p>
+<p>Keeps structured fields (<code>extra=...</code>) alongside message/level/logger so downstream log collectors can parse without a custom grok pattern.</p></div>
+<details class="methods"><summary>Methods</summary>
+<div class="method" id="core-logging-py-jsonformatter-format">
+<pre><code class="language-python">def format(self, record: logging.LogRecord) -&gt; str</code></pre>
+</div>
+</details>
+</div>
+<div class="symbol symbol-function" id="core-logging-py-configure-logging">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#core-logging-py-configure-logging">configure_logging</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def configure_logging() -&gt; None</code></pre>
+<div class="symbol-doc"><p>Configure root logger once; safe to call multiple times.</p></div>
+</div>
+<div class="symbol symbol-function" id="core-logging-py-get-logger">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#core-logging-py-get-logger">get_logger</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def get_logger(name: str) -&gt; logging.Logger</code></pre>
+<div class="symbol-doc"><p>Return a module-scoped logger, configuring the root first if needed.</p></div>
+</div>
+<div class="used-by"><strong>Used by</strong><ul><li><code>apps/analytics/main.py</code></li><li><code>apps/analytics/runner.py</code></li><li><code>apps/analytics/worker.py</code></li><li><code>apps/api/main.py</code></li><li><code>apps/collector/fetcher.py</code></li><li><code>apps/collector/main.py</code></li><li><code>apps/collector/runner.py</code></li><li><code>scripts/capture_sample.py</code></li><li><code>scripts/db_reset.py</code></li><li><code>scripts/run_migrations.py</code></li></ul></div>
+</section>
+<section class="file" id="core-time-py">
+<h3 class="file-heading"><a class="anchor" href="#core-time-py" aria-hidden="true">#</a><code>core/time.py</code></h3>
+<p class="file-summary">Time helpers. All datetimes in the system are timezone-aware UTC.</p>
+<div class="file-doc"><p>Time helpers. All datetimes in the system are timezone-aware UTC.</p>
+<p>GTFS-Realtime timestamps are Unix epoch seconds (UTC). Conversion to <code>America/Toronto</code> happens only in presentation layers (dashboard).</p></div>
+<div class="symbol-list"><strong>Public:</strong> <a href="#core-time-py-utc-now"><code>utc_now</code></a>, <a href="#core-time-py-epoch-to-utc"><code>epoch_to_utc</code></a>, <a href="#core-time-py-to-toronto"><code>to_toronto</code></a></div>
+<div class="symbol symbol-function" id="core-time-py-utc-now">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#core-time-py-utc-now">utc_now</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def utc_now() -&gt; datetime</code></pre>
+<div class="symbol-doc"><p>Return the current UTC time as a tz-aware datetime.</p></div>
+</div>
+<div class="symbol symbol-function" id="core-time-py-epoch-to-utc">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#core-time-py-epoch-to-utc">epoch_to_utc</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def epoch_to_utc(epoch_seconds: int | float | None) -&gt; datetime | None</code></pre>
+<div class="symbol-doc"><p>Convert Unix epoch seconds to a UTC datetime, or None if the input is falsy.</p>
+<p>GTFS-RT encodes &quot;unset&quot; as 0 (or the field missing); callers should pass None for &quot;missing&quot;. We additionally treat 0 as missing because it&#x27;s never a valid TTC timestamp.</p></div>
+</div>
+<div class="symbol symbol-function" id="core-time-py-to-toronto">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#core-time-py-to-toronto">to_toronto</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def to_toronto(dt: datetime | None) -&gt; datetime | None</code></pre>
+<div class="symbol-doc"><p>Convert a UTC datetime to America/Toronto for display.</p></div>
+</div>
+<div class="used-by"><strong>Used by</strong><ul><li><code>apps/api/routers/health.py</code></li><li><code>apps/collector/normalize_vehicles.py</code></li></ul></div>
+</section></article>
+  <div class="content-toc"><h4>On this page</h4><ul><li class="toc-h2"><a href="#files">Files</a></li><li class="toc-h3 sub"><a href="#core-init-py">core/__init__.py</a></li><li class="toc-h3 sub"><a href="#core-config-py">core/config.py</a></li><li class="toc-h3 sub"><a href="#core-constants-py">core/constants.py</a></li><li class="toc-h3 sub"><a href="#core-logging-py">core/logging.py</a></li><li class="toc-h3 sub"><a href="#core-time-py">core/time.py</a></li></ul></div>
+</main>
+<script src="../assets/lunr.min.js"></script>
+<script src="../assets/highlight.min.js"></script>
+<script>hljs.highlightAll();</script>
+<script src="../assets/mermaid.min.js"></script>
+<script>mermaid.initialize({startOnLoad:true, theme:'neutral', securityLevel:'loose', flowchart:{curve:'basis'}});</script>
+<script>window.SEARCH_INDEX_URL = "../search-index.json";</script>
+<script src="../assets/app.js"></script>
+</body>
+</html>

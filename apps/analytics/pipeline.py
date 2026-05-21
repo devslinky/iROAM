@@ -12,7 +12,7 @@ import pandas as pd
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from apps.analytics.gtfs_static import GtfsStatic, resolve_shape_id
+from apps.analytics.gtfs_static import GtfsStatic, resolve_route_id, resolve_shape_id
 from apps.analytics.project_to_shape import project_trajectory
 from apps.analytics.trajectory_extract import build_trip_trajectory
 from apps.analytics.upsample import compute_moving_speed, last_step_clean_up, upsample_df
@@ -106,6 +106,20 @@ def process_trip_instance(
     """
     rows = fetch_by_trip_instance(session, trip_id, start_date)
     if not rows:
+        return pd.DataFrame()
+
+    # Stale-feed false-match guard: realtime trip_ids are recycled across GTFS
+    # feed versions, so an expired static bundle can resolve this trip_id to an
+    # unrelated route. Projecting the bus's GPS onto that route's shape yields
+    # garbage travel distances. If the static feed disagrees with the route the
+    # realtime feed reported, drop the trip rather than emit nonsense.
+    realtime_route = next((r.route_id for r in rows if r.route_id), None)
+    static_route = resolve_route_id(static, trip_id)
+    if (
+        realtime_route is not None
+        and static_route is not None
+        and static_route != realtime_route
+    ):
         return pd.DataFrame()
 
     df = build_trip_trajectory(rows, static.trips)

@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Legacy — iROAM docs</title>
+<link rel="stylesheet" href="../assets/styles.css" />
+<link rel="stylesheet" href="../assets/highlight-github.css" />
+</head>
+<body>
+<button class="nav-toggle" aria-label="Toggle navigation">☰</button>
+<aside class="sidebar">
+  <div class="sidebar-header">
+    <a class="brand" href="../index.html">iROAM <span>docs</span></a>
+  </div>
+  <div class="search-box">
+    <input id="search-input" type="search" placeholder="Search docs…" autocomplete="off" />
+    <div id="search-results" class="search-results" hidden></div>
+  </div>
+  <nav class="nav"><div class="nav-section"><h4>Start here</h4><ul>
+<li><a href="../index.html">Overview</a></li>
+<li><a href="../architecture.html">Architecture</a></li>
+<li><a href="../data-model.html">Data model</a></li>
+<li><a href="../database-dataflow.html">Database dataflow</a></li>
+<li><a href="../frontend.html">Frontend</a></li>
+<li><a href="../operations.html">Operations</a></li>
+<li><a href="../examples.html">Examples</a></li>
+</ul></div>
+<div class="nav-section"><h4>Reference</h4><ul>
+<li><a href="../api.html">API reference</a></li>
+</ul></div>
+<div class="nav-section"><h4>Modules</h4><ul>
+<li><a href="../modules/apps-collector.html">Collector</a></li>
+<li><a href="../modules/apps-analytics.html">Analytics</a></li>
+<li><a href="../modules/apps-api.html">API</a></li>
+<li><a href="../modules/apps-dashboard.html">Dashboard</a></li>
+<li><a href="../modules/core.html">Core</a></li>
+<li><a href="../modules/db.html">Database</a></li>
+<li><a href="../modules/scripts.html">Scripts</a></li>
+<li><a href="../modules/deployment-bunching.html">Bunching predictor</a></li>
+<li class="active"><a href="../modules/legacy.html">Legacy</a></li>
+</ul></div></nav>
+  <div class="sidebar-footer">Built 2026-04-24<br/>89 files · 178 symbols</div>
+</aside>
+<main class="content">
+  <div class="breadcrumb"><a href="../index.html">Overview</a> / <a href="../api.html">Modules</a> / data_process/arch_legacy</div>
+  <article><h1 id="legacy-code-data-process-arch-legacy"><a class="anchor" href="#legacy-code-data-process-arch-legacy" aria-hidden="true">#</a>Legacy code — <code>data_process/arch_legacy/</code></h1>
+<div class="callout callout-warning"><div class="callout-title">Archived</div><p>This directory holds <strong>proof-of-concept code</strong> from the original iROAM pipeline, before the system was restructured around the live GTFS-Realtime collector and the append-only Postgres schema. It is not imported or executed by any live process. Kept in the repo for reference only.</p></div>
+<p>The equivalent live functionality is in <a href="apps-analytics.html"><code>apps/analytics</code></a>, which superseded these files. The legacy code is pandas/CSV-centric and was never integrated with the database.</p>
+<h2 id="files"><a class="anchor" href="#files" aria-hidden="true">#</a>Files</h2>
+<table><thead><tr><th>File</th><th>Successor in <code>apps/analytics</code></th></tr></thead><tbody><tr><td><code>agent_schedule_check.py</code></td><td>(no direct equivalent; was a schedule audit script)</td></tr><tr><td><code>clean_and_combine.py</code></td><td><code>upsample.py</code> + <code>csv_export.py</code></td></tr><tr><td><code>data_processing_pipe.py</code></td><td><code>pipeline.py</code> + <code>runner.py</code></td></tr><tr><td><code>location_to_shape_projection.py</code></td><td><code>project_to_shape.py</code></td></tr><tr><td><code>travel_distance_calculation.py</code></td><td>folded into <code>project_to_shape.py</code></td></tr><tr><td><code>trip_filtering.py</code></td><td><code>pipeline.list_trip_instances</code></td></tr><tr><td><code>trip_stop_schedule_check.py</code></td><td>(no direct equivalent)</td></tr></tbody></table>
+<p>If you are reading the codebase to understand what runs today, skip this directory.</p><h2 id="files-listed">Files in this directory</h2><ul><li><code>data_process/arch_legacy/agent_schedule_check.py</code></li><li><code>data_process/arch_legacy/clean_and_combine.py</code></li><li><code>data_process/arch_legacy/data_processing_pipe.py</code></li><li><code>data_process/arch_legacy/location_to_shape_projection.py</code></li><li><code>data_process/arch_legacy/travel_distance_calculation.py</code></li><li><code>data_process/arch_legacy/trip_filtering.py</code></li><li><code>data_process/arch_legacy/trip_stop_schedule_check.py</code></li></ul></article>
+  <div class="content-toc"><h4>On this page</h4><ul><li class="toc-h2"><a href="#files">Files</a></li><li class="toc-h2"><a href="#files-listed">Files in this directory</a></li></ul></div>
+</main>
+<script src="../assets/lunr.min.js"></script>
+<script src="../assets/highlight.min.js"></script>
+<script>hljs.highlightAll();</script>
+<script src="../assets/mermaid.min.js"></script>
+<script>mermaid.initialize({startOnLoad:true, theme:'neutral', securityLevel:'loose', flowchart:{curve:'basis'}});</script>
+<script>window.SEARCH_INDEX_URL = "../search-index.json";</script>
+<script src="../assets/app.js"></script>
+</body>
+</html>

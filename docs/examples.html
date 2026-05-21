@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Examples — iROAM docs</title>
+<link rel="stylesheet" href="assets/styles.css" />
+<link rel="stylesheet" href="assets/highlight-github.css" />
+</head>
+<body>
+<button class="nav-toggle" aria-label="Toggle navigation">☰</button>
+<aside class="sidebar">
+  <div class="sidebar-header">
+    <a class="brand" href="index.html">iROAM <span>docs</span></a>
+  </div>
+  <div class="search-box">
+    <input id="search-input" type="search" placeholder="Search docs…" autocomplete="off" />
+    <div id="search-results" class="search-results" hidden></div>
+  </div>
+  <nav class="nav"><div class="nav-section"><h4>Start here</h4><ul>
+<li><a href="index.html">Overview</a></li>
+<li><a href="architecture.html">Architecture</a></li>
+<li><a href="data-model.html">Data model</a></li>
+<li><a href="database-dataflow.html">Database dataflow</a></li>
+<li><a href="frontend.html">Frontend</a></li>
+<li><a href="operations.html">Operations</a></li>
+<li class="active"><a href="examples.html">Examples</a></li>
+</ul></div>
+<div class="nav-section"><h4>Reference</h4><ul>
+<li><a href="api.html">API reference</a></li>
+</ul></div>
+<div class="nav-section"><h4>Modules</h4><ul>
+<li><a href="modules/apps-collector.html">Collector</a></li>
+<li><a href="modules/apps-analytics.html">Analytics</a></li>
+<li><a href="modules/apps-api.html">API</a></li>
+<li><a href="modules/apps-dashboard.html">Dashboard</a></li>
+<li><a href="modules/core.html">Core</a></li>
+<li><a href="modules/db.html">Database</a></li>
+<li><a href="modules/scripts.html">Scripts</a></li>
+<li><a href="modules/deployment-bunching.html">Bunching predictor</a></li>
+<li><a href="modules/legacy.html">Legacy</a></li>
+</ul></div></nav>
+  <div class="sidebar-footer">Built 2026-04-24<br/>89 files · 178 symbols</div>
+</aside>
+<main class="content">
+  <div class="breadcrumb"><a href="index.html">Overview</a> / Examples</div>
+  <article><h1 id="examples"><a class="anchor" href="#examples" aria-hidden="true">#</a>Examples</h1>
+<p>Concrete commands for the workflows researchers ask about most. All commands assume the working directory is the repo root and that <code>make up</code> is running.</p>
+<h2 id="quickstart-with-docker-compose"><a class="anchor" href="#quickstart-with-docker-compose" aria-hidden="true">#</a>Quickstart with docker-compose</h2>
+<pre><code class="language-bash">cp .env.example .env
+make up               # postgres + migrator + api + collector + dashboard + analytics-worker</code></pre>
+<p>After ~10 seconds:</p>
+<ul><li>API: &lt;http://localhost:8000/health&gt; → <code>{&quot;status&quot;:&quot;ok&quot;,&quot;db_ok&quot;:true}</code></li><li>Dashboard: &lt;http://localhost:8501&gt;</li><li>iROAM time-distance UI: &lt;http://localhost:8000/ui&gt;</li><li>Postgres: <code>psql postgresql://ttc:ttc@localhost:5433/ttc_gtfsrt</code></li></ul>
+<p>Stop with <code>make down</code> (keeps data) or <code>docker compose down -v</code> (wipes volumes).</p>
+<h2 id="running-the-collector-once"><a class="anchor" href="#running-the-collector-once" aria-hidden="true">#</a>Running the collector once</h2>
+<p>For debugging fetcher/parser changes without spinning up the loop:</p>
+<pre><code class="language-bash">python -m apps.collector.main --once --feed vehicle-positions</code></pre>
+<p>The runner writes one <code>feed_fetch_logs</code> row, one <code>raw_gtfsrt_snapshots</code> row, and ~1500 <code>vehicle_positions</code> rows (one per active TTC vehicle).</p>
+<h2 id="inspecting-feed-health"><a class="anchor" href="#inspecting-feed-health" aria-hidden="true">#</a>Inspecting feed health</h2>
+<pre><code class="language-bash">curl -s &#x27;http://localhost:8000/feed-status/vehicle-positions&#x27; | python -m json.tool</code></pre>
+<p>Expected shape:</p>
+<pre><code class="language-json">{
+  &quot;feed_name&quot;: &quot;vehicle-positions&quot;,
+  &quot;last_fetched_at&quot;: &quot;2026-04-21T17:43:20+00:00&quot;,
+  &quot;success_rate_1h&quot;: 0.996,
+  &quot;lag_seconds_vs_header&quot;: 4.2,
+  &quot;recent_fetches&quot;: [
+    {&quot;fetched_at&quot;: &quot;...&quot;, &quot;success&quot;: true, &quot;http_status&quot;: 200, &quot;duration_ms&quot;: 187, &quot;entity_count&quot;: 1612}
+  ]
+}</code></pre>
+<h2 id="latest-vehicle-positions"><a class="anchor" href="#latest-vehicle-positions" aria-hidden="true">#</a>Latest vehicle positions</h2>
+<pre><code class="language-bash"># All routes, 100 most-recent vehicles
+curl -s &#x27;http://localhost:8000/vehicles/latest?limit=100&#x27; | python -m json.tool | head -40
+
+# Single route
+curl -s &#x27;http://localhost:8000/routes/29/vehicles/latest&#x27; | python -m json.tool</code></pre>
+<h2 id="replaying-a-time-window"><a class="anchor" href="#replaying-a-time-window" aria-hidden="true">#</a>Replaying a time window</h2>
+<pre><code class="language-bash">curl -s --get \
+  --data-urlencode &#x27;start=2026-04-21T17:00:00+00:00&#x27; \
+  --data-urlencode &#x27;end=2026-04-21T17:30:00+00:00&#x27; \
+  &#x27;http://localhost:8000/replay/vehicles&#x27; | python -m json.tool | head</code></pre>
+<p>Returns append-ordered <code>vehicle_positions</code> rows in the window. Capped at <code>MAX_PAGE_SIZE</code>.</p>
+<h2 id="running-the-analytics-pipeline"><a class="anchor" href="#running-the-analytics-pipeline" aria-hidden="true">#</a>Running the analytics pipeline</h2>
+<p>Batch (full refresh for a date):</p>
+<pre><code class="language-bash">make analytics-run DATE=2026-04-20                                  # every route
+make analytics-run DATE=2026-04-20 ROUTE=29                         # one route
+python -m apps.analytics.main --date 2026-04-20 \
+    --export-csv ./out/2026-04-20                                   # also emit legacy-format CSVs
+python -m apps.analytics.main --date 2026-04-20 \
+    --since 2026-04-20T12:00:00+00:00                               # incremental</code></pre>
+<p>The worker daemon (started by <code>make up</code> in docker-compose) re-runs the analytics for &quot;today&quot; every <code>ANALYTICS_WORKER_INTERVAL_SECONDS</code> (default 120 s), scoped to trip instances with new <code>vehicle_positions</code> rows since the last tick.</p>
+<p>Tail it:</p>
+<pre><code class="language-bash">make analytics-worker-logs</code></pre>
+<h2 id="reading-trajectories-from-a-notebook"><a class="anchor" href="#reading-trajectories-from-a-notebook" aria-hidden="true">#</a>Reading trajectories from a notebook</h2>
+<pre><code class="language-python">import pandas as pd
+from sqlalchemy import create_engine
+
+engine = create_engine(&quot;postgresql+psycopg://ttc:ttc@localhost:5433/ttc_gtfsrt&quot;)
+
+df = pd.read_sql(&quot;&quot;&quot;
+    SELECT datetime, travel_distance_m, moving_speed_m_s, observed
+    FROM trip_trajectories
+    WHERE route_id = &#x27;29&#x27;
+      AND service_date = &#x27;2026-04-20&#x27;
+    ORDER BY trip_id, start_date, datetime
+&quot;&quot;&quot;, engine)
+df.head()</code></pre>
+<p>The bundled <code>notebooks/database_access.ipynb</code> has more variations.</p>
+<h2 id="fetching-the-iroam-trajectory-slice"><a class="anchor" href="#fetching-the-iroam-trajectory-slice" aria-hidden="true">#</a>Fetching the iROAM trajectory slice</h2>
+<p>The richest single API call. Returns every running bus on a route × date × direction, plus anomaly events at user-chosen thresholds:</p>
+<pre><code class="language-bash">curl -s --get \
+  --data-urlencode &#x27;route_id=29&#x27; \
+  --data-urlencode &#x27;service_date=2026-04-20&#x27; \
+  --data-urlencode &#x27;direction_id=0&#x27; \
+  --data-urlencode &#x27;bunch_sec=240&#x27; \
+  --data-urlencode &#x27;idle_min=2&#x27; \
+  --data-urlencode &#x27;crowd_pct=80&#x27; \
+  --data-urlencode &#x27;bunch_method=distance&#x27; \
+  --data-urlencode &#x27;bunch_dist=500&#x27; \
+  &#x27;http://localhost:8000/iroam/buses&#x27; | python -m json.tool | head -80</code></pre>
+<p>The iROAM static HTML at <code>/ui</code> calls this on every slider change.</p>
+<h2 id="forecasting-bunching-risk"><a class="anchor" href="#forecasting-bunching-risk" aria-hidden="true">#</a>Forecasting bunching risk</h2>
+<pre><code class="language-bash">curl -s --get \
+  --data-urlencode &#x27;route_id=29&#x27; \
+  --data-urlencode &#x27;service_date=2026-04-20&#x27; \
+  --data-urlencode &#x27;direction_id=0&#x27; \
+  --data-urlencode &#x27;t_ref=1080&#x27;   `# minutes since local-day midnight = 18:00` \
+  &#x27;http://localhost:8000/iroam/forecast&#x27; | python -m json.tool | head -40</code></pre>
+<p>Returns a per-bus risk vector (<code>prob[0..29]</code>, one probability per future minute), a <code>first_alert_horizon</code>, and an aggregate <code>horizon_summary</code> across all eligible buses. Internally:</p>
+<ol><li><code>services/forecast_features.build_bus_window</code> pulls the last ~10 minutes of upsampled trajectory for every running bus on the slice, finds two upstream neighbours, builds a <code>60 × 9</code> feature window.</li><li><code>services/bunching_predictor.get_predictor</code> lazy-loads the 30 LightGBM boosters from <code>deployment/bunching_lightgbm/model/</code>.</li><li><code>services/forecast.run_forecast</code> batches eligible windows through all 30 boosters, applies the per-horizon F2-optimal thresholds from <code>thresholds.json</code>, returns probabilities and counts.</li></ol>
+<p>If the model bundle is missing, the endpoint returns 503 with <code>{&quot;detail&quot;: &quot;predictor unavailable: ...&quot;}</code>.</p>
+<h2 id="resetting-the-database"><a class="anchor" href="#resetting-the-database" aria-hidden="true">#</a>Resetting the database</h2>
+<pre><code class="language-bash">make db-reset                  # dry-run: prints row counts per table
+make db-reset-confirm          # actually TRUNCATE every data table (schema kept)
+make migrate                   # apply any new migrations
+docker compose restart collector analytics-worker</code></pre>
+<p>Useful when <code>COLLECTOR_ROUTE_ALLOWLIST</code> changes or when the trajectory pipeline needs a clean slate. Data reset is intentionally <strong>separate</strong> from schema migrations so <code>alembic upgrade head</code> never destroys data.</p>
+<h2 id="running-tests"><a class="anchor" href="#running-tests" aria-hidden="true">#</a>Running tests</h2>
+<pre><code class="language-bash">pip install -e &#x27;.[dev]&#x27;
+make test</code></pre>
+<p>Tests that require Postgres auto-skip if it&#x27;s unreachable; the rest are pure. Fixtures live under <code>tests/fixtures/</code> (recorded protobuf payloads) and <code>tests/_factories.py</code> (ORM object factories).</p></article>
+  <div class="content-toc"><h4>On this page</h4><ul><li class="toc-h2"><a href="#quickstart-with-docker-compose">Quickstart with docker-compose</a></li><li class="toc-h2"><a href="#running-the-collector-once">Running the collector once</a></li><li class="toc-h2"><a href="#inspecting-feed-health">Inspecting feed health</a></li><li class="toc-h2"><a href="#latest-vehicle-positions">Latest vehicle positions</a></li><li class="toc-h2"><a href="#replaying-a-time-window">Replaying a time window</a></li><li class="toc-h2"><a href="#running-the-analytics-pipeline">Running the analytics pipeline</a></li><li class="toc-h2"><a href="#reading-trajectories-from-a-notebook">Reading trajectories from a notebook</a></li><li class="toc-h2"><a href="#fetching-the-iroam-trajectory-slice">Fetching the iROAM trajectory slice</a></li><li class="toc-h2"><a href="#forecasting-bunching-risk">Forecasting bunching risk</a></li><li class="toc-h2"><a href="#resetting-the-database">Resetting the database</a></li><li class="toc-h2"><a href="#running-tests">Running tests</a></li></ul></div>
+</main>
+<script src="assets/lunr.min.js"></script>
+<script src="assets/highlight.min.js"></script>
+<script>hljs.highlightAll();</script>
+<script src="assets/mermaid.min.js"></script>
+<script>mermaid.initialize({startOnLoad:true, theme:'neutral', securityLevel:'loose', flowchart:{curve:'basis'}});</script>
+<script>window.SEARCH_INDEX_URL = "search-index.json";</script>
+<script src="assets/app.js"></script>
+</body>
+</html>

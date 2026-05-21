@@ -75,7 +75,6 @@ def _seed_fixture(session: Session) -> dict[str, object]:
             fetched_at=at,
             feed_header_timestamp=at,
             content_sha256="a" * 64,
-            payload=b"\x00",
         )
         session.add(snap)
         session.flush()

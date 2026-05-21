@@ -16,7 +16,7 @@ from sqlalchemy import delete
 from sqlalchemy.orm import Session
 
 from apps.analytics import csv_export, pipeline
-from apps.analytics.gtfs_static import load_all
+from apps.analytics.gtfs_static import feed_covers, load_all
 from apps.analytics.shapes import build_linestrings
 from core.logging import get_logger
 from db.models.trip_trajectory import AnalyticsRun, TripTrajectory
@@ -109,6 +109,22 @@ def run_for_date(
 
     try:
         static = load_all()
+        if not feed_covers(static, service_date):
+            _logger.warning(
+                "analytics_feed_coverage_gap",
+                extra={
+                    "run_id": run_id,
+                    "service_date": service_date.isoformat(),
+                    "feed_version": static.feed_version,
+                    "feed_start_date": static.feed_start_date,
+                    "feed_end_date": static.feed_end_date,
+                    "detail": (
+                        "static GTFS does not cover this service_date; realtime "
+                        "trip_ids will mostly miss or false-match — output will "
+                        "be near-empty until the bundle is refreshed"
+                    ),
+                },
+            )
         shape_lines = build_linestrings(static.shapes)
 
         if only_changed_since is not None:

@@ -73,7 +73,6 @@ def _seed_one_row_per_table(engine: Engine) -> None:
             feed_name="vehicle-positions",
             fetched_at=_now(),
             content_sha256="0" * 64,
-            payload=b"\x00",
         )
         s.add(snap)
         s.flush()

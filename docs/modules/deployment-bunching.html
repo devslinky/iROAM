@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>deployment/bunching_lightgbm — iROAM docs</title>
+<link rel="stylesheet" href="../assets/styles.css" />
+<link rel="stylesheet" href="../assets/highlight-github.css" />
+</head>
+<body>
+<button class="nav-toggle" aria-label="Toggle navigation">☰</button>
+<aside class="sidebar">
+  <div class="sidebar-header">
+    <a class="brand" href="../index.html">iROAM <span>docs</span></a>
+  </div>
+  <div class="search-box">
+    <input id="search-input" type="search" placeholder="Search docs…" autocomplete="off" />
+    <div id="search-results" class="search-results" hidden></div>
+  </div>
+  <nav class="nav"><div class="nav-section"><h4>Start here</h4><ul>
+<li><a href="../index.html">Overview</a></li>
+<li><a href="../architecture.html">Architecture</a></li>
+<li><a href="../data-model.html">Data model</a></li>
+<li><a href="../database-dataflow.html">Database dataflow</a></li>
+<li><a href="../frontend.html">Frontend</a></li>
+<li><a href="../operations.html">Operations</a></li>
+<li><a href="../examples.html">Examples</a></li>
+</ul></div>
+<div class="nav-section"><h4>Reference</h4><ul>
+<li><a href="../api.html">API reference</a></li>
+</ul></div>
+<div class="nav-section"><h4>Modules</h4><ul>
+<li><a href="../modules/apps-collector.html">Collector</a></li>
+<li><a href="../modules/apps-analytics.html">Analytics</a></li>
+<li><a href="../modules/apps-api.html">API</a></li>
+<li><a href="../modules/apps-dashboard.html">Dashboard</a></li>
+<li><a href="../modules/core.html">Core</a></li>
+<li><a href="../modules/db.html">Database</a></li>
+<li><a href="../modules/scripts.html">Scripts</a></li>
+<li class="active"><a href="../modules/deployment-bunching.html">Bunching predictor</a></li>
+<li><a href="../modules/legacy.html">Legacy</a></li>
+</ul></div></nav>
+  <div class="sidebar-footer">Built 2026-04-24<br/>89 files · 178 symbols</div>
+</aside>
+<main class="content">
+  <div class="breadcrumb"><a href="../index.html">Overview</a> / <a href="../api.html">Modules</a> / deployment/bunching_lightgbm</div>
+  <article><h1>deployment/bunching_lightgbm</h1>
+<p class="lead">LightGBM model bundle (30 per-horizon boosters) and retraining glue served by the API.</p>
+<dl class="package-meta"><dt>Files</dt><dd>9</dd><dt>Public symbols</dt><dd>14</dd></dl>
+<h2 id="files">Files</h2>
+<ul class="file-index">
+<li><a href="#deployment-bunching-lightgbm-init-py"><code>deployment/bunching_lightgbm/__init__.py</code></a> — Deployment bundle for the LightGBM bunching predictor.</li>
+<li><a href="#deployment-bunching-lightgbm-examples-integration-snippet-py"><code>deployment/bunching_lightgbm/examples/integration_snippet.py</code></a> — Sketch of how to embed the predictor in a live transit-monitoring loop.</li>
+<li><a href="#deployment-bunching-lightgbm-examples-run-example-py"><code>deployment/bunching_lightgbm/examples/run_example.py</code></a> — End-to-end smoke test: load the predictor and run it on the bundled sample.</li>
+<li><a href="#deployment-bunching-lightgbm-src-init-py"><code>deployment/bunching_lightgbm/src/__init__.py</code></a> — —</li>
+<li><a href="#deployment-bunching-lightgbm-src-predict-py"><code>deployment/bunching_lightgbm/src/predict.py</code></a> — Bunching predictor: loads per-horizon LightGBM boosters and serves predictions.</li>
+<li><a href="#deployment-bunching-lightgbm-src-preprocess-py"><code>deployment/bunching_lightgbm/src/preprocess.py</code></a> — Raw-unit ↔ scaled-unit conversion for model inputs and gap outputs.</li>
+<li><a href="#deployment-bunching-lightgbm-src-schema-py"><code>deployment/bunching_lightgbm/src/schema.py</code></a> — Input-shape validation for the bunching predictor.</li>
+<li><a href="#deployment-bunching-lightgbm-tests-test-end-to-end-py"><code>deployment/bunching_lightgbm/tests/test_end_to_end.py</code></a> — Minimal end-to-end test runnable without the parent repo.</li>
+<li><a href="#deployment-bunching-lightgbm-train-py"><code>deployment/bunching_lightgbm/train.py</code></a> — Train and persist a per-horizon LightGBM bunching classifier.</li>
+</ul>
+<section class="file" id="deployment-bunching-lightgbm-init-py">
+<h3 class="file-heading"><a class="anchor" href="#deployment-bunching-lightgbm-init-py" aria-hidden="true">#</a><code>deployment/bunching_lightgbm/__init__.py</code></h3>
+<p class="file-summary">Deployment bundle for the LightGBM bunching predictor.</p>
+<div class="file-doc"><p>Deployment bundle for the LightGBM bunching predictor.</p>
+<p>Thin re-export so the parent app can do::</p>
+<pre><code>from deployment.bunching_lightgbm import BunchingPredictor</code></pre>
+<p>without the submodule gymnastics the bundle&#x27;s own <code>src</code> package assumes (it is otherwise designed to be used standalone from inside its own folder).</p></div>
+<p class="file-no-symbols">No public symbols.</p>
+</section>
+<section class="file" id="deployment-bunching-lightgbm-examples-integration-snippet-py">
+<h3 class="file-heading"><a class="anchor" href="#deployment-bunching-lightgbm-examples-integration-snippet-py" aria-hidden="true">#</a><code>deployment/bunching_lightgbm/examples/integration_snippet.py</code></h3>
+<p class="file-summary">Sketch of how to embed the predictor in a live transit-monitoring loop.</p>
+<div class="file-doc"><p>Sketch of how to embed the predictor in a live transit-monitoring loop.</p>
+<p>This is a <em>template</em> — the AVL-ingestion / upstream-bus bookkeeping bits are project-specific and left as stubs.</p></div>
+<div class="symbol-list"><strong>Public:</strong> <a href="#deployment-bunching-lightgbm-examples-integration-snippet-py-record-tick"><code>record_tick</code></a>, <a href="#deployment-bunching-lightgbm-examples-integration-snippet-py-predict-for"><code>predict_for</code></a>, <a href="#deployment-bunching-lightgbm-examples-integration-snippet-py-live-loop-example"><code>live_loop_example</code></a>, <a href="#deployment-bunching-lightgbm-examples-integration-snippet-py-fetch-avl-snapshot"><code>fetch_avl_snapshot</code></a>, <a href="#deployment-bunching-lightgbm-examples-integration-snippet-py-publish-alert"><code>publish_alert</code></a></div>
+<div class="symbol symbol-function" id="deployment-bunching-lightgbm-examples-integration-snippet-py-record-tick">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#deployment-bunching-lightgbm-examples-integration-snippet-py-record-tick">record_tick</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def record_tick(bus_id: str, row: np.ndarray) -&gt; None</code></pre>
+</div>
+<div class="symbol symbol-function" id="deployment-bunching-lightgbm-examples-integration-snippet-py-predict-for">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#deployment-bunching-lightgbm-examples-integration-snippet-py-predict-for">predict_for</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def predict_for(bus_id: str) -&gt; dict | None</code></pre>
+</div>
+<div class="symbol symbol-function" id="deployment-bunching-lightgbm-examples-integration-snippet-py-live-loop-example">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#deployment-bunching-lightgbm-examples-integration-snippet-py-live-loop-example">live_loop_example</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def live_loop_example()</code></pre>
+</div>
+<div class="symbol symbol-function" id="deployment-bunching-lightgbm-examples-integration-snippet-py-fetch-avl-snapshot">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#deployment-bunching-lightgbm-examples-integration-snippet-py-fetch-avl-snapshot">fetch_avl_snapshot</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def fetch_avl_snapshot()</code></pre>
+</div>
+<div class="symbol symbol-function" id="deployment-bunching-lightgbm-examples-integration-snippet-py-publish-alert">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#deployment-bunching-lightgbm-examples-integration-snippet-py-publish-alert">publish_alert</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def publish_alert(payload: dict)</code></pre>
+</div>
+</section>
+<section class="file" id="deployment-bunching-lightgbm-examples-run-example-py">
+<h3 class="file-heading"><a class="anchor" href="#deployment-bunching-lightgbm-examples-run-example-py" aria-hidden="true">#</a><code>deployment/bunching_lightgbm/examples/run_example.py</code></h3>
+<p class="file-summary">End-to-end smoke test: load the predictor and run it on the bundled sample.</p>
+<div class="file-doc"><p>End-to-end smoke test: load the predictor and run it on the bundled sample.</p>
+<p>Usage ----- cd deployment/bunching_lightgbm python examples/run_example.py</p>
+<p>Expected output: probability vector of length 30, plus an alert dict.</p></div>
+<div class="symbol-list"><strong>Public:</strong> <a href="#deployment-bunching-lightgbm-examples-run-example-py-main"><code>main</code></a></div>
+<div class="symbol symbol-function" id="deployment-bunching-lightgbm-examples-run-example-py-main">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#deployment-bunching-lightgbm-examples-run-example-py-main">main</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def main() -&gt; int</code></pre>
+</div>
+</section>
+<section class="file" id="deployment-bunching-lightgbm-src-init-py">
+<h3 class="file-heading"><a class="anchor" href="#deployment-bunching-lightgbm-src-init-py" aria-hidden="true">#</a><code>deployment/bunching_lightgbm/src/__init__.py</code></h3>
+<p class="file-no-symbols">No public symbols.</p>
+</section>
+<section class="file" id="deployment-bunching-lightgbm-src-predict-py">
+<h3 class="file-heading"><a class="anchor" href="#deployment-bunching-lightgbm-src-predict-py" aria-hidden="true">#</a><code>deployment/bunching_lightgbm/src/predict.py</code></h3>
+<p class="file-summary">Bunching predictor: loads per-horizon LightGBM boosters and serves predictions.</p>
+<div class="file-doc"><p>Bunching predictor: loads per-horizon LightGBM boosters and serves predictions.</p>
+<p>Designed to be embedded inside a transit-monitoring service. Load once at startup; call <code>predict_proba</code> / <code>alert</code> on every incoming AVL snapshot.</p>
+<p>Everything needed to run this class lives under <code>&lt;model_dir&gt;/</code>: booster_h00.txt ... booster_h{pred_len-1}.txt    # per-horizon boosters scaler.json                                       # normalization stats thresholds.json                                   # F2-optimal decision thresholds metadata.json                                     # training config</p></div>
+<div class="symbol-list"><strong>Public:</strong> <a href="#deployment-bunching-lightgbm-src-predict-py-bunchingpredictor"><code>BunchingPredictor</code></a></div>
+<div class="symbol symbol-class" id="deployment-bunching-lightgbm-src-predict-py-bunchingpredictor">
+<div class="symbol-head">
+<span class="symbol-kind">class</span>
+<a class="symbol-name" href="#deployment-bunching-lightgbm-src-predict-py-bunchingpredictor">BunchingPredictor</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">class BunchingPredictor</code></pre>
+<div class="symbol-doc"><p>Per-horizon bunching-probability predictor backed by LightGBM boosters.</p>
+<p>Parameters ---------- model_dir : path Folder produced by <code>train.py</code> containing booster_h*.txt, scaler.json, thresholds.json, metadata.json.</p></div>
+<details class="methods"><summary>Methods</summary>
+<div class="method" id="deployment-bunching-lightgbm-src-predict-py-bunchingpredictor-init">
+<pre><code class="language-python">def __init__(self, model_dir: str | Path)</code></pre>
+</div>
+<div class="method" id="deployment-bunching-lightgbm-src-predict-py-bunchingpredictor-predict-proba">
+<pre><code class="language-python">def predict_proba(self, x: np.ndarray, *, is_scaled: bool = True) -&gt; np.ndarray</code></pre>
+<div class="symbol-doc"><p>Return per-horizon bunching probabilities.</p>
+<p>Parameters ---------- x : ndarray A window <code>(seq_len, n_channels)</code> or a batch <code>(batch, seq_len, n_channels)</code>. is_scaled : bool <code>True</code> (default) if <code>x</code> is already in the scaled units the model was trained on. <code>False</code> means raw units (m/s, metres) and will be scaled with the bundled scaler before inference.</p>
+<p>Returns ------- ndarray of shape <code>(batch, pred_len)</code> containing probabilities in [0, 1].</p></div>
+</div>
+<div class="method" id="deployment-bunching-lightgbm-src-predict-py-bunchingpredictor-predict-scalar">
+<pre><code class="language-python">def predict_scalar(self, x: np.ndarray, *, mode: str = &#x27;max&#x27;, is_scaled: bool = True) -&gt; np.ndarray</code></pre>
+<div class="symbol-doc"><p>Collapse per-horizon probabilities into a single scalar per sample.</p>
+<p>mode=&#x27;max&#x27; (default): highest probability across horizons — the operationally useful &quot;will this bus bunch <em>at any point</em> in the next <code>pred_len</code> steps?&quot; mode=&#x27;last&#x27;: probability at the final horizon. mode=&#x27;mean&#x27;: mean probability across horizons.</p></div>
+</div>
+<div class="method" id="deployment-bunching-lightgbm-src-predict-py-bunchingpredictor-alert">
+<pre><code class="language-python">def alert(self, x: np.ndarray, *, is_scaled: bool = True) -&gt; list[dict]</code></pre>
+<div class="symbol-doc"><p>For each sample, return a dict describing the alert status.</p>
+<p>Each dict has: any_alert        : bool, whether any horizon exceeds its F2 threshold first_alert_step : earliest horizon step above threshold, or None max_prob         : highest probability across horizons max_prob_step    : horizon where max_prob occurs per_horizon      : full probability vector</p></div>
+</div>
+</details>
+</div>
+</section>
+<section class="file" id="deployment-bunching-lightgbm-src-preprocess-py">
+<h3 class="file-heading"><a class="anchor" href="#deployment-bunching-lightgbm-src-preprocess-py" aria-hidden="true">#</a><code>deployment/bunching_lightgbm/src/preprocess.py</code></h3>
+<p class="file-summary">Raw-unit ↔ scaled-unit conversion for model inputs and gap outputs.</p>
+<div class="file-doc"><p>Raw-unit ↔ scaled-unit conversion for model inputs and gap outputs.</p>
+<p>The model was trained on z-score scaled features (see <code>scaler.json</code>). Live AVL pipelines typically have raw-unit measurements (m/s, metres), so the helpers here close the gap.</p></div>
+<div class="symbol-list"><strong>Public:</strong> <a href="#deployment-bunching-lightgbm-src-preprocess-py-load-scaler"><code>load_scaler</code></a>, <a href="#deployment-bunching-lightgbm-src-preprocess-py-scale-window"><code>scale_window</code></a>, <a href="#deployment-bunching-lightgbm-src-preprocess-py-unscale-gap"><code>unscale_gap</code></a></div>
+<div class="symbol symbol-function" id="deployment-bunching-lightgbm-src-preprocess-py-load-scaler">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#deployment-bunching-lightgbm-src-preprocess-py-load-scaler">load_scaler</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def load_scaler(path: str | Path) -&gt; dict</code></pre>
+</div>
+<div class="symbol symbol-function" id="deployment-bunching-lightgbm-src-preprocess-py-scale-window">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#deployment-bunching-lightgbm-src-preprocess-py-scale-window">scale_window</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def scale_window(raw: np.ndarray, scaler: Mapping) -&gt; np.ndarray</code></pre>
+<div class="symbol-doc"><p>Convert raw units to scaled units for a (seq_len, n_channels) window.</p>
+<p><code>n_channels</code> must be a multiple of 3. Channels are interpreted as repeated (speed, gap, aux) triples, one per bus (target + upstream).</p></div>
+</div>
+<div class="symbol symbol-function" id="deployment-bunching-lightgbm-src-preprocess-py-unscale-gap">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#deployment-bunching-lightgbm-src-preprocess-py-unscale-gap">unscale_gap</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def unscale_gap(scaled_gap: np.ndarray, scaler: Mapping) -&gt; np.ndarray</code></pre>
+<div class="symbol-doc"><p>Inverse-scale a gap-only tensor back to metres.</p></div>
+</div>
+</section>
+<section class="file" id="deployment-bunching-lightgbm-src-schema-py">
+<h3 class="file-heading"><a class="anchor" href="#deployment-bunching-lightgbm-src-schema-py" aria-hidden="true">#</a><code>deployment/bunching_lightgbm/src/schema.py</code></h3>
+<p class="file-summary">Input-shape validation for the bunching predictor.</p>
+<div class="symbol-list"><strong>Public:</strong> <a href="#deployment-bunching-lightgbm-src-schema-py-schemaerror"><code>SchemaError</code></a>, <a href="#deployment-bunching-lightgbm-src-schema-py-validate-window"><code>validate_window</code></a></div>
+<div class="symbol symbol-class" id="deployment-bunching-lightgbm-src-schema-py-schemaerror">
+<div class="symbol-head">
+<span class="symbol-kind">class</span>
+<a class="symbol-name" href="#deployment-bunching-lightgbm-src-schema-py-schemaerror">SchemaError</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">class SchemaError(ValueError)</code></pre>
+<div class="symbol-doc"><p>Raised when an input window does not match the expected shape.</p></div>
+</div>
+<div class="symbol symbol-function" id="deployment-bunching-lightgbm-src-schema-py-validate-window">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#deployment-bunching-lightgbm-src-schema-py-validate-window">validate_window</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def validate_window(x: np.ndarray, seq_len: int, n_channels: int, *, allow_batch: bool = True) -&gt; np.ndarray</code></pre>
+<div class="symbol-doc"><p>Return <code>x</code> as a float32 ndarray with shape <code>(batch, seq_len, n_channels)</code>.</p>
+<p>Accepts either a single window <code>(seq_len, n_channels)</code> or a batch <code>(batch, seq_len, n_channels)</code>. Any other shape raises <code>SchemaError</code>.</p>
+<p>Does NOT check whether the values are already scaled — use <code>preprocess.scale_window</code> if your input is still in raw units.</p></div>
+</div>
+</section>
+<section class="file" id="deployment-bunching-lightgbm-tests-test-end-to-end-py">
+<h3 class="file-heading"><a class="anchor" href="#deployment-bunching-lightgbm-tests-test-end-to-end-py" aria-hidden="true">#</a><code>deployment/bunching_lightgbm/tests/test_end_to_end.py</code></h3>
+<p class="file-summary">Minimal end-to-end test runnable without the parent repo.</p>
+<div class="file-doc"><p>Minimal end-to-end test runnable without the parent repo.</p>
+<p>cd deployment/bunching_lightgbm python -m tests.test_end_to_end</p></div>
+<div class="symbol-list"><strong>Public:</strong> <a href="#deployment-bunching-lightgbm-tests-test-end-to-end-py-main"><code>main</code></a></div>
+<div class="symbol symbol-function" id="deployment-bunching-lightgbm-tests-test-end-to-end-py-main">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#deployment-bunching-lightgbm-tests-test-end-to-end-py-main">main</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def main() -&gt; int</code></pre>
+</div>
+</section>
+<section class="file" id="deployment-bunching-lightgbm-train-py">
+<h3 class="file-heading"><a class="anchor" href="#deployment-bunching-lightgbm-train-py" aria-hidden="true">#</a><code>deployment/bunching_lightgbm/train.py</code></h3>
+<p class="file-summary">Train and persist a per-horizon LightGBM bunching classifier.</p>
+<div class="file-doc"><p>Train and persist a per-horizon LightGBM bunching classifier.</p>
+<p>This is the only script in this bundle that touches the training pickles. At inference time the <code>model/</code> folder is fully self-contained: 30 LightGBM boosters (.txt native format), a scaler, per-horizon thresholds, and a metadata manifest.</p>
+<p>Input data layout (produced by data_process/build_chronological.py) -------------------------------------------------------------------- A folder like <code>filtered/training_data/chrono/</code> containing:</p>
+<pre><code>scaler.pkl                  # 4-tuple (speed_mean, speed_std, gap_mean, gap_std)
+matched/scaled_chrono_train.pkl
+matched/scaled_chrono_val.pkl
+matched/scaled_chrono_test.pkl</code></pre>
+<p>Each pickle is a list of <code>(X, Y, CAT)</code> tuples where X: (seq_len, 3 + step*3) scaled float32         # e.g. (60, 9) for step=2 Y: (pred_len, 3) scaled float32                 # Y[:,0] is scaled forward gap CAT: auxiliary categorical metadata (unused here)</p>
+<p>Channel layout inside X (repeats per upstream bus, starting with the target bus): offset 0: speed     (scaled with speed_mean/std) offset 1: gap       (scaled with gap_mean/std) offset 2: auxiliary (passed through unchanged)</p>
+<p>Bunching label at horizon h: <code>Y[h, 0] &lt; (threshold_raw - gap_mean) / gap_std</code>. Default <code>threshold_raw = 100</code> (metres).</p>
+<p>Usage ----- python train.py         --data_root /home/jiahao/Documents/iroam_qt/filtered/training_data/chrono         --variant matched         --step 2 --seq_len 60 --pred_len 30         --out_dir ./model         --seed 2021</p>
+<p>Retraining on your own data: produce pickles in the same schema and pass <code>--data_root</code> pointing at that folder.</p></div>
+<div class="symbol-list"><strong>Public:</strong> <a href="#deployment-bunching-lightgbm-train-py-main"><code>main</code></a></div>
+<div class="symbol symbol-function" id="deployment-bunching-lightgbm-train-py-main">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#deployment-bunching-lightgbm-train-py-main">main</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def main()</code></pre>
+</div>
+</section></article>
+  <div class="content-toc"><h4>On this page</h4><ul><li class="toc-h2"><a href="#files">Files</a></li><li class="toc-h3 sub"><a href="#deployment-bunching-lightgbm-init-py">deployment/bunching_lightgbm/__init__.py</a></li><li class="toc-h3 sub"><a href="#deployment-bunching-lightgbm-examples-integration-snippet-py">deployment/bunching_lightgbm/examples/integration_snippet.py</a></li><li class="toc-h3 sub"><a href="#deployment-bunching-lightgbm-examples-run-example-py">deployment/bunching_lightgbm/examples/run_example.py</a></li><li class="toc-h3 sub"><a href="#deployment-bunching-lightgbm-src-init-py">deployment/bunching_lightgbm/src/__init__.py</a></li><li class="toc-h3 sub"><a href="#deployment-bunching-lightgbm-src-predict-py">deployment/bunching_lightgbm/src/predict.py</a></li><li class="toc-h3 sub"><a href="#deployment-bunching-lightgbm-src-preprocess-py">deployment/bunching_lightgbm/src/preprocess.py</a></li><li class="toc-h3 sub"><a href="#deployment-bunching-lightgbm-src-schema-py">deployment/bunching_lightgbm/src/schema.py</a></li><li class="toc-h3 sub"><a href="#deployment-bunching-lightgbm-tests-test-end-to-end-py">deployment/bunching_lightgbm/tests/test_end_to_end.py</a></li><li class="toc-h3 sub"><a href="#deployment-bunching-lightgbm-train-py">deployment/bunching_lightgbm/train.py</a></li></ul></div>
+</main>
+<script src="../assets/lunr.min.js"></script>
+<script src="../assets/highlight.min.js"></script>
+<script>hljs.highlightAll();</script>
+<script src="../assets/mermaid.min.js"></script>
+<script>mermaid.initialize({startOnLoad:true, theme:'neutral', securityLevel:'loose', flowchart:{curve:'basis'}});</script>
+<script>window.SEARCH_INDEX_URL = "../search-index.json";</script>
+<script src="../assets/app.js"></script>
+</body>
+</html>

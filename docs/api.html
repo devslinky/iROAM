@@ -1,0 +1,1384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>API reference — iROAM docs</title>
+<link rel="stylesheet" href="assets/styles.css" />
+<link rel="stylesheet" href="assets/highlight-github.css" />
+</head>
+<body>
+<button class="nav-toggle" aria-label="Toggle navigation">☰</button>
+<aside class="sidebar">
+  <div class="sidebar-header">
+    <a class="brand" href="index.html">iROAM <span>docs</span></a>
+  </div>
+  <div class="search-box">
+    <input id="search-input" type="search" placeholder="Search docs…" autocomplete="off" />
+    <div id="search-results" class="search-results" hidden></div>
+  </div>
+  <nav class="nav"><div class="nav-section"><h4>Start here</h4><ul>
+<li><a href="index.html">Overview</a></li>
+<li><a href="architecture.html">Architecture</a></li>
+<li><a href="data-model.html">Data model</a></li>
+<li><a href="database-dataflow.html">Database dataflow</a></li>
+<li><a href="frontend.html">Frontend</a></li>
+<li><a href="operations.html">Operations</a></li>
+<li><a href="examples.html">Examples</a></li>
+</ul></div>
+<div class="nav-section"><h4>Reference</h4><ul>
+<li class="active"><a href="api.html">API reference</a></li>
+</ul></div>
+<div class="nav-section"><h4>Modules</h4><ul>
+<li><a href="modules/apps-collector.html">Collector</a></li>
+<li><a href="modules/apps-analytics.html">Analytics</a></li>
+<li><a href="modules/apps-api.html">API</a></li>
+<li><a href="modules/apps-dashboard.html">Dashboard</a></li>
+<li><a href="modules/core.html">Core</a></li>
+<li><a href="modules/db.html">Database</a></li>
+<li><a href="modules/scripts.html">Scripts</a></li>
+<li><a href="modules/deployment-bunching.html">Bunching predictor</a></li>
+<li><a href="modules/legacy.html">Legacy</a></li>
+</ul></div></nav>
+  <div class="sidebar-footer">Built 2026-04-24<br/>89 files · 178 symbols</div>
+</aside>
+<main class="content">
+  <div class="breadcrumb"><a href="index.html">Overview</a> / API reference</div>
+  <article><h1>API reference</h1>
+<p class="lead">Every public function and class across the codebase, extracted from <code>ast</code>. Grouped by package. For per-package context, follow the link in each section heading.</p>
+<p class="muted">89 files · 178 public symbols across 9 packages.</p>
+<h2 id="index">Index</h2>
+<div class="api-index">
+<div class="api-index-pkg"><h4><a href="#apps-collector">apps/collector</a></h4>
+<a href="#apps-collector-apps-collector-feed-specs-py-feedspec"><code>FeedSpec</code></a> · <a href="#apps-collector-apps-collector-feed-specs-py-build-registry"><code>build_registry</code></a> · <a href="#apps-collector-apps-collector-feed-specs-py-get-spec"><code>get_spec</code></a> · <a href="#apps-collector-apps-collector-fetcher-py-fetcherror"><code>FetchError</code></a> · <a href="#apps-collector-apps-collector-fetcher-py-fetchresult"><code>FetchResult</code></a> · <a href="#apps-collector-apps-collector-fetcher-py-fetch-bytes"><code>fetch_bytes</code></a> · <a href="#apps-collector-apps-collector-main-py-main"><code>main</code></a> · <a href="#apps-collector-apps-collector-normalize-vehicles-py-headerinfo"><code>HeaderInfo</code></a> · <a href="#apps-collector-apps-collector-normalize-vehicles-py-extract-header"><code>extract_header</code></a> · <a href="#apps-collector-apps-collector-normalize-vehicles-py-normalize-vehicle-positions"><code>normalize_vehicle_positions</code></a> · <a href="#apps-collector-apps-collector-parser-py-parseerror"><code>ParseError</code></a> · <a href="#apps-collector-apps-collector-parser-py-parse-feed-message"><code>parse_feed_message</code></a> · <a href="#apps-collector-apps-collector-runner-py-runoutcome"><code>RunOutcome</code></a> · <a href="#apps-collector-apps-collector-runner-py-run-once"><code>run_once</code></a>
+</div>
+<div class="api-index-pkg"><h4><a href="#apps-analytics">apps/analytics</a></h4>
+<a href="#apps-analytics-apps-analytics-anomalies-py-trajectorypoint"><code>TrajectoryPoint</code></a> · <a href="#apps-analytics-apps-analytics-anomalies-py-bustrajectory"><code>BusTrajectory</code></a> · <a href="#apps-analytics-apps-analytics-anomalies-py-anomalyevent"><code>AnomalyEvent</code></a> · <a href="#apps-analytics-apps-analytics-anomalies-py-detect-idle-events"><code>detect_idle_events</code></a> · <a href="#apps-analytics-apps-analytics-anomalies-py-detect-crowd-events"><code>detect_crowd_events</code></a> · <a href="#apps-analytics-apps-analytics-anomalies-py-detect-bunch-events"><code>detect_bunch_events</code></a> · <a href="#apps-analytics-apps-analytics-anomalies-py-detect-bunch-events-distance"><code>detect_bunch_events_distance</code></a> · <a href="#apps-analytics-apps-analytics-anomalies-py-detect-all"><code>detect_all</code></a> · <a href="#apps-analytics-apps-analytics-csv-export-py-write-day-csvs"><code>write_day_csvs</code></a> · <a href="#apps-analytics-apps-analytics-gtfs-static-py-gtfsstatic"><code>GtfsStatic</code></a> · <a href="#apps-analytics-apps-analytics-gtfs-static-py-load-all"><code>load_all</code></a> · <a href="#apps-analytics-apps-analytics-gtfs-static-py-resolve-shape-id"><code>resolve_shape_id</code></a> · <a href="#apps-analytics-apps-analytics-gtfs-static-py-resolve-direction-id"><code>resolve_direction_id</code></a> · <a href="#apps-analytics-apps-analytics-main-py-main"><code>main</code></a> · <a href="#apps-analytics-apps-analytics-pipeline-py-list-trip-instances"><code>list_trip_instances</code></a> · <a href="#apps-analytics-apps-analytics-pipeline-py-list-changed-trip-instances"><code>list_changed_trip_instances</code></a> · <a href="#apps-analytics-apps-analytics-pipeline-py-process-trip-instance"><code>process_trip_instance</code></a> · <a href="#apps-analytics-apps-analytics-project-to-shape-py-project-trajectory"><code>project_trajectory</code></a> · <a href="#apps-analytics-apps-analytics-runner-py-runoutcome"><code>RunOutcome</code></a> · <a href="#apps-analytics-apps-analytics-runner-py-run-for-date"><code>run_for_date</code></a> · <a href="#apps-analytics-apps-analytics-shapes-py-build-linestrings"><code>build_linestrings</code></a> · <a href="#apps-analytics-apps-analytics-shapes-py-transform-lonlat-to-3857"><code>transform_lonlat_to_3857</code></a> · <a href="#apps-analytics-apps-analytics-stop-projection-py-stoponroute"><code>StopOnRoute</code></a> · <a href="#apps-analytics-apps-analytics-stop-projection-py-routestops"><code>RouteStops</code></a> · <a href="#apps-analytics-apps-analytics-stop-projection-py-compute-route-stops"><code>compute_route_stops</code></a> · <a href="#apps-analytics-apps-analytics-stop-projection-py-distance-to-stop-index"><code>distance_to_stop_index</code></a> · <a href="#apps-analytics-apps-analytics-trajectory-extract-py-build-trip-trajectory"><code>build_trip_trajectory</code></a> · <a href="#apps-analytics-apps-analytics-upsample-py-compute-moving-speed"><code>compute_moving_speed</code></a> · <a href="#apps-analytics-apps-analytics-upsample-py-upsample-df"><code>upsample_df</code></a> · <a href="#apps-analytics-apps-analytics-upsample-py-last-step-clean-up"><code>last_step_clean_up</code></a> · <a href="#apps-analytics-apps-analytics-worker-py-main"><code>main</code></a>
+</div>
+<div class="api-index-pkg"><h4><a href="#apps-api">apps/api</a></h4>
+<a href="#apps-api-apps-api-deps-py-get-db"><code>get_db</code></a> · <a href="#apps-api-apps-api-main-py-create-app"><code>create_app</code></a> · <a href="#apps-api-apps-api-routers-feed-status-py-vehicle-positions-status"><code>vehicle_positions_status</code></a> · <a href="#apps-api-apps-api-routers-health-py-health"><code>health</code></a> · <a href="#apps-api-apps-api-routers-iroam-py-iroam-routes"><code>iroam_routes</code></a> · <a href="#apps-api-apps-api-routers-iroam-py-iroam-stops"><code>iroam_stops</code></a> · <a href="#apps-api-apps-api-routers-iroam-py-iroam-buses"><code>iroam_buses</code></a> · <a href="#apps-api-apps-api-routers-iroam-py-iroam-analytics"><code>iroam_analytics</code></a> · <a href="#apps-api-apps-api-routers-iroam-py-iroam-forecast"><code>iroam_forecast</code></a> · <a href="#apps-api-apps-api-routers-replay-py-replay-vehicles-endpoint"><code>replay_vehicles_endpoint</code></a> · <a href="#apps-api-apps-api-routers-routes-py-routes-index"><code>routes_index</code></a> · <a href="#apps-api-apps-api-routers-routes-py-route-vehicles-latest"><code>route_vehicles_latest</code></a> · <a href="#apps-api-apps-api-routers-routes-py-route-metrics-endpoint"><code>route_metrics_endpoint</code></a> · <a href="#apps-api-apps-api-routers-trajectories-py-trajectory-service-dates"><code>trajectory_service_dates</code></a> · <a href="#apps-api-apps-api-routers-trajectories-py-trajectory-routes"><code>trajectory_routes</code></a> · <a href="#apps-api-apps-api-routers-trajectories-py-trajectory-trips"><code>trajectory_trips</code></a> · <a href="#apps-api-apps-api-routers-trajectories-py-trajectory-detail"><code>trajectory_detail</code></a> · <a href="#apps-api-apps-api-routers-vehicles-py-vehicles-latest"><code>vehicles_latest</code></a> · <a href="#apps-api-apps-api-routers-vehicles-py-vehicle-latest"><code>vehicle_latest</code></a> · <a href="#apps-api-apps-api-routers-vehicles-py-vehicle-history-endpoint"><code>vehicle_history_endpoint</code></a> · <a href="#apps-api-apps-api-schemas-feed-py-healthresponse"><code>HealthResponse</code></a> · <a href="#apps-api-apps-api-schemas-feed-py-fetchlogentry"><code>FetchLogEntry</code></a> · <a href="#apps-api-apps-api-schemas-feed-py-feedstatusresponse"><code>FeedStatusResponse</code></a> · <a href="#apps-api-apps-api-schemas-route-metrics-py-boundingbox"><code>BoundingBox</code></a> · <a href="#apps-api-apps-api-schemas-route-metrics-py-routemetricsresponse"><code>RouteMetricsResponse</code></a> · <a href="#apps-api-apps-api-schemas-trajectory-py-tripinstancesummary"><code>TripInstanceSummary</code></a> · <a href="#apps-api-apps-api-schemas-trajectory-py-trajectorypoint"><code>TrajectoryPoint</code></a> · <a href="#apps-api-apps-api-schemas-trajectory-py-triptrajectoryresponse"><code>TripTrajectoryResponse</code></a> · <a href="#apps-api-apps-api-schemas-vehicle-py-vehiclepositionresponse"><code>VehiclePositionResponse</code></a> · <a href="#apps-api-apps-api-schemas-vehicle-py-vehiclepositionwithraw"><code>VehiclePositionWithRaw</code></a> · <a href="#apps-api-apps-api-services-bunching-predictor-py-predictorunavailable"><code>PredictorUnavailable</code></a> · <a href="#apps-api-apps-api-services-bunching-predictor-py-get-predictor"><code>get_predictor</code></a> · <a href="#apps-api-apps-api-services-bunching-predictor-py-reset-cache"><code>reset_cache</code></a> · <a href="#apps-api-apps-api-services-forecast-py-forecastresult"><code>ForecastResult</code></a> · <a href="#apps-api-apps-api-services-forecast-py-run-forecast"><code>run_forecast</code></a> · <a href="#apps-api-apps-api-services-forecast-features-py-buswindowresult"><code>BusWindowResult</code></a> · <a href="#apps-api-apps-api-services-forecast-features-py-build-bus-window"><code>build_bus_window</code></a>
+</div>
+<div class="api-index-pkg"><h4><a href="#apps-dashboard">apps/dashboard</a></h4>
+<a href="#apps-dashboard-apps-dashboard-api-client-py-apierror"><code>APIError</code></a> · <a href="#apps-dashboard-apps-dashboard-api-client-py-health"><code>health</code></a> · <a href="#apps-dashboard-apps-dashboard-api-client-py-feed-status-vehicle-positions"><code>feed_status_vehicle_positions</code></a> · <a href="#apps-dashboard-apps-dashboard-api-client-py-vehicles-latest"><code>vehicles_latest</code></a> · <a href="#apps-dashboard-apps-dashboard-api-client-py-vehicle-latest"><code>vehicle_latest</code></a> · <a href="#apps-dashboard-apps-dashboard-api-client-py-vehicle-history"><code>vehicle_history</code></a> · <a href="#apps-dashboard-apps-dashboard-api-client-py-routes-index"><code>routes_index</code></a> · <a href="#apps-dashboard-apps-dashboard-api-client-py-route-vehicles-latest"><code>route_vehicles_latest</code></a> · <a href="#apps-dashboard-apps-dashboard-api-client-py-route-metrics"><code>route_metrics</code></a> · <a href="#apps-dashboard-apps-dashboard-api-client-py-trajectory-service-dates"><code>trajectory_service_dates</code></a> · <a href="#apps-dashboard-apps-dashboard-api-client-py-trajectory-routes"><code>trajectory_routes</code></a> · <a href="#apps-dashboard-apps-dashboard-api-client-py-trajectory-trips"><code>trajectory_trips</code></a> · <a href="#apps-dashboard-apps-dashboard-api-client-py-trajectory-detail"><code>trajectory_detail</code></a> · <a href="#apps-dashboard-apps-dashboard-api-client-py-replay-vehicles"><code>replay_vehicles</code></a>
+</div>
+<div class="api-index-pkg"><h4><a href="#core">core</a></h4>
+<a href="#core-core-config-py-settings"><code>Settings</code></a> · <a href="#core-core-config-py-get-settings"><code>get_settings</code></a> · <a href="#core-core-logging-py-jsonformatter"><code>JsonFormatter</code></a> · <a href="#core-core-logging-py-configure-logging"><code>configure_logging</code></a> · <a href="#core-core-logging-py-get-logger"><code>get_logger</code></a> · <a href="#core-core-time-py-utc-now"><code>utc_now</code></a> · <a href="#core-core-time-py-epoch-to-utc"><code>epoch_to_utc</code></a> · <a href="#core-core-time-py-to-toronto"><code>to_toronto</code></a>
+</div>
+<div class="api-index-pkg"><h4><a href="#db">db</a></h4>
+<a href="#db-db-base-py-base"><code>Base</code></a> · <a href="#db-db-base-py-register-all-models"><code>register_all_models</code></a> · <a href="#db-db-migrations-env-py-run-migrations-offline"><code>run_migrations_offline</code></a> · <a href="#db-db-migrations-env-py-run-migrations-online"><code>run_migrations_online</code></a> · <a href="#db-db-models-feed-fetch-log-py-feedfetchlog"><code>FeedFetchLog</code></a> · <a href="#db-db-models-raw-snapshot-py-rawgtfsrtsnapshot"><code>RawGtfsrtSnapshot</code></a> · <a href="#db-db-models-trip-trajectory-py-analyticsrun"><code>AnalyticsRun</code></a> · <a href="#db-db-models-trip-trajectory-py-triptrajectory"><code>TripTrajectory</code></a> · <a href="#db-db-models-vehicle-position-py-vehicleposition"><code>VehiclePosition</code></a> · <a href="#db-db-queries-feed-stats-py-feedstatus"><code>FeedStatus</code></a> · <a href="#db-db-queries-feed-stats-py-feed-status"><code>feed_status</code></a> · <a href="#db-db-queries-feed-stats-py-recent-fetches"><code>recent_fetches</code></a> · <a href="#db-db-queries-iroam-py-routedatedir"><code>RouteDateDir</code></a> · <a href="#db-db-queries-iroam-py-list-route-catalog"><code>list_route_catalog</code></a> · <a href="#db-db-queries-iroam-py-fetch-trajectories-for-slice"><code>fetch_trajectories_for_slice</code></a> · <a href="#db-db-queries-replay-py-snapshots-in-window"><code>snapshots_in_window</code></a> · <a href="#db-db-queries-trajectories-py-tripinstancesummary"><code>TripInstanceSummary</code></a> · <a href="#db-db-queries-trajectories-py-list-service-dates"><code>list_service_dates</code></a> · <a href="#db-db-queries-trajectories-py-list-trip-instances"><code>list_trip_instances</code></a> · <a href="#db-db-queries-trajectories-py-fetch-trip-trajectory"><code>fetch_trip_trajectory</code></a> · <a href="#db-db-queries-trajectories-py-list-active-routes-on-date"><code>list_active_routes_on_date</code></a> · <a href="#db-db-queries-vehicles-py-latest-vehicle-positions"><code>latest_vehicle_positions</code></a> · <a href="#db-db-queries-vehicles-py-latest-vehicle-position"><code>latest_vehicle_position</code></a> · <a href="#db-db-queries-vehicles-py-vehicle-history"><code>vehicle_history</code></a> · <a href="#db-db-queries-vehicles-py-fetch-by-trip-instance"><code>fetch_by_trip_instance</code></a> · <a href="#db-db-queries-vehicles-py-active-route-ids"><code>active_route_ids</code></a> · <a href="#db-db-queries-vehicles-py-routemetrics"><code>RouteMetrics</code></a> · <a href="#db-db-queries-vehicles-py-route-metrics"><code>route_metrics</code></a> · <a href="#db-db-queries-vehicles-py-replay-vehicles"><code>replay_vehicles</code></a> · <a href="#db-db-session-py-get-engine"><code>get_engine</code></a> · <a href="#db-db-session-py-get-session-factory"><code>get_session_factory</code></a> · <a href="#db-db-session-py-session-scope"><code>session_scope</code></a> · <a href="#db-db-session-py-sessionlocal"><code>SessionLocal</code></a>
+</div>
+<div class="api-index-pkg"><h4><a href="#scripts">scripts</a></h4>
+<a href="#scripts-scripts-capture-sample-py-main"><code>main</code></a> · <a href="#scripts-scripts-db-reset-py-main"><code>main</code></a> · <a href="#scripts-scripts-run-migrations-py-upgrade-head"><code>upgrade_head</code></a>
+</div>
+<div class="api-index-pkg"><h4><a href="#deployment-bunching-lightgbm">deployment/bunching_lightgbm</a></h4>
+<a href="#deployment-bunching-lightgbm-deployment-bunching-lightgbm-examples-integration-snippet-py-record-tick"><code>record_tick</code></a> · <a href="#deployment-bunching-lightgbm-deployment-bunching-lightgbm-examples-integration-snippet-py-predict-for"><code>predict_for</code></a> · <a href="#deployment-bunching-lightgbm-deployment-bunching-lightgbm-examples-integration-snippet-py-live-loop-example"><code>live_loop_example</code></a> · <a href="#deployment-bunching-lightgbm-deployment-bunching-lightgbm-examples-integration-snippet-py-fetch-avl-snapshot"><code>fetch_avl_snapshot</code></a> · <a href="#deployment-bunching-lightgbm-deployment-bunching-lightgbm-examples-integration-snippet-py-publish-alert"><code>publish_alert</code></a> · <a href="#deployment-bunching-lightgbm-deployment-bunching-lightgbm-examples-run-example-py-main"><code>main</code></a> · <a href="#deployment-bunching-lightgbm-deployment-bunching-lightgbm-src-predict-py-bunchingpredictor"><code>BunchingPredictor</code></a> · <a href="#deployment-bunching-lightgbm-deployment-bunching-lightgbm-src-preprocess-py-load-scaler"><code>load_scaler</code></a> · <a href="#deployment-bunching-lightgbm-deployment-bunching-lightgbm-src-preprocess-py-scale-window"><code>scale_window</code></a> · <a href="#deployment-bunching-lightgbm-deployment-bunching-lightgbm-src-preprocess-py-unscale-gap"><code>unscale_gap</code></a> · <a href="#deployment-bunching-lightgbm-deployment-bunching-lightgbm-src-schema-py-schemaerror"><code>SchemaError</code></a> · <a href="#deployment-bunching-lightgbm-deployment-bunching-lightgbm-src-schema-py-validate-window"><code>validate_window</code></a> · <a href="#deployment-bunching-lightgbm-deployment-bunching-lightgbm-tests-test-end-to-end-py-main"><code>main</code></a> · <a href="#deployment-bunching-lightgbm-deployment-bunching-lightgbm-train-py-main"><code>main</code></a>
+</div>
+</div>
+<h2 id="apps-collector"><a class="anchor" href="#apps-collector" aria-hidden="true">#</a>apps/collector <a class="muted-link" href="modules/apps-collector.html">(module page →)</a></h2>
+<h3 id="apps-collector-apps-collector-feed-specs-py"><code>apps/collector/feed_specs.py</code></h3>
+<div class="symbol symbol-class" id="apps-collector-apps-collector-feed-specs-py-feedspec">
+<div class="symbol-head">
+<span class="symbol-kind">class</span>
+<a class="symbol-name" href="#apps-collector-apps-collector-feed-specs-py-feedspec">FeedSpec</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">@dataclass(frozen=True)
+class FeedSpec</code></pre>
+<div class="symbol-doc"><p>Declarative wiring for one feed: how to name it, where to get it, how to normalize it.</p></div>
+</div>
+<div class="symbol symbol-function" id="apps-collector-apps-collector-feed-specs-py-build-registry">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-collector-apps-collector-feed-specs-py-build-registry">build_registry</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def build_registry() -&gt; dict[str, FeedSpec]</code></pre>
+<div class="symbol-doc"><p>Build the spec registry from current settings.</p>
+<p>Re-reading settings on each call keeps tests and env-override flows simple without having to invalidate module-level state.</p></div>
+</div>
+<div class="symbol symbol-function" id="apps-collector-apps-collector-feed-specs-py-get-spec">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-collector-apps-collector-feed-specs-py-get-spec">get_spec</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def get_spec(feed_name: str) -&gt; FeedSpec</code></pre>
+<div class="symbol-doc"><p>Look up a spec or raise <code>KeyError</code> with the known-feed list.</p></div>
+</div>
+<h3 id="apps-collector-apps-collector-fetcher-py"><code>apps/collector/fetcher.py</code></h3>
+<div class="symbol symbol-class" id="apps-collector-apps-collector-fetcher-py-fetcherror">
+<div class="symbol-head">
+<span class="symbol-kind">class</span>
+<a class="symbol-name" href="#apps-collector-apps-collector-fetcher-py-fetcherror">FetchError</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">class FetchError(Exception)</code></pre>
+<div class="symbol-doc"><p>Raised when a fetch ultimately fails after all retries.</p></div>
+</div>
+<div class="symbol symbol-class" id="apps-collector-apps-collector-fetcher-py-fetchresult">
+<div class="symbol-head">
+<span class="symbol-kind">class</span>
+<a class="symbol-name" href="#apps-collector-apps-collector-fetcher-py-fetchresult">FetchResult</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">@dataclass
+class FetchResult</code></pre>
+</div>
+<div class="symbol symbol-function" id="apps-collector-apps-collector-fetcher-py-fetch-bytes">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-collector-apps-collector-fetcher-py-fetch-bytes">fetch_bytes</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def fetch_bytes(url: str) -&gt; FetchResult</code></pre>
+<div class="symbol-doc"><p>GET <code>url</code> and return the raw body.</p>
+<p>Retries <code>COLLECTOR_HTTP_RETRIES</code> times on connect/timeout errors and on 5xx responses (with linear backoff). 4xx is treated as terminal.</p></div>
+</div>
+<h3 id="apps-collector-apps-collector-main-py"><code>apps/collector/main.py</code></h3>
+<div class="symbol symbol-function" id="apps-collector-apps-collector-main-py-main">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-collector-apps-collector-main-py-main">main</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def main(argv: list[str] | None = None) -&gt; int</code></pre>
+</div>
+<h3 id="apps-collector-apps-collector-normalize-vehicles-py"><code>apps/collector/normalize_vehicles.py</code></h3>
+<div class="symbol symbol-class" id="apps-collector-apps-collector-normalize-vehicles-py-headerinfo">
+<div class="symbol-head">
+<span class="symbol-kind">class</span>
+<a class="symbol-name" href="#apps-collector-apps-collector-normalize-vehicles-py-headerinfo">HeaderInfo</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">@dataclass
+class HeaderInfo</code></pre>
+<div class="symbol-doc"><p>Header-level fields extracted from a FeedMessage.</p></div>
+</div>
+<div class="symbol symbol-function" id="apps-collector-apps-collector-normalize-vehicles-py-extract-header">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-collector-apps-collector-normalize-vehicles-py-extract-header">extract_header</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def extract_header(message: gtfs_realtime_pb2.FeedMessage) -&gt; HeaderInfo</code></pre>
+<div class="symbol-doc"><p>Extract header fields for the fetch log and snapshot row.</p></div>
+</div>
+<div class="symbol symbol-function" id="apps-collector-apps-collector-normalize-vehicles-py-normalize-vehicle-positions">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-collector-apps-collector-normalize-vehicles-py-normalize-vehicle-positions">normalize_vehicle_positions</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def normalize_vehicle_positions(message: gtfs_realtime_pb2.FeedMessage, *, fetched_at: datetime, feed_header_timestamp: datetime | None, route_allowlist: Iterable[str] | None = None) -&gt; list[VehiclePosition]</code></pre>
+<div class="symbol-doc"><p>Convert every <code>FeedEntity</code> carrying a <code>vehicle</code> into a row.</p>
+<p>Returns detached <code>VehiclePosition</code> instances; the caller attaches <code>snapshot_id</code> before adding them to the session.</p>
+<p>When <code>route_allowlist</code> is non-empty, entities whose <code>trip.route_id</code> is not in the set are dropped — including entities that have no <code>route_id</code> at all, since they cannot be attributed to an allowed route. Passing <code>None</code> or an empty iterable disables filtering (every vehicle entity is kept, as before).</p></div>
+</div>
+<h3 id="apps-collector-apps-collector-parser-py"><code>apps/collector/parser.py</code></h3>
+<div class="symbol symbol-class" id="apps-collector-apps-collector-parser-py-parseerror">
+<div class="symbol-head">
+<span class="symbol-kind">class</span>
+<a class="symbol-name" href="#apps-collector-apps-collector-parser-py-parseerror">ParseError</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">class ParseError(Exception)</code></pre>
+<div class="symbol-doc"><p>Raised when payload cannot be decoded as a FeedMessage.</p></div>
+</div>
+<div class="symbol symbol-function" id="apps-collector-apps-collector-parser-py-parse-feed-message">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-collector-apps-collector-parser-py-parse-feed-message">parse_feed_message</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def parse_feed_message(payload: bytes) -&gt; gtfs_realtime_pb2.FeedMessage</code></pre>
+<div class="symbol-doc"><p>Decode <code>payload</code> into a <code>FeedMessage</code> (binary first, text fallback).</p>
+<p>Raises <code>ParseError</code> if neither format decodes cleanly. The caller is responsible for recording the failure in <code>feed_fetch_logs</code>.</p></div>
+</div>
+<h3 id="apps-collector-apps-collector-runner-py"><code>apps/collector/runner.py</code></h3>
+<div class="symbol symbol-class" id="apps-collector-apps-collector-runner-py-runoutcome">
+<div class="symbol-head">
+<span class="symbol-kind">class</span>
+<a class="symbol-name" href="#apps-collector-apps-collector-runner-py-runoutcome">RunOutcome</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">@dataclass
+class RunOutcome</code></pre>
+</div>
+<div class="symbol symbol-function" id="apps-collector-apps-collector-runner-py-run-once">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-collector-apps-collector-runner-py-run-once">run_once</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def run_once(session: Session, spec: FeedSpec) -&gt; RunOutcome</code></pre>
+<div class="symbol-doc"><p>Execute one fetch+persist cycle for a given feed.</p>
+<p>Commits exactly one transaction on return — success or failure.</p></div>
+</div>
+<h2 id="apps-analytics"><a class="anchor" href="#apps-analytics" aria-hidden="true">#</a>apps/analytics <a class="muted-link" href="modules/apps-analytics.html">(module page →)</a></h2>
+<h3 id="apps-analytics-apps-analytics-anomalies-py"><code>apps/analytics/anomalies.py</code></h3>
+<div class="symbol symbol-class" id="apps-analytics-apps-analytics-anomalies-py-trajectorypoint">
+<div class="symbol-head">
+<span class="symbol-kind">class</span>
+<a class="symbol-name" href="#apps-analytics-apps-analytics-anomalies-py-trajectorypoint">TrajectoryPoint</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">@dataclass(frozen=True)
+class TrajectoryPoint</code></pre>
+</div>
+<div class="symbol symbol-class" id="apps-analytics-apps-analytics-anomalies-py-bustrajectory">
+<div class="symbol-head">
+<span class="symbol-kind">class</span>
+<a class="symbol-name" href="#apps-analytics-apps-analytics-anomalies-py-bustrajectory">BusTrajectory</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">@dataclass(frozen=True)
+class BusTrajectory</code></pre>
+</div>
+<div class="symbol symbol-class" id="apps-analytics-apps-analytics-anomalies-py-anomalyevent">
+<div class="symbol-head">
+<span class="symbol-kind">class</span>
+<a class="symbol-name" href="#apps-analytics-apps-analytics-anomalies-py-anomalyevent">AnomalyEvent</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">@dataclass(frozen=True)
+class AnomalyEvent</code></pre>
+</div>
+<div class="symbol symbol-function" id="apps-analytics-apps-analytics-anomalies-py-detect-idle-events">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-analytics-apps-analytics-anomalies-py-detect-idle-events">detect_idle_events</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def detect_idle_events(bus: BusTrajectory, *, idle_min_threshold: float) -&gt; list[AnomalyEvent]</code></pre>
+<div class="symbol-doc"><p>Emit one event per contiguous stationary run ≥ <code>idle_min_threshold</code> minutes.</p></div>
+</div>
+<div class="symbol symbol-function" id="apps-analytics-apps-analytics-anomalies-py-detect-crowd-events">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-analytics-apps-analytics-anomalies-py-detect-crowd-events">detect_crowd_events</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def detect_crowd_events(bus: BusTrajectory, *, crowd_pct_threshold: float) -&gt; list[AnomalyEvent]</code></pre>
+<div class="symbol-doc"><p>Emit one event per contiguous run where occupancy%≥threshold.</p></div>
+</div>
+<div class="symbol symbol-function" id="apps-analytics-apps-analytics-anomalies-py-detect-bunch-events">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-analytics-apps-analytics-anomalies-py-detect-bunch-events">detect_bunch_events</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def detect_bunch_events(buses: list[BusTrajectory], *, bunch_seconds_threshold: float) -&gt; list[AnomalyEvent]</code></pre>
+<div class="symbol-doc"><p>Flag trip pairs whose passage through the same ~stop is closer than threshold.</p>
+<p>Strategy: for every integer stop index, compute the time each bus passes it (by linear interpolation of <code>(datetime, stop_index)</code> samples). Sort by time; any pair with Δt &lt; threshold → emit an event on the trailing bus at the crossing time/stop.</p></div>
+</div>
+<div class="symbol symbol-function" id="apps-analytics-apps-analytics-anomalies-py-detect-bunch-events-distance">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-analytics-apps-analytics-anomalies-py-detect-bunch-events-distance">detect_bunch_events_distance</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def detect_bunch_events_distance(buses: list[BusTrajectory], *, bunch_distance_threshold_m: float, grid_seconds: float = 30.0) -&gt; list[AnomalyEvent]</code></pre>
+<div class="symbol-doc"><p>Flag pairs of buses whose along-route separation stays &lt; threshold.</p>
+<p>Strategy: sweep a uniform time grid (default 30 s, matches GTFS-RT cadence). At each tick, for every bus active at that tick, linearly interpolate <code>travel_distance_m</code> and <code>stop_index</code>. Sort active buses by distance and check each consecutive (follower, leader) pair — their along-route gap is <code>leader.dist - follower.dist</code>. When the same ordered pair stays inside the threshold across consecutive ticks we treat it as one contiguous run; on run-end we emit a single event tagged on the follower at the run&#x27;s time/stop midpoint.</p>
+<p>Tagging the <em>follower</em> (trailing bus, lower <code>travel_distance_m</code>) matches the time-based detector, which tags the later-arriving bus at the stop.</p></div>
+</div>
+<div class="symbol symbol-function" id="apps-analytics-apps-analytics-anomalies-py-detect-all">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-analytics-apps-analytics-anomalies-py-detect-all">detect_all</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def detect_all(buses: list[BusTrajectory], *, bunch_seconds_threshold: float, idle_min_threshold: float, crowd_pct_threshold: float, bunch_distance_threshold_m: float = 150.0, bunch_method: BunchMethodSelector = &#x27;time&#x27;) -&gt; list[AnomalyEvent]</code></pre>
+<div class="symbol-doc"><p>Run all detectors and return the flat event list.</p>
+<p><code>bunch_method</code> controls which bunching detector(s) fire: <em> <code>&quot;time&quot;</code>     — only the stop-crossing time-gap detector (default; preserves pre-distance-detector behaviour). </em> <code>&quot;distance&quot;</code> — only the along-route separation detector. * <code>&quot;both&quot;</code>     — both detectors run; events are tagged with <code>method</code> so callers can tell them apart.</p></div>
+</div>
+<h3 id="apps-analytics-apps-analytics-csv-export-py"><code>apps/analytics/csv_export.py</code></h3>
+<div class="symbol symbol-function" id="apps-analytics-apps-analytics-csv-export-py-write-day-csvs">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-analytics-apps-analytics-csv-export-py-write-day-csvs">write_day_csvs</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def write_day_csvs(out_dir: Path, frames_by_key: dict[tuple[str, str, int], list[pd.DataFrame]]) -&gt; list[Path]</code></pre>
+<div class="symbol-doc"><p>Write one CSV per <code>(route_id, service_date, direction_id)</code> bucket.</p>
+<p>Filenames follow the legacy pipeline&#x27;s shape: <code>{route}_{service_date}_dir{N}.csv</code>. Returns the list of written paths.</p></div>
+</div>
+<h3 id="apps-analytics-apps-analytics-gtfs-static-py"><code>apps/analytics/gtfs_static.py</code></h3>
+<div class="symbol symbol-class" id="apps-analytics-apps-analytics-gtfs-static-py-gtfsstatic">
+<div class="symbol-head">
+<span class="symbol-kind">class</span>
+<a class="symbol-name" href="#apps-analytics-apps-analytics-gtfs-static-py-gtfsstatic">GtfsStatic</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">@dataclass(frozen=True)
+class GtfsStatic</code></pre>
+</div>
+<div class="symbol symbol-function" id="apps-analytics-apps-analytics-gtfs-static-py-load-all">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-analytics-apps-analytics-gtfs-static-py-load-all">load_all</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def load_all(gtfs_dir: Path | None = None) -&gt; GtfsStatic</code></pre>
+<div class="symbol-doc"><p>Return the cached <code>GtfsStatic</code> bundle.</p></div>
+</div>
+<div class="symbol symbol-function" id="apps-analytics-apps-analytics-gtfs-static-py-resolve-shape-id">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-analytics-apps-analytics-gtfs-static-py-resolve-shape-id">resolve_shape_id</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def resolve_shape_id(static: GtfsStatic, trip_id: str) -&gt; str | None</code></pre>
+<div class="symbol-doc"><p>Return the <code>shape_id</code> for a given <code>trip_id</code> via <code>trips.txt</code>, or None.</p></div>
+</div>
+<div class="symbol symbol-function" id="apps-analytics-apps-analytics-gtfs-static-py-resolve-direction-id">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-analytics-apps-analytics-gtfs-static-py-resolve-direction-id">resolve_direction_id</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def resolve_direction_id(static: GtfsStatic, trip_id: str) -&gt; int | None</code></pre>
+<div class="symbol-doc"><p>Return <code>direction_id</code> (0 or 1) for a trip, or None.</p></div>
+</div>
+<h3 id="apps-analytics-apps-analytics-main-py"><code>apps/analytics/main.py</code></h3>
+<div class="symbol symbol-function" id="apps-analytics-apps-analytics-main-py-main">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-analytics-apps-analytics-main-py-main">main</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def main(argv: list[str] | None = None) -&gt; int</code></pre>
+</div>
+<h3 id="apps-analytics-apps-analytics-pipeline-py"><code>apps/analytics/pipeline.py</code></h3>
+<div class="symbol symbol-function" id="apps-analytics-apps-analytics-pipeline-py-list-trip-instances">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-analytics-apps-analytics-pipeline-py-list-trip-instances">list_trip_instances</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def list_trip_instances(session: Session, service_date: date, *, route_id: str | None = None) -&gt; list[tuple[str, str]]</code></pre>
+<div class="symbol-doc"><p>Distinct <code>(trip_id, start_date)</code> pairs active on <code>service_date</code>.</p>
+<p>Prefers TripDescriptor.start_date when present; otherwise synthesizes it from <code>vehicle_timestamp</code> / <code>fetched_at</code> at Toronto local time. This keeps overnight trips (start_time &gt;= 24:00) scoped to their true service day when the feed sets start_date, and still works on TTC&#x27;s feed which doesn&#x27;t.</p></div>
+</div>
+<div class="symbol symbol-function" id="apps-analytics-apps-analytics-pipeline-py-list-changed-trip-instances">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-analytics-apps-analytics-pipeline-py-list-changed-trip-instances">list_changed_trip_instances</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def list_changed_trip_instances(session: Session, service_date: date, *, since: datetime, route_id: str | None = None) -&gt; list[tuple[str, str]]</code></pre>
+<div class="symbol-doc"><p>Trip instances with at least one VehiclePosition row newer than <code>since</code>.</p>
+<p>Used by the analytics worker for incremental refresh: only trips whose raw observations have grown since the last tick need their trajectory re-derived. Safe for idempotent re-runs because the runner delete-then-inserts per <code>(trip_id, start_date)</code>.</p></div>
+</div>
+<div class="symbol symbol-function" id="apps-analytics-apps-analytics-pipeline-py-process-trip-instance">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-analytics-apps-analytics-pipeline-py-process-trip-instance">process_trip_instance</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def process_trip_instance(session: Session, static: GtfsStatic, shape_lines: dict, trip_id: str, start_date: str, *, upsample_resolution_s: int = 10, max_orthogonal_distance_m: float = 200.0) -&gt; pd.DataFrame</code></pre>
+<div class="symbol-doc"><p>Full per-trip transform: fetch -&gt; extract -&gt; project -&gt; speed -&gt; upsample.</p>
+<p>Returns the final upsampled DataFrame (empty if the trip has &lt;2 usable points or if its shape can&#x27;t be resolved). Caller converts to ORM rows and commits.</p></div>
+</div>
+<h3 id="apps-analytics-apps-analytics-project-to-shape-py"><code>apps/analytics/project_to_shape.py</code></h3>
+<div class="symbol symbol-function" id="apps-analytics-apps-analytics-project-to-shape-py-project-trajectory">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-analytics-apps-analytics-project-to-shape-py-project-trajectory">project_trajectory</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def project_trajectory(df: pd.DataFrame, shape_line: LineString, *, max_orthogonal_distance_m: float = 200.0) -&gt; pd.DataFrame</code></pre>
+<div class="symbol-doc"><p>Add <code>travel_distance_m</code> + <code>orthogonal_distance_m</code>; drop far-off points.</p>
+<p>Expects columns <code>latitude</code> and <code>longitude</code> (WGS84).</p></div>
+</div>
+<h3 id="apps-analytics-apps-analytics-runner-py"><code>apps/analytics/runner.py</code></h3>
+<div class="symbol symbol-class" id="apps-analytics-apps-analytics-runner-py-runoutcome">
+<div class="symbol-head">
+<span class="symbol-kind">class</span>
+<a class="symbol-name" href="#apps-analytics-apps-analytics-runner-py-runoutcome">RunOutcome</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">@dataclass
+class RunOutcome</code></pre>
+</div>
+<div class="symbol symbol-function" id="apps-analytics-apps-analytics-runner-py-run-for-date">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-analytics-apps-analytics-runner-py-run-for-date">run_for_date</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def run_for_date(session: Session, service_date: date, *, route_id: str | None = None, upsample_resolution_s: int = 10, max_orthogonal_distance_m: float = 200.0, export_csv_dir: Path | None = None, only_changed_since: datetime | None = None) -&gt; RunOutcome</code></pre>
+<div class="symbol-doc"><p>Process trip instances whose <code>start_date</code> matches <code>service_date</code>.</p>
+<p>When <code>only_changed_since</code> is set, scopes work to trip instances that have at least one VehiclePosition observation newer than the cutoff — this is the hot path for the analytics worker, which runs every <code>ANALYTICS_WORKER_INTERVAL_SECONDS</code>. In both modes, each trip instance is refreshed atomically: old trajectory rows for <code>(trip_id, start_date)</code> are deleted and fresh ones inserted in the same transaction.</p></div>
+</div>
+<h3 id="apps-analytics-apps-analytics-shapes-py"><code>apps/analytics/shapes.py</code></h3>
+<div class="symbol symbol-function" id="apps-analytics-apps-analytics-shapes-py-build-linestrings">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-analytics-apps-analytics-shapes-py-build-linestrings">build_linestrings</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def build_linestrings(shapes_df: pd.DataFrame) -&gt; dict[str, LineString]</code></pre>
+<div class="symbol-doc"><p>One <code>LineString</code> per <code>shape_id</code> in EPSG:3857 (meter units).</p>
+<p>Vertices are ordered by <code>shape_pt_sequence</code>.</p></div>
+</div>
+<div class="symbol symbol-function" id="apps-analytics-apps-analytics-shapes-py-transform-lonlat-to-3857">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-analytics-apps-analytics-shapes-py-transform-lonlat-to-3857">transform_lonlat_to_3857</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def transform_lonlat_to_3857(lon: float, lat: float) -&gt; tuple[float, float]</code></pre>
+<div class="symbol-doc"><p>Transform a single (lon, lat) point to EPSG:3857 meters.</p></div>
+</div>
+<h3 id="apps-analytics-apps-analytics-stop-projection-py"><code>apps/analytics/stop_projection.py</code></h3>
+<div class="symbol symbol-class" id="apps-analytics-apps-analytics-stop-projection-py-stoponroute">
+<div class="symbol-head">
+<span class="symbol-kind">class</span>
+<a class="symbol-name" href="#apps-analytics-apps-analytics-stop-projection-py-stoponroute">StopOnRoute</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">@dataclass(frozen=True)
+class StopOnRoute</code></pre>
+</div>
+<div class="symbol symbol-class" id="apps-analytics-apps-analytics-stop-projection-py-routestops">
+<div class="symbol-head">
+<span class="symbol-kind">class</span>
+<a class="symbol-name" href="#apps-analytics-apps-analytics-stop-projection-py-routestops">RouteStops</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">@dataclass(frozen=True)
+class RouteStops</code></pre>
+</div>
+<div class="symbol symbol-function" id="apps-analytics-apps-analytics-stop-projection-py-compute-route-stops">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-analytics-apps-analytics-stop-projection-py-compute-route-stops">compute_route_stops</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def compute_route_stops(route_id: str, direction_id: int) -&gt; RouteStops | None</code></pre>
+<div class="symbol-doc"><p>Return the ordered stops along the canonical shape for this route+direction.</p>
+<p>Returns <code>None</code> if the route+direction has no shape or no stop_times.</p></div>
+</div>
+<div class="symbol symbol-function" id="apps-analytics-apps-analytics-stop-projection-py-distance-to-stop-index">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-analytics-apps-analytics-stop-projection-py-distance-to-stop-index">distance_to_stop_index</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def distance_to_stop_index(distance_m: float, route_stops: RouteStops) -&gt; float</code></pre>
+<div class="symbol-doc"><p>Map <code>travel_distance_m</code> to a fractional stop index in <code>[0, N-1]</code>.</p></div>
+</div>
+<h3 id="apps-analytics-apps-analytics-trajectory-extract-py"><code>apps/analytics/trajectory_extract.py</code></h3>
+<div class="symbol symbol-function" id="apps-analytics-apps-analytics-trajectory-extract-py-build-trip-trajectory">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-analytics-apps-analytics-trajectory-extract-py-build-trip-trajectory">build_trip_trajectory</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def build_trip_trajectory(rows: Iterable[VehiclePosition], trips_df: pd.DataFrame) -&gt; pd.DataFrame</code></pre>
+<div class="symbol-doc"><p>Build the per-trip DataFrame on which projection + upsample operate.</p>
+<p>Columns: <code>datetime</code>, <code>latitude</code>, <code>longitude</code>, <code>vehicle_id</code>, <code>occupancy_status</code>, <code>source_vehicle_position_id</code>, <code>trip_id</code>, <code>start_date</code>, <code>route_id</code>, <code>direction_id</code>, <code>shape_id</code>, <code>trip_start_datetime</code>.</p></div>
+</div>
+<h3 id="apps-analytics-apps-analytics-upsample-py"><code>apps/analytics/upsample.py</code></h3>
+<div class="symbol symbol-function" id="apps-analytics-apps-analytics-upsample-py-compute-moving-speed">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-analytics-apps-analytics-upsample-py-compute-moving-speed">compute_moving_speed</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def compute_moving_speed(df: pd.DataFrame) -&gt; pd.DataFrame</code></pre>
+<div class="symbol-doc"><p>Add <code>moving_speed_m_s</code> from distance/time diffs.</p>
+<p>The leading NaN is filled with 0 so upsample can use it on the first gap.</p></div>
+</div>
+<div class="symbol symbol-function" id="apps-analytics-apps-analytics-upsample-py-upsample-df">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-analytics-apps-analytics-upsample-py-upsample-df">upsample_df</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def upsample_df(df: pd.DataFrame, resolution_seconds: int) -&gt; pd.DataFrame</code></pre>
+<div class="symbol-doc"><p>Insert rows at fixed time boundaries between every consecutive pair.</p>
+<p>Each output row has <code>observed</code> set to False (it is synthesized). Source rows are NOT appended here — the boundary-point logic preserves one row&#x27;s identity at each midpoint, matching the legacy pipeline&#x27;s behavior.</p>
+<p>Requires columns: <code>datetime</code>, <code>travel_distance_m</code>, <code>moving_speed_m_s</code>.</p></div>
+</div>
+<div class="symbol symbol-function" id="apps-analytics-apps-analytics-upsample-py-last-step-clean-up">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-analytics-apps-analytics-upsample-py-last-step-clean-up">last_step_clean_up</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def last_step_clean_up(df: pd.DataFrame) -&gt; pd.DataFrame</code></pre>
+<div class="symbol-doc"><p>Round numeric fields and reorder columns to the canonical output schema.</p></div>
+</div>
+<h3 id="apps-analytics-apps-analytics-worker-py"><code>apps/analytics/worker.py</code></h3>
+<div class="symbol symbol-function" id="apps-analytics-apps-analytics-worker-py-main">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-analytics-apps-analytics-worker-py-main">main</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def main() -&gt; int</code></pre>
+</div>
+<h2 id="apps-api"><a class="anchor" href="#apps-api" aria-hidden="true">#</a>apps/api <a class="muted-link" href="modules/apps-api.html">(module page →)</a></h2>
+<h3 id="apps-api-apps-api-deps-py"><code>apps/api/deps.py</code></h3>
+<div class="symbol symbol-function" id="apps-api-apps-api-deps-py-get-db">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-api-apps-api-deps-py-get-db">get_db</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def get_db() -&gt; Iterator[Session]</code></pre>
+</div>
+<h3 id="apps-api-apps-api-main-py"><code>apps/api/main.py</code></h3>
+<div class="symbol symbol-function" id="apps-api-apps-api-main-py-create-app">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-api-apps-api-main-py-create-app">create_app</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def create_app() -&gt; FastAPI</code></pre>
+</div>
+<h3 id="apps-api-apps-api-routers-feed-status-py"><code>apps/api/routers/feed_status.py</code></h3>
+<div class="symbol symbol-function" id="apps-api-apps-api-routers-feed-status-py-vehicle-positions-status">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-api-apps-api-routers-feed-status-py-vehicle-positions-status">vehicle_positions_status</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def vehicle_positions_status(db: Session = Depends(get_db)) -&gt; FeedStatusResponse</code></pre>
+<div class="symbol-doc"><p>Summary + recent fetches for the VehiclePositions feed.</p></div>
+</div>
+<h3 id="apps-api-apps-api-routers-health-py"><code>apps/api/routers/health.py</code></h3>
+<div class="symbol symbol-function" id="apps-api-apps-api-routers-health-py-health">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-api-apps-api-routers-health-py-health">health</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def health(db: Session = Depends(get_db)) -&gt; HealthResponse</code></pre>
+</div>
+<h3 id="apps-api-apps-api-routers-iroam-py"><code>apps/api/routers/iroam.py</code></h3>
+<div class="symbol symbol-function" id="apps-api-apps-api-routers-iroam-py-iroam-routes">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-api-apps-api-routers-iroam-py-iroam-routes">iroam_routes</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def iroam_routes(db: Session = Depends(get_db)) -&gt; list[dict[str, Any]]</code></pre>
+<div class="symbol-doc"><p>Catalog of routes with trajectory data and their available service dates.</p></div>
+</div>
+<div class="symbol symbol-function" id="apps-api-apps-api-routers-iroam-py-iroam-stops">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-api-apps-api-routers-iroam-py-iroam-stops">iroam_stops</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def iroam_stops(route_id: str = Query(...), direction_id: int = Query(..., ge=0, le=1)) -&gt; dict[str, Any]</code></pre>
+<div class="symbol-doc"><p>Ordered stops along the canonical shape for (route, direction).</p></div>
+</div>
+<div class="symbol symbol-function" id="apps-api-apps-api-routers-iroam-py-iroam-buses">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-api-apps-api-routers-iroam-py-iroam-buses">iroam_buses</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def iroam_buses(route_id: str = Query(...), service_date: date = Query(...), direction_id: int = Query(..., ge=0, le=1), bunch_sec: float = Query(default=120, ge=10, le=600), idle_min: float = Query(default=5, ge=0.5, le=60), crowd_pct: float = Query(default=100, ge=0, le=150), bunch_dist: float = Query(default=150, ge=10, le=1000), bunch_method: Literal[&#x27;time&#x27;, &#x27;distance&#x27;, &#x27;both&#x27;] = Query(default=&#x27;time&#x27;), db: Session = Depends(get_db)) -&gt; dict[str, Any]</code></pre>
+<div class="symbol-doc"><p>Dashboard-shaped bus data for one (route, date, direction) slice.</p></div>
+</div>
+<div class="symbol symbol-function" id="apps-api-apps-api-routers-iroam-py-iroam-analytics">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-api-apps-api-routers-iroam-py-iroam-analytics">iroam_analytics</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def iroam_analytics(route_id: str = Query(...), service_date: date = Query(...), direction_id: int = Query(..., ge=0, le=1), bunch_sec: float = Query(default=120, ge=10, le=600), idle_min: float = Query(default=5, ge=0.5, le=60), crowd_pct: float = Query(default=100, ge=0, le=150), bunch_dist: float = Query(default=150, ge=10, le=1000), bunch_method: Literal[&#x27;time&#x27;, &#x27;distance&#x27;, &#x27;both&#x27;] = Query(default=&#x27;time&#x27;), db: Session = Depends(get_db)) -&gt; dict[str, Any]</code></pre>
+<div class="symbol-doc"><p>Aggregate metrics for the Analytics page.</p></div>
+</div>
+<div class="symbol symbol-function" id="apps-api-apps-api-routers-iroam-py-iroam-forecast">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-api-apps-api-routers-iroam-py-iroam-forecast">iroam_forecast</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def iroam_forecast(route_id: str = Query(...), service_date: date = Query(...), direction_id: int = Query(..., ge=0, le=1), t_ref_min: float = Query(..., ge=0.0, le=1440.0, description=&#x27;Reference time as minute-of-day (America/Toronto). Live mode: use latest /iroam/buses time_window.end. Historical mode: use current playhead.&#x27;), freshness_s: float = Query(default=90.0, ge=10.0, le=600.0), edge_exclude: int = Query(default=2, ge=0, le=25), db: Session = Depends(get_db)) -&gt; dict[str, Any]</code></pre>
+<div class="symbol-doc"><p>Per-bus + aggregate bunching-risk forecast for one (route, date, direction).</p>
+<p>Runs the bundled LightGBM predictor (see <code>deployment/bunching_lightgbm</code>) over every &quot;running&quot; bus in the slice: fresh sample, inside the active-stop band, enough history to fill a 60-tick × 9-channel window. Returns per-bus probability horizons + two aggregate series (<code>any_alert_rate</code> and <code>mean_prob</code>) sized to the model&#x27;s 30-step horizon.</p>
+<p>Shape is stable across modes; the frontend passes the same payload shape into its Forecast panel whether this is live or historical.</p></div>
+</div>
+<h3 id="apps-api-apps-api-routers-replay-py"><code>apps/api/routers/replay.py</code></h3>
+<div class="symbol symbol-function" id="apps-api-apps-api-routers-replay-py-replay-vehicles-endpoint">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-api-apps-api-routers-replay-py-replay-vehicles-endpoint">replay_vehicles_endpoint</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def replay_vehicles_endpoint(start: datetime = Query(..., description=&#x27;Inclusive UTC start.&#x27;), end: datetime = Query(..., description=&#x27;Exclusive UTC end.&#x27;), route_id: str | None = Query(default=None), limit: int | None = Query(default=None, ge=1), include: Literal[&#x27;raw&#x27;] | None = Query(default=None), db: Session = Depends(get_db))</code></pre>
+<div class="symbol-doc"><p>Append-ordered vehicle positions for map replay.</p></div>
+</div>
+<h3 id="apps-api-apps-api-routers-routes-py"><code>apps/api/routers/routes.py</code></h3>
+<div class="symbol symbol-function" id="apps-api-apps-api-routers-routes-py-routes-index">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-api-apps-api-routers-routes-py-routes-index">routes_index</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def routes_index(minutes: int = Query(default=15, ge=1, le=180), db: Session = Depends(get_db)) -&gt; list[str]</code></pre>
+<div class="symbol-doc"><p>Routes with at least one observation in the last <code>minutes</code> minutes.</p></div>
+</div>
+<div class="symbol symbol-function" id="apps-api-apps-api-routers-routes-py-route-vehicles-latest">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-api-apps-api-routers-routes-py-route-vehicles-latest">route_vehicles_latest</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def route_vehicles_latest(route_id: str, limit: int | None = Query(default=None, ge=1), minutes: int = Query(default=5, ge=1, le=180), include: Literal[&#x27;raw&#x27;] | None = Query(default=None), db: Session = Depends(get_db))</code></pre>
+<div class="symbol-doc"><p>Latest observation per vehicle currently on <code>route_id</code>.</p></div>
+</div>
+<div class="symbol symbol-function" id="apps-api-apps-api-routers-routes-py-route-metrics-endpoint">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-api-apps-api-routers-routes-py-route-metrics-endpoint">route_metrics_endpoint</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def route_metrics_endpoint(route_id: str, window_minutes: int = Query(default=15, ge=1, le=180), db: Session = Depends(get_db)) -&gt; RouteMetricsResponse</code></pre>
+<div class="symbol-doc"><p>Fleet-level metrics over the latest observation per vehicle on a route.</p></div>
+</div>
+<h3 id="apps-api-apps-api-routers-trajectories-py"><code>apps/api/routers/trajectories.py</code></h3>
+<div class="symbol symbol-function" id="apps-api-apps-api-routers-trajectories-py-trajectory-service-dates">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-api-apps-api-routers-trajectories-py-trajectory-service-dates">trajectory_service_dates</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def trajectory_service_dates(limit: int = Query(default=30, ge=1, le=365), db: Session = Depends(get_db)) -&gt; list[date]</code></pre>
+<div class="symbol-doc"><p>Distinct service dates with any trajectory rows, newest first.</p></div>
+</div>
+<div class="symbol symbol-function" id="apps-api-apps-api-routers-trajectories-py-trajectory-routes">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-api-apps-api-routers-trajectories-py-trajectory-routes">trajectory_routes</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def trajectory_routes(service_date: date = Query(...), db: Session = Depends(get_db)) -&gt; list[str]</code></pre>
+<div class="symbol-doc"><p>Routes that have at least one trip trajectory on <code>service_date</code>.</p></div>
+</div>
+<div class="symbol symbol-function" id="apps-api-apps-api-routers-trajectories-py-trajectory-trips">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-api-apps-api-routers-trajectories-py-trajectory-trips">trajectory_trips</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def trajectory_trips(service_date: date = Query(...), route_id: str | None = Query(default=None), limit: int = Query(default=500, ge=1, le=5000), db: Session = Depends(get_db)) -&gt; list[TripInstanceSummary]</code></pre>
+<div class="symbol-doc"><p>Picker list: one summary per trip instance on a given service date.</p></div>
+</div>
+<div class="symbol symbol-function" id="apps-api-apps-api-routers-trajectories-py-trajectory-detail">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-api-apps-api-routers-trajectories-py-trajectory-detail">trajectory_detail</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def trajectory_detail(trip_id: str, start_date: str = Query(..., min_length=8, max_length=8, pattern=&#x27;^\\d{8}$&#x27;), include: Literal[&#x27;shape&#x27;] | None = Query(default=None, description=&quot;Set to &#x27;shape&#x27; to enrich each point with interpolated lon/lat.&quot;), db: Session = Depends(get_db)) -&gt; TripTrajectoryResponse</code></pre>
+<div class="symbol-doc"><p>Full trajectory for <code>(trip_id, start_date)</code> in time order.</p></div>
+</div>
+<h3 id="apps-api-apps-api-routers-vehicles-py"><code>apps/api/routers/vehicles.py</code></h3>
+<div class="symbol symbol-function" id="apps-api-apps-api-routers-vehicles-py-vehicles-latest">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-api-apps-api-routers-vehicles-py-vehicles-latest">vehicles_latest</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def vehicles_latest(route_id: str | None = Query(default=None), limit: int | None = Query(default=None, ge=1), minutes: int = Query(default=5, ge=1, le=180, description=&#x27;Only vehicles seen within this window&#x27;), include: Literal[&#x27;raw&#x27;] | None = Query(default=None), db: Session = Depends(get_db))</code></pre>
+<div class="symbol-doc"><p>Latest observation per <code>vehicle_id</code>, optionally filtered to a route.</p>
+<p><code>minutes</code> bounds staleness — default 5 min keeps the map clean; set higher for sparse debugging or to see recently-parked vehicles.</p></div>
+</div>
+<div class="symbol symbol-function" id="apps-api-apps-api-routers-vehicles-py-vehicle-latest">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-api-apps-api-routers-vehicles-py-vehicle-latest">vehicle_latest</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def vehicle_latest(vehicle_id: str, include: Literal[&#x27;raw&#x27;] | None = Query(default=None), db: Session = Depends(get_db))</code></pre>
+<div class="symbol-doc"><p>Single most-recent observation for a vehicle (404 if never seen).</p></div>
+</div>
+<div class="symbol symbol-function" id="apps-api-apps-api-routers-vehicles-py-vehicle-history-endpoint">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-api-apps-api-routers-vehicles-py-vehicle-history-endpoint">vehicle_history_endpoint</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def vehicle_history_endpoint(vehicle_id: str, start: datetime = Query(...), end: datetime = Query(...), limit: int | None = Query(default=None, ge=1), include: Literal[&#x27;raw&#x27;] | None = Query(default=None), db: Session = Depends(get_db))</code></pre>
+<div class="symbol-doc"><p>Append-ordered observations in [start, end) for one vehicle.</p></div>
+</div>
+<h3 id="apps-api-apps-api-schemas-feed-py"><code>apps/api/schemas/feed.py</code></h3>
+<div class="symbol symbol-class" id="apps-api-apps-api-schemas-feed-py-healthresponse">
+<div class="symbol-head">
+<span class="symbol-kind">class</span>
+<a class="symbol-name" href="#apps-api-apps-api-schemas-feed-py-healthresponse">HealthResponse</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">class HealthResponse(BaseModel)</code></pre>
+</div>
+<div class="symbol symbol-class" id="apps-api-apps-api-schemas-feed-py-fetchlogentry">
+<div class="symbol-head">
+<span class="symbol-kind">class</span>
+<a class="symbol-name" href="#apps-api-apps-api-schemas-feed-py-fetchlogentry">FetchLogEntry</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">class FetchLogEntry(BaseModel)</code></pre>
+</div>
+<div class="symbol symbol-class" id="apps-api-apps-api-schemas-feed-py-feedstatusresponse">
+<div class="symbol-head">
+<span class="symbol-kind">class</span>
+<a class="symbol-name" href="#apps-api-apps-api-schemas-feed-py-feedstatusresponse">FeedStatusResponse</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">class FeedStatusResponse(BaseModel)</code></pre>
+</div>
+<h3 id="apps-api-apps-api-schemas-route-metrics-py"><code>apps/api/schemas/route_metrics.py</code></h3>
+<div class="symbol symbol-class" id="apps-api-apps-api-schemas-route-metrics-py-boundingbox">
+<div class="symbol-head">
+<span class="symbol-kind">class</span>
+<a class="symbol-name" href="#apps-api-apps-api-schemas-route-metrics-py-boundingbox">BoundingBox</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">class BoundingBox(BaseModel)</code></pre>
+</div>
+<div class="symbol symbol-class" id="apps-api-apps-api-schemas-route-metrics-py-routemetricsresponse">
+<div class="symbol-head">
+<span class="symbol-kind">class</span>
+<a class="symbol-name" href="#apps-api-apps-api-schemas-route-metrics-py-routemetricsresponse">RouteMetricsResponse</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">class RouteMetricsResponse(BaseModel)</code></pre>
+</div>
+<h3 id="apps-api-apps-api-schemas-trajectory-py"><code>apps/api/schemas/trajectory.py</code></h3>
+<div class="symbol symbol-class" id="apps-api-apps-api-schemas-trajectory-py-tripinstancesummary">
+<div class="symbol-head">
+<span class="symbol-kind">class</span>
+<a class="symbol-name" href="#apps-api-apps-api-schemas-trajectory-py-tripinstancesummary">TripInstanceSummary</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">class TripInstanceSummary(BaseModel)</code></pre>
+<div class="symbol-doc"><p>One <code>(trip_id, start_date)</code> pair with coarse metadata for the picker.</p></div>
+</div>
+<div class="symbol symbol-class" id="apps-api-apps-api-schemas-trajectory-py-trajectorypoint">
+<div class="symbol-head">
+<span class="symbol-kind">class</span>
+<a class="symbol-name" href="#apps-api-apps-api-schemas-trajectory-py-trajectorypoint">TrajectoryPoint</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">class TrajectoryPoint(BaseModel)</code></pre>
+<div class="symbol-doc"><p>One upsampled row, optionally enriched with interpolated lon/lat.</p></div>
+</div>
+<div class="symbol symbol-class" id="apps-api-apps-api-schemas-trajectory-py-triptrajectoryresponse">
+<div class="symbol-head">
+<span class="symbol-kind">class</span>
+<a class="symbol-name" href="#apps-api-apps-api-schemas-trajectory-py-triptrajectoryresponse">TripTrajectoryResponse</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">class TripTrajectoryResponse(BaseModel)</code></pre>
+<div class="symbol-doc"><p>Envelope for a single trip instance&#x27;s full trajectory.</p></div>
+</div>
+<h3 id="apps-api-apps-api-schemas-vehicle-py"><code>apps/api/schemas/vehicle.py</code></h3>
+<div class="symbol symbol-class" id="apps-api-apps-api-schemas-vehicle-py-vehiclepositionresponse">
+<div class="symbol-head">
+<span class="symbol-kind">class</span>
+<a class="symbol-name" href="#apps-api-apps-api-schemas-vehicle-py-vehiclepositionresponse">VehiclePositionResponse</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">class VehiclePositionResponse(BaseModel)</code></pre>
+<div class="symbol-doc"><p>Flat view of a <code>vehicle_positions</code> row.</p>
+<p><code>raw_entity</code> is excluded by default to keep map payloads small — callers that need it can opt in via <code>?include=raw</code>.</p></div>
+</div>
+<div class="symbol symbol-class" id="apps-api-apps-api-schemas-vehicle-py-vehiclepositionwithraw">
+<div class="symbol-head">
+<span class="symbol-kind">class</span>
+<a class="symbol-name" href="#apps-api-apps-api-schemas-vehicle-py-vehiclepositionwithraw">VehiclePositionWithRaw</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">class VehiclePositionWithRaw(VehiclePositionResponse)</code></pre>
+<div class="symbol-doc"><p>Full row including <code>raw_entity</code> JSON (per-entity protobuf dict).</p></div>
+</div>
+<h3 id="apps-api-apps-api-services-bunching-predictor-py"><code>apps/api/services/bunching_predictor.py</code></h3>
+<div class="symbol symbol-class" id="apps-api-apps-api-services-bunching-predictor-py-predictorunavailable">
+<div class="symbol-head">
+<span class="symbol-kind">class</span>
+<a class="symbol-name" href="#apps-api-apps-api-services-bunching-predictor-py-predictorunavailable">PredictorUnavailable</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">class PredictorUnavailable(RuntimeError)</code></pre>
+<div class="symbol-doc"><p>Raised when the model bundle is present but cannot be loaded (bad files, missing <code>lightgbm</code> runtime, etc.). Kept distinct from the stdlib errors so the API layer can translate it to a 503.</p></div>
+</div>
+<div class="symbol symbol-function" id="apps-api-apps-api-services-bunching-predictor-py-get-predictor">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-api-apps-api-services-bunching-predictor-py-get-predictor">get_predictor</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def get_predictor()</code></pre>
+<div class="symbol-doc"><p>Return the process-local <code>BunchingPredictor</code> instance.</p></div>
+</div>
+<div class="symbol symbol-function" id="apps-api-apps-api-services-bunching-predictor-py-reset-cache">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-api-apps-api-services-bunching-predictor-py-reset-cache">reset_cache</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def reset_cache() -&gt; None</code></pre>
+<div class="symbol-doc"><p>Test hook: drop the cached predictor so <code>get_predictor</code> rebuilds it.</p></div>
+</div>
+<h3 id="apps-api-apps-api-services-forecast-py"><code>apps/api/services/forecast.py</code></h3>
+<div class="symbol symbol-class" id="apps-api-apps-api-services-forecast-py-forecastresult">
+<div class="symbol-head">
+<span class="symbol-kind">class</span>
+<a class="symbol-name" href="#apps-api-apps-api-services-forecast-py-forecastresult">ForecastResult</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">@dataclass(frozen=True)
+class ForecastResult</code></pre>
+</div>
+<div class="symbol symbol-function" id="apps-api-apps-api-services-forecast-py-run-forecast">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-api-apps-api-services-forecast-py-run-forecast">run_forecast</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def run_forecast(buses: list[BusTrajectory], *, num_stops: int, t_ref_min: float, freshness_s: float = 90.0, edge_exclude: int = 2, predictor: Any | None = None) -&gt; ForecastResult</code></pre>
+<div class="symbol-doc"><p>Run the bunching predictor for every &quot;running&quot; bus in <code>buses</code>.</p>
+<p><code>predictor</code> override exists for tests; production path calls <code>get_predictor</code>.</p></div>
+</div>
+<h3 id="apps-api-apps-api-services-forecast-features-py"><code>apps/api/services/forecast_features.py</code></h3>
+<div class="symbol symbol-class" id="apps-api-apps-api-services-forecast-features-py-buswindowresult">
+<div class="symbol-head">
+<span class="symbol-kind">class</span>
+<a class="symbol-name" href="#apps-api-apps-api-services-forecast-features-py-buswindowresult">BusWindowResult</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">@dataclass(frozen=True)
+class BusWindowResult</code></pre>
+</div>
+<div class="symbol symbol-function" id="apps-api-apps-api-services-forecast-features-py-build-bus-window">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-api-apps-api-services-forecast-features-py-build-bus-window">build_bus_window</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def build_bus_window(target: BusTrajectory, peers: Sequence[BusTrajectory], *, t_ref_min: float, num_stops: int, freshness_s: float = 90.0, edge_exclude: int = 2) -&gt; BusWindowResult</code></pre>
+<div class="symbol-doc"><p>Build a single (60, 9) raw-unit window for <code>target</code> ending at <code>t_ref_min</code>.</p>
+<p><code>peers</code> must be the full list of buses on the same slice; <code>target</code> itself may be included and is filtered out internally.</p></div>
+</div>
+<h2 id="apps-dashboard"><a class="anchor" href="#apps-dashboard" aria-hidden="true">#</a>apps/dashboard <a class="muted-link" href="modules/apps-dashboard.html">(module page →)</a></h2>
+<h3 id="apps-dashboard-apps-dashboard-api-client-py"><code>apps/dashboard/api_client.py</code></h3>
+<div class="symbol symbol-class" id="apps-dashboard-apps-dashboard-api-client-py-apierror">
+<div class="symbol-head">
+<span class="symbol-kind">class</span>
+<a class="symbol-name" href="#apps-dashboard-apps-dashboard-api-client-py-apierror">APIError</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">class APIError(Exception)</code></pre>
+</div>
+<div class="symbol symbol-function" id="apps-dashboard-apps-dashboard-api-client-py-health">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-dashboard-apps-dashboard-api-client-py-health">health</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def health() -&gt; dict[str, Any]</code></pre>
+</div>
+<div class="symbol symbol-function" id="apps-dashboard-apps-dashboard-api-client-py-feed-status-vehicle-positions">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-dashboard-apps-dashboard-api-client-py-feed-status-vehicle-positions">feed_status_vehicle_positions</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def feed_status_vehicle_positions() -&gt; dict[str, Any]</code></pre>
+</div>
+<div class="symbol symbol-function" id="apps-dashboard-apps-dashboard-api-client-py-vehicles-latest">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-dashboard-apps-dashboard-api-client-py-vehicles-latest">vehicles_latest</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def vehicles_latest(*, route_id: str | None = None, minutes: int = 5, limit: int | None = None, include_raw: bool = False) -&gt; list[dict[str, Any]]</code></pre>
+</div>
+<div class="symbol symbol-function" id="apps-dashboard-apps-dashboard-api-client-py-vehicle-latest">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-dashboard-apps-dashboard-api-client-py-vehicle-latest">vehicle_latest</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def vehicle_latest(vehicle_id: str, *, include_raw: bool = False) -&gt; dict[str, Any]</code></pre>
+</div>
+<div class="symbol symbol-function" id="apps-dashboard-apps-dashboard-api-client-py-vehicle-history">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-dashboard-apps-dashboard-api-client-py-vehicle-history">vehicle_history</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def vehicle_history(vehicle_id: str, *, start: datetime, end: datetime, limit: int | None = None, include_raw: bool = False) -&gt; list[dict[str, Any]]</code></pre>
+</div>
+<div class="symbol symbol-function" id="apps-dashboard-apps-dashboard-api-client-py-routes-index">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-dashboard-apps-dashboard-api-client-py-routes-index">routes_index</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def routes_index(minutes: int = 15) -&gt; list[str]</code></pre>
+</div>
+<div class="symbol symbol-function" id="apps-dashboard-apps-dashboard-api-client-py-route-vehicles-latest">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-dashboard-apps-dashboard-api-client-py-route-vehicles-latest">route_vehicles_latest</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def route_vehicles_latest(route_id: str, *, minutes: int = 5, limit: int | None = None, include_raw: bool = False) -&gt; list[dict[str, Any]]</code></pre>
+</div>
+<div class="symbol symbol-function" id="apps-dashboard-apps-dashboard-api-client-py-route-metrics">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-dashboard-apps-dashboard-api-client-py-route-metrics">route_metrics</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def route_metrics(route_id: str, *, window_minutes: int = 15) -&gt; dict[str, Any]</code></pre>
+</div>
+<div class="symbol symbol-function" id="apps-dashboard-apps-dashboard-api-client-py-trajectory-service-dates">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-dashboard-apps-dashboard-api-client-py-trajectory-service-dates">trajectory_service_dates</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def trajectory_service_dates(limit: int = 30) -&gt; list[str]</code></pre>
+</div>
+<div class="symbol symbol-function" id="apps-dashboard-apps-dashboard-api-client-py-trajectory-routes">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-dashboard-apps-dashboard-api-client-py-trajectory-routes">trajectory_routes</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def trajectory_routes(service_date: str) -&gt; list[str]</code></pre>
+</div>
+<div class="symbol symbol-function" id="apps-dashboard-apps-dashboard-api-client-py-trajectory-trips">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-dashboard-apps-dashboard-api-client-py-trajectory-trips">trajectory_trips</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def trajectory_trips(service_date: str, *, route_id: str | None = None, limit: int = 500) -&gt; list[dict[str, Any]]</code></pre>
+</div>
+<div class="symbol symbol-function" id="apps-dashboard-apps-dashboard-api-client-py-trajectory-detail">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-dashboard-apps-dashboard-api-client-py-trajectory-detail">trajectory_detail</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def trajectory_detail(trip_id: str, *, start_date: str, include_shape: bool = False) -&gt; dict[str, Any]</code></pre>
+</div>
+<div class="symbol symbol-function" id="apps-dashboard-apps-dashboard-api-client-py-replay-vehicles">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-dashboard-apps-dashboard-api-client-py-replay-vehicles">replay_vehicles</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def replay_vehicles(*, start: datetime, end: datetime, route_id: str | None = None, limit: int | None = None, include_raw: bool = False) -&gt; list[dict[str, Any]]</code></pre>
+</div>
+<h2 id="core"><a class="anchor" href="#core" aria-hidden="true">#</a>core <a class="muted-link" href="modules/core.html">(module page →)</a></h2>
+<h3 id="core-core-config-py"><code>core/config.py</code></h3>
+<div class="symbol symbol-class" id="core-core-config-py-settings">
+<div class="symbol-head">
+<span class="symbol-kind">class</span>
+<a class="symbol-name" href="#core-core-config-py-settings">Settings</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">class Settings(BaseSettings)</code></pre>
+<div class="symbol-doc"><p>Typed view over the environment. See <code>.env.example</code> for documentation.</p></div>
+</div>
+<div class="symbol symbol-function" id="core-core-config-py-get-settings">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#core-core-config-py-get-settings">get_settings</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def get_settings() -&gt; Settings</code></pre>
+<div class="symbol-doc"><p>Return the process-wide Settings singleton.</p></div>
+</div>
+<h3 id="core-core-logging-py"><code>core/logging.py</code></h3>
+<div class="symbol symbol-class" id="core-core-logging-py-jsonformatter">
+<div class="symbol-head">
+<span class="symbol-kind">class</span>
+<a class="symbol-name" href="#core-core-logging-py-jsonformatter">JsonFormatter</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">class JsonFormatter(logging.Formatter)</code></pre>
+<div class="symbol-doc"><p>Minimal JSON line formatter — one object per log record.</p>
+<p>Keeps structured fields (<code>extra=...</code>) alongside message/level/logger so downstream log collectors can parse without a custom grok pattern.</p></div>
+</div>
+<div class="symbol symbol-function" id="core-core-logging-py-configure-logging">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#core-core-logging-py-configure-logging">configure_logging</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def configure_logging() -&gt; None</code></pre>
+<div class="symbol-doc"><p>Configure root logger once; safe to call multiple times.</p></div>
+</div>
+<div class="symbol symbol-function" id="core-core-logging-py-get-logger">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#core-core-logging-py-get-logger">get_logger</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def get_logger(name: str) -&gt; logging.Logger</code></pre>
+<div class="symbol-doc"><p>Return a module-scoped logger, configuring the root first if needed.</p></div>
+</div>
+<h3 id="core-core-time-py"><code>core/time.py</code></h3>
+<div class="symbol symbol-function" id="core-core-time-py-utc-now">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#core-core-time-py-utc-now">utc_now</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def utc_now() -&gt; datetime</code></pre>
+<div class="symbol-doc"><p>Return the current UTC time as a tz-aware datetime.</p></div>
+</div>
+<div class="symbol symbol-function" id="core-core-time-py-epoch-to-utc">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#core-core-time-py-epoch-to-utc">epoch_to_utc</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def epoch_to_utc(epoch_seconds: int | float | None) -&gt; datetime | None</code></pre>
+<div class="symbol-doc"><p>Convert Unix epoch seconds to a UTC datetime, or None if the input is falsy.</p>
+<p>GTFS-RT encodes &quot;unset&quot; as 0 (or the field missing); callers should pass None for &quot;missing&quot;. We additionally treat 0 as missing because it&#x27;s never a valid TTC timestamp.</p></div>
+</div>
+<div class="symbol symbol-function" id="core-core-time-py-to-toronto">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#core-core-time-py-to-toronto">to_toronto</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def to_toronto(dt: datetime | None) -&gt; datetime | None</code></pre>
+<div class="symbol-doc"><p>Convert a UTC datetime to America/Toronto for display.</p></div>
+</div>
+<h2 id="db"><a class="anchor" href="#db" aria-hidden="true">#</a>db <a class="muted-link" href="modules/db.html">(module page →)</a></h2>
+<h3 id="db-db-base-py"><code>db/base.py</code></h3>
+<div class="symbol symbol-class" id="db-db-base-py-base">
+<div class="symbol-head">
+<span class="symbol-kind">class</span>
+<a class="symbol-name" href="#db-db-base-py-base">Base</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">class Base(DeclarativeBase)</code></pre>
+<div class="symbol-doc"><p>Shared declarative base.</p></div>
+</div>
+<div class="symbol symbol-function" id="db-db-base-py-register-all-models">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#db-db-base-py-register-all-models">register_all_models</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def register_all_models() -&gt; None</code></pre>
+<div class="symbol-doc"><p>Force-import every model module so Base.metadata is fully populated.</p>
+<p>Called by Alembic&#x27;s env.py and anywhere we need an exhaustive metadata view (e.g. integration tests that use <code>Base.metadata.create_all</code>).</p></div>
+</div>
+<h3 id="db-db-migrations-env-py"><code>db/migrations/env.py</code></h3>
+<div class="symbol symbol-function" id="db-db-migrations-env-py-run-migrations-offline">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#db-db-migrations-env-py-run-migrations-offline">run_migrations_offline</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def run_migrations_offline() -&gt; None</code></pre>
+</div>
+<div class="symbol symbol-function" id="db-db-migrations-env-py-run-migrations-online">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#db-db-migrations-env-py-run-migrations-online">run_migrations_online</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def run_migrations_online() -&gt; None</code></pre>
+</div>
+<h3 id="db-db-models-feed-fetch-log-py"><code>db/models/feed_fetch_log.py</code></h3>
+<div class="symbol symbol-class" id="db-db-models-feed-fetch-log-py-feedfetchlog">
+<div class="symbol-head">
+<span class="symbol-kind">class</span>
+<a class="symbol-name" href="#db-db-models-feed-fetch-log-py-feedfetchlog">FeedFetchLog</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">class FeedFetchLog(Base)</code></pre>
+</div>
+<h3 id="db-db-models-raw-snapshot-py"><code>db/models/raw_snapshot.py</code></h3>
+<div class="symbol symbol-class" id="db-db-models-raw-snapshot-py-rawgtfsrtsnapshot">
+<div class="symbol-head">
+<span class="symbol-kind">class</span>
+<a class="symbol-name" href="#db-db-models-raw-snapshot-py-rawgtfsrtsnapshot">RawGtfsrtSnapshot</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">class RawGtfsrtSnapshot(Base)</code></pre>
+</div>
+<h3 id="db-db-models-trip-trajectory-py"><code>db/models/trip_trajectory.py</code></h3>
+<div class="symbol symbol-class" id="db-db-models-trip-trajectory-py-analyticsrun">
+<div class="symbol-head">
+<span class="symbol-kind">class</span>
+<a class="symbol-name" href="#db-db-models-trip-trajectory-py-analyticsrun">AnalyticsRun</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">class AnalyticsRun(Base)</code></pre>
+</div>
+<div class="symbol symbol-class" id="db-db-models-trip-trajectory-py-triptrajectory">
+<div class="symbol-head">
+<span class="symbol-kind">class</span>
+<a class="symbol-name" href="#db-db-models-trip-trajectory-py-triptrajectory">TripTrajectory</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">class TripTrajectory(Base)</code></pre>
+</div>
+<h3 id="db-db-models-vehicle-position-py"><code>db/models/vehicle_position.py</code></h3>
+<div class="symbol symbol-class" id="db-db-models-vehicle-position-py-vehicleposition">
+<div class="symbol-head">
+<span class="symbol-kind">class</span>
+<a class="symbol-name" href="#db-db-models-vehicle-position-py-vehicleposition">VehiclePosition</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">class VehiclePosition(Base)</code></pre>
+</div>
+<h3 id="db-db-queries-feed-stats-py"><code>db/queries/feed_stats.py</code></h3>
+<div class="symbol symbol-class" id="db-db-queries-feed-stats-py-feedstatus">
+<div class="symbol-head">
+<span class="symbol-kind">class</span>
+<a class="symbol-name" href="#db-db-queries-feed-stats-py-feedstatus">FeedStatus</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">@dataclass
+class FeedStatus</code></pre>
+</div>
+<div class="symbol symbol-function" id="db-db-queries-feed-stats-py-feed-status">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#db-db-queries-feed-stats-py-feed-status">feed_status</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def feed_status(session: Session, feed_name: str) -&gt; FeedStatus</code></pre>
+<div class="symbol-doc"><p>Return a summary of the last fetch and the last-hour success rate.</p></div>
+</div>
+<div class="symbol symbol-function" id="db-db-queries-feed-stats-py-recent-fetches">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#db-db-queries-feed-stats-py-recent-fetches">recent_fetches</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def recent_fetches(session: Session, feed_name: str, *, limit: int = 50) -&gt; list[FeedFetchLog]</code></pre>
+<div class="symbol-doc"><p>The last N fetch-log rows, newest-first.</p></div>
+</div>
+<h3 id="db-db-queries-iroam-py"><code>db/queries/iroam.py</code></h3>
+<div class="symbol symbol-class" id="db-db-queries-iroam-py-routedatedir">
+<div class="symbol-head">
+<span class="symbol-kind">class</span>
+<a class="symbol-name" href="#db-db-queries-iroam-py-routedatedir">RouteDateDir</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">@dataclass(frozen=True)
+class RouteDateDir</code></pre>
+</div>
+<div class="symbol symbol-function" id="db-db-queries-iroam-py-list-route-catalog">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#db-db-queries-iroam-py-list-route-catalog">list_route_catalog</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def list_route_catalog(session: Session) -&gt; list[dict[str, Any]]</code></pre>
+<div class="symbol-doc"><p>One entry per distinct <code>(route_id, direction_id)</code> with the dates it ran on.</p></div>
+</div>
+<div class="symbol symbol-function" id="db-db-queries-iroam-py-fetch-trajectories-for-slice">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#db-db-queries-iroam-py-fetch-trajectories-for-slice">fetch_trajectories_for_slice</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def fetch_trajectories_for_slice(session: Session, *, service_date: date, route_id: str, direction_id: int) -&gt; list[TripTrajectory]</code></pre>
+<div class="symbol-doc"><p>Every trajectory point for the given slice, ordered for linear grouping.</p></div>
+</div>
+<h3 id="db-db-queries-replay-py"><code>db/queries/replay.py</code></h3>
+<div class="symbol symbol-function" id="db-db-queries-replay-py-snapshots-in-window">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#db-db-queries-replay-py-snapshots-in-window">snapshots_in_window</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def snapshots_in_window(session: Session, *, feed_name: str, start: datetime, end: datetime, limit: int = 500) -&gt; Sequence[RawGtfsrtSnapshot]</code></pre>
+<div class="symbol-doc"><p>All snapshots for a feed in a time window, oldest-first.</p></div>
+</div>
+<h3 id="db-db-queries-trajectories-py"><code>db/queries/trajectories.py</code></h3>
+<div class="symbol symbol-class" id="db-db-queries-trajectories-py-tripinstancesummary">
+<div class="symbol-head">
+<span class="symbol-kind">class</span>
+<a class="symbol-name" href="#db-db-queries-trajectories-py-tripinstancesummary">TripInstanceSummary</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">@dataclass(frozen=True)
+class TripInstanceSummary</code></pre>
+</div>
+<div class="symbol symbol-function" id="db-db-queries-trajectories-py-list-service-dates">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#db-db-queries-trajectories-py-list-service-dates">list_service_dates</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def list_service_dates(session: Session, *, limit: int = 30) -&gt; list[date]</code></pre>
+<div class="symbol-doc"><p>Distinct service_dates present in <code>trip_trajectories</code>, newest first.</p></div>
+</div>
+<div class="symbol symbol-function" id="db-db-queries-trajectories-py-list-trip-instances">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#db-db-queries-trajectories-py-list-trip-instances">list_trip_instances</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def list_trip_instances(session: Session, service_date: date, *, route_id: str | None = None, limit: int = 500) -&gt; list[TripInstanceSummary]</code></pre>
+<div class="symbol-doc"><p>One summary row per <code>(trip_id, start_date)</code> for a service date.</p>
+<p><code>vehicle_id</code> and <code>route_id</code> are picked from the row with the largest travel_distance_m so a trip instance that changed vehicles mid-trip gets a stable representative; this is rare but non-zero in the feed.</p></div>
+</div>
+<div class="symbol symbol-function" id="db-db-queries-trajectories-py-fetch-trip-trajectory">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#db-db-queries-trajectories-py-fetch-trip-trajectory">fetch_trip_trajectory</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def fetch_trip_trajectory(session: Session, trip_id: str, start_date: str) -&gt; list[TripTrajectory]</code></pre>
+<div class="symbol-doc"><p>All upsampled points for one trip instance, time-ascending.</p>
+<p>Served by the <code>ux_trip_trajectories_instance_dt</code> unique index (<code>trip_id, start_date, datetime</code>).</p></div>
+</div>
+<div class="symbol symbol-function" id="db-db-queries-trajectories-py-list-active-routes-on-date">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#db-db-queries-trajectories-py-list-active-routes-on-date">list_active_routes_on_date</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def list_active_routes_on_date(session: Session, service_date: date, *, limit: int = 500) -&gt; list[str]</code></pre>
+<div class="symbol-doc"><p>Distinct <code>route_id</code> values present in trajectories for a service_date.</p></div>
+</div>
+<h3 id="db-db-queries-vehicles-py"><code>db/queries/vehicles.py</code></h3>
+<div class="symbol symbol-function" id="db-db-queries-vehicles-py-latest-vehicle-positions">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#db-db-queries-vehicles-py-latest-vehicle-positions">latest_vehicle_positions</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def latest_vehicle_positions(session: Session, *, route_id: str | None = None, since: datetime | None = None, limit: int = 5000) -&gt; list[VehiclePosition]</code></pre>
+<div class="symbol-doc"><p>Latest row per <code>vehicle_id</code> (optionally filtered by route).</p>
+<p><code>since</code> bounds the scan — defaults to now-24h so a stale DB doesn&#x27;t return ancient rows. Use a smaller window for the live map.</p></div>
+</div>
+<div class="symbol symbol-function" id="db-db-queries-vehicles-py-latest-vehicle-position">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#db-db-queries-vehicles-py-latest-vehicle-position">latest_vehicle_position</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def latest_vehicle_position(session: Session, vehicle_id: str) -&gt; VehiclePosition | None</code></pre>
+<div class="symbol-doc"><p>Single most-recent row for a specific vehicle, or None.</p></div>
+</div>
+<div class="symbol symbol-function" id="db-db-queries-vehicles-py-vehicle-history">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#db-db-queries-vehicles-py-vehicle-history">vehicle_history</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def vehicle_history(session: Session, vehicle_id: str, *, start: datetime, end: datetime, limit: int = 5000) -&gt; list[VehiclePosition]</code></pre>
+<div class="symbol-doc"><p>Append-ordered history for a vehicle within [start, end].</p></div>
+</div>
+<div class="symbol symbol-function" id="db-db-queries-vehicles-py-fetch-by-trip-instance">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#db-db-queries-vehicles-py-fetch-by-trip-instance">fetch_by_trip_instance</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def fetch_by_trip_instance(session: Session, trip_id: str, start_date: str) -&gt; list[VehiclePosition]</code></pre>
+<div class="symbol-doc"><p>All rows for one trip instance, chronological.</p>
+<p>Keyed on <code>(trip_id, start_date)</code> because the same <code>trip_id</code> repeats across service days. When the feed populates TripDescriptor.start_date the filter is exact; otherwise we fall back to the Toronto-local date derived from <code>vehicle_timestamp</code> / <code>fetched_at</code>. Sort is ASC by observation time so analytics can compute diffs directly.</p></div>
+</div>
+<div class="symbol symbol-function" id="db-db-queries-vehicles-py-active-route-ids">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#db-db-queries-vehicles-py-active-route-ids">active_route_ids</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def active_route_ids(session: Session, *, window: timedelta = timedelta(minutes=15), limit: int = 500) -&gt; list[str]</code></pre>
+<div class="symbol-doc"><p>Distinct route_ids observed within the last <code>window</code>, newest-activity-first.</p></div>
+</div>
+<div class="symbol symbol-class" id="db-db-queries-vehicles-py-routemetrics">
+<div class="symbol-head">
+<span class="symbol-kind">class</span>
+<a class="symbol-name" href="#db-db-queries-vehicles-py-routemetrics">RouteMetrics</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">@dataclass
+class RouteMetrics</code></pre>
+</div>
+<div class="symbol symbol-function" id="db-db-queries-vehicles-py-route-metrics">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#db-db-queries-vehicles-py-route-metrics">route_metrics</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def route_metrics(session: Session, route_id: str, *, window_minutes: int = 15) -&gt; RouteMetrics</code></pre>
+<div class="symbol-doc"><p>Aggregate metrics over the latest observation per vehicle on a route.</p></div>
+</div>
+<div class="symbol symbol-function" id="db-db-queries-vehicles-py-replay-vehicles">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#db-db-queries-vehicles-py-replay-vehicles">replay_vehicles</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def replay_vehicles(session: Session, *, start: datetime, end: datetime, route_id: str | None = None, limit: int = 5000) -&gt; list[VehiclePosition]</code></pre>
+<div class="symbol-doc"><p>Append-ordered rows for map replay in a time window.</p></div>
+</div>
+<h3 id="db-db-session-py"><code>db/session.py</code></h3>
+<div class="symbol symbol-function" id="db-db-session-py-get-engine">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#db-db-session-py-get-engine">get_engine</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def get_engine() -&gt; Engine</code></pre>
+<div class="symbol-doc"><p>Return the process-wide SQLAlchemy Engine.</p></div>
+</div>
+<div class="symbol symbol-function" id="db-db-session-py-get-session-factory">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#db-db-session-py-get-session-factory">get_session_factory</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def get_session_factory() -&gt; sessionmaker[Session]</code></pre>
+<div class="symbol-doc"><p>Return the process-wide SessionLocal factory.</p></div>
+</div>
+<div class="symbol symbol-function" id="db-db-session-py-session-scope">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#db-db-session-py-session-scope">session_scope</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def session_scope() -&gt; Iterator[Session]</code></pre>
+<div class="symbol-doc"><p>Context-manager-style session yielder for scripts and the API.</p>
+<p>The caller is responsible for commit/rollback. Used as a FastAPI dependency via <code>Depends(get_db)</code>; for ad-hoc usage, prefer <code>with SessionLocal() as s</code>.</p></div>
+</div>
+<div class="symbol symbol-function" id="db-db-session-py-sessionlocal">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#db-db-session-py-sessionlocal">SessionLocal</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def SessionLocal() -&gt; Session</code></pre>
+</div>
+<h2 id="scripts"><a class="anchor" href="#scripts" aria-hidden="true">#</a>scripts <a class="muted-link" href="modules/scripts.html">(module page →)</a></h2>
+<h3 id="scripts-scripts-capture-sample-py"><code>scripts/capture_sample.py</code></h3>
+<div class="symbol symbol-function" id="scripts-scripts-capture-sample-py-main">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#scripts-scripts-capture-sample-py-main">main</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def main() -&gt; int</code></pre>
+</div>
+<h3 id="scripts-scripts-db-reset-py"><code>scripts/db_reset.py</code></h3>
+<div class="symbol symbol-function" id="scripts-scripts-db-reset-py-main">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#scripts-scripts-db-reset-py-main">main</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def main(argv: list[str] | None = None) -&gt; int</code></pre>
+</div>
+<h3 id="scripts-scripts-run-migrations-py"><code>scripts/run_migrations.py</code></h3>
+<div class="symbol symbol-function" id="scripts-scripts-run-migrations-py-upgrade-head">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#scripts-scripts-run-migrations-py-upgrade-head">upgrade_head</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def upgrade_head() -&gt; None</code></pre>
+</div>
+<h2 id="deployment-bunching-lightgbm"><a class="anchor" href="#deployment-bunching-lightgbm" aria-hidden="true">#</a>deployment/bunching_lightgbm <a class="muted-link" href="modules/deployment-bunching.html">(module page →)</a></h2>
+<h3 id="deployment-bunching-lightgbm-deployment-bunching-lightgbm-examples-integration-snippet-py"><code>deployment/bunching_lightgbm/examples/integration_snippet.py</code></h3>
+<div class="symbol symbol-function" id="deployment-bunching-lightgbm-deployment-bunching-lightgbm-examples-integration-snippet-py-record-tick">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#deployment-bunching-lightgbm-deployment-bunching-lightgbm-examples-integration-snippet-py-record-tick">record_tick</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def record_tick(bus_id: str, row: np.ndarray) -&gt; None</code></pre>
+</div>
+<div class="symbol symbol-function" id="deployment-bunching-lightgbm-deployment-bunching-lightgbm-examples-integration-snippet-py-predict-for">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#deployment-bunching-lightgbm-deployment-bunching-lightgbm-examples-integration-snippet-py-predict-for">predict_for</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def predict_for(bus_id: str) -&gt; dict | None</code></pre>
+</div>
+<div class="symbol symbol-function" id="deployment-bunching-lightgbm-deployment-bunching-lightgbm-examples-integration-snippet-py-live-loop-example">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#deployment-bunching-lightgbm-deployment-bunching-lightgbm-examples-integration-snippet-py-live-loop-example">live_loop_example</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def live_loop_example()</code></pre>
+</div>
+<div class="symbol symbol-function" id="deployment-bunching-lightgbm-deployment-bunching-lightgbm-examples-integration-snippet-py-fetch-avl-snapshot">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#deployment-bunching-lightgbm-deployment-bunching-lightgbm-examples-integration-snippet-py-fetch-avl-snapshot">fetch_avl_snapshot</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def fetch_avl_snapshot()</code></pre>
+</div>
+<div class="symbol symbol-function" id="deployment-bunching-lightgbm-deployment-bunching-lightgbm-examples-integration-snippet-py-publish-alert">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#deployment-bunching-lightgbm-deployment-bunching-lightgbm-examples-integration-snippet-py-publish-alert">publish_alert</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def publish_alert(payload: dict)</code></pre>
+</div>
+<h3 id="deployment-bunching-lightgbm-deployment-bunching-lightgbm-examples-run-example-py"><code>deployment/bunching_lightgbm/examples/run_example.py</code></h3>
+<div class="symbol symbol-function" id="deployment-bunching-lightgbm-deployment-bunching-lightgbm-examples-run-example-py-main">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#deployment-bunching-lightgbm-deployment-bunching-lightgbm-examples-run-example-py-main">main</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def main() -&gt; int</code></pre>
+</div>
+<h3 id="deployment-bunching-lightgbm-deployment-bunching-lightgbm-src-predict-py"><code>deployment/bunching_lightgbm/src/predict.py</code></h3>
+<div class="symbol symbol-class" id="deployment-bunching-lightgbm-deployment-bunching-lightgbm-src-predict-py-bunchingpredictor">
+<div class="symbol-head">
+<span class="symbol-kind">class</span>
+<a class="symbol-name" href="#deployment-bunching-lightgbm-deployment-bunching-lightgbm-src-predict-py-bunchingpredictor">BunchingPredictor</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">class BunchingPredictor</code></pre>
+<div class="symbol-doc"><p>Per-horizon bunching-probability predictor backed by LightGBM boosters.</p>
+<p>Parameters ---------- model_dir : path Folder produced by <code>train.py</code> containing booster_h*.txt, scaler.json, thresholds.json, metadata.json.</p></div>
+</div>
+<h3 id="deployment-bunching-lightgbm-deployment-bunching-lightgbm-src-preprocess-py"><code>deployment/bunching_lightgbm/src/preprocess.py</code></h3>
+<div class="symbol symbol-function" id="deployment-bunching-lightgbm-deployment-bunching-lightgbm-src-preprocess-py-load-scaler">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#deployment-bunching-lightgbm-deployment-bunching-lightgbm-src-preprocess-py-load-scaler">load_scaler</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def load_scaler(path: str | Path) -&gt; dict</code></pre>
+</div>
+<div class="symbol symbol-function" id="deployment-bunching-lightgbm-deployment-bunching-lightgbm-src-preprocess-py-scale-window">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#deployment-bunching-lightgbm-deployment-bunching-lightgbm-src-preprocess-py-scale-window">scale_window</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def scale_window(raw: np.ndarray, scaler: Mapping) -&gt; np.ndarray</code></pre>
+<div class="symbol-doc"><p>Convert raw units to scaled units for a (seq_len, n_channels) window.</p>
+<p><code>n_channels</code> must be a multiple of 3. Channels are interpreted as repeated (speed, gap, aux) triples, one per bus (target + upstream).</p></div>
+</div>
+<div class="symbol symbol-function" id="deployment-bunching-lightgbm-deployment-bunching-lightgbm-src-preprocess-py-unscale-gap">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#deployment-bunching-lightgbm-deployment-bunching-lightgbm-src-preprocess-py-unscale-gap">unscale_gap</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def unscale_gap(scaled_gap: np.ndarray, scaler: Mapping) -&gt; np.ndarray</code></pre>
+<div class="symbol-doc"><p>Inverse-scale a gap-only tensor back to metres.</p></div>
+</div>
+<h3 id="deployment-bunching-lightgbm-deployment-bunching-lightgbm-src-schema-py"><code>deployment/bunching_lightgbm/src/schema.py</code></h3>
+<div class="symbol symbol-class" id="deployment-bunching-lightgbm-deployment-bunching-lightgbm-src-schema-py-schemaerror">
+<div class="symbol-head">
+<span class="symbol-kind">class</span>
+<a class="symbol-name" href="#deployment-bunching-lightgbm-deployment-bunching-lightgbm-src-schema-py-schemaerror">SchemaError</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">class SchemaError(ValueError)</code></pre>
+<div class="symbol-doc"><p>Raised when an input window does not match the expected shape.</p></div>
+</div>
+<div class="symbol symbol-function" id="deployment-bunching-lightgbm-deployment-bunching-lightgbm-src-schema-py-validate-window">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#deployment-bunching-lightgbm-deployment-bunching-lightgbm-src-schema-py-validate-window">validate_window</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def validate_window(x: np.ndarray, seq_len: int, n_channels: int, *, allow_batch: bool = True) -&gt; np.ndarray</code></pre>
+<div class="symbol-doc"><p>Return <code>x</code> as a float32 ndarray with shape <code>(batch, seq_len, n_channels)</code>.</p>
+<p>Accepts either a single window <code>(seq_len, n_channels)</code> or a batch <code>(batch, seq_len, n_channels)</code>. Any other shape raises <code>SchemaError</code>.</p>
+<p>Does NOT check whether the values are already scaled — use <code>preprocess.scale_window</code> if your input is still in raw units.</p></div>
+</div>
+<h3 id="deployment-bunching-lightgbm-deployment-bunching-lightgbm-tests-test-end-to-end-py"><code>deployment/bunching_lightgbm/tests/test_end_to_end.py</code></h3>
+<div class="symbol symbol-function" id="deployment-bunching-lightgbm-deployment-bunching-lightgbm-tests-test-end-to-end-py-main">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#deployment-bunching-lightgbm-deployment-bunching-lightgbm-tests-test-end-to-end-py-main">main</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def main() -&gt; int</code></pre>
+</div>
+<h3 id="deployment-bunching-lightgbm-deployment-bunching-lightgbm-train-py"><code>deployment/bunching_lightgbm/train.py</code></h3>
+<div class="symbol symbol-function" id="deployment-bunching-lightgbm-deployment-bunching-lightgbm-train-py-main">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#deployment-bunching-lightgbm-deployment-bunching-lightgbm-train-py-main">main</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def main()</code></pre>
+</div></article>
+  <div class="content-toc"><h4>On this page</h4><ul><li class="toc-h2"><a href="#index">Index</a></li><li class="toc-h2"><a href="#apps-collector">apps/collector</a></li><li class="toc-h2"><a href="#apps-analytics">apps/analytics</a></li><li class="toc-h2"><a href="#apps-api">apps/api</a></li><li class="toc-h2"><a href="#apps-dashboard">apps/dashboard</a></li><li class="toc-h2"><a href="#core">core</a></li><li class="toc-h2"><a href="#db">db</a></li><li class="toc-h2"><a href="#scripts">scripts</a></li><li class="toc-h2"><a href="#deployment-bunching-lightgbm">deployment/bunching_lightgbm</a></li></ul></div>
+</main>
+<script src="assets/lunr.min.js"></script>
+<script src="assets/highlight.min.js"></script>
+<script>hljs.highlightAll();</script>
+<script src="assets/mermaid.min.js"></script>
+<script>mermaid.initialize({startOnLoad:true, theme:'neutral', securityLevel:'loose', flowchart:{curve:'basis'}});</script>
+<script>window.SEARCH_INDEX_URL = "search-index.json";</script>
+<script src="assets/app.js"></script>
+</body>
+</html>

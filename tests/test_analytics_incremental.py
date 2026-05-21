@@ -86,7 +86,6 @@ def _seed_additional_vp_batch(
         fetched_at=base_dt,
         feed_header_timestamp=base_dt,
         content_sha256="1" * 64,
-        payload=b"\x01",
     )
     session.add(snap)
     session.flush()

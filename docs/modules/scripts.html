@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>scripts — iROAM docs</title>
+<link rel="stylesheet" href="../assets/styles.css" />
+<link rel="stylesheet" href="../assets/highlight-github.css" />
+</head>
+<body>
+<button class="nav-toggle" aria-label="Toggle navigation">☰</button>
+<aside class="sidebar">
+  <div class="sidebar-header">
+    <a class="brand" href="../index.html">iROAM <span>docs</span></a>
+  </div>
+  <div class="search-box">
+    <input id="search-input" type="search" placeholder="Search docs…" autocomplete="off" />
+    <div id="search-results" class="search-results" hidden></div>
+  </div>
+  <nav class="nav"><div class="nav-section"><h4>Start here</h4><ul>
+<li><a href="../index.html">Overview</a></li>
+<li><a href="../architecture.html">Architecture</a></li>
+<li><a href="../data-model.html">Data model</a></li>
+<li><a href="../database-dataflow.html">Database dataflow</a></li>
+<li><a href="../frontend.html">Frontend</a></li>
+<li><a href="../operations.html">Operations</a></li>
+<li><a href="../examples.html">Examples</a></li>
+</ul></div>
+<div class="nav-section"><h4>Reference</h4><ul>
+<li><a href="../api.html">API reference</a></li>
+</ul></div>
+<div class="nav-section"><h4>Modules</h4><ul>
+<li><a href="../modules/apps-collector.html">Collector</a></li>
+<li><a href="../modules/apps-analytics.html">Analytics</a></li>
+<li><a href="../modules/apps-api.html">API</a></li>
+<li><a href="../modules/apps-dashboard.html">Dashboard</a></li>
+<li><a href="../modules/core.html">Core</a></li>
+<li><a href="../modules/db.html">Database</a></li>
+<li class="active"><a href="../modules/scripts.html">Scripts</a></li>
+<li><a href="../modules/deployment-bunching.html">Bunching predictor</a></li>
+<li><a href="../modules/legacy.html">Legacy</a></li>
+</ul></div></nav>
+  <div class="sidebar-footer">Built 2026-04-24<br/>89 files · 178 symbols</div>
+</aside>
+<main class="content">
+  <div class="breadcrumb"><a href="../index.html">Overview</a> / <a href="../api.html">Modules</a> / scripts</div>
+  <article><h1>scripts</h1>
+<p class="lead">Operational CLIs: capture fixture, reset DB, run migrations.</p>
+<dl class="package-meta"><dt>Entry points</dt><dd><ul><li><code>python -m scripts.capture_sample</code></li><li><code>python -m scripts.db_reset [--yes-i-am-sure]</code></li><li><code>python -m scripts.run_migrations</code></li></ul></dd><dt>Files</dt><dd>4</dd><dt>Public symbols</dt><dd>3</dd></dl>
+<h2 id="files">Files</h2>
+<ul class="file-index">
+<li><a href="#scripts-init-py"><code>scripts/__init__.py</code></a> — —</li>
+<li><a href="#scripts-capture-sample-py"><code>scripts/capture_sample.py</code></a> — Download a fresh TTC GTFS-RT VehiclePositions payload and save it to tests/fixtures/.</li>
+<li><a href="#scripts-db-reset-py"><code>scripts/db_reset.py</code></a> — Destructive data reset — empty every data table in one transaction.</li>
+<li><a href="#scripts-run-migrations-py"><code>scripts/run_migrations.py</code></a> — Apply Alembic migrations programmatically.</li>
+</ul>
+<section class="file" id="scripts-init-py">
+<h3 class="file-heading"><a class="anchor" href="#scripts-init-py" aria-hidden="true">#</a><code>scripts/__init__.py</code></h3>
+<p class="file-no-symbols">No public symbols.</p>
+</section>
+<section class="file" id="scripts-capture-sample-py">
+<h3 class="file-heading"><a class="anchor" href="#scripts-capture-sample-py" aria-hidden="true">#</a><code>scripts/capture_sample.py</code></h3>
+<p class="file-summary">Download a fresh TTC GTFS-RT VehiclePositions payload and save it to tests/fixtures/.</p>
+<div class="file-doc"><p>Download a fresh TTC GTFS-RT VehiclePositions payload and save it to tests/fixtures/.</p>
+<p>Run manually::</p>
+<pre><code>python -m scripts.capture_sample</code></pre></div>
+<div class="symbol-list"><strong>Public:</strong> <a href="#scripts-capture-sample-py-main"><code>main</code></a></div>
+<div class="symbol symbol-function" id="scripts-capture-sample-py-main">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#scripts-capture-sample-py-main">main</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def main() -&gt; int</code></pre>
+</div>
+</section>
+<section class="file" id="scripts-db-reset-py">
+<h3 class="file-heading"><a class="anchor" href="#scripts-db-reset-py" aria-hidden="true">#</a><code>scripts/db_reset.py</code></h3>
+<p class="file-summary">Destructive data reset — empty every data table in one transaction.</p>
+<div class="file-doc"><p>Destructive data reset — empty every data table in one transaction.</p>
+<p>Leaves the schema (and <code>alembic_version</code>) untouched so migrations don&#x27;t have to be re-applied. Intended for dev/demo resets and for kicking off a fresh analytics run after a scope change (e.g. a new route allowlist).</p>
+<p>Safety:</p>
+<p>* Requires the explicit <code>--yes-i-am-sure</code> flag. Without it, the script prints the row counts it <em>would</em> delete and exits with code 2. * Runs a single <code>TRUNCATE ... RESTART IDENTITY CASCADE</code> so child rows (stop_times on trip_updates, analytics rows on trajectories, etc.) are cleared atomically and sequences reset to 1.</p>
+<p>Usage (dev):</p>
+<pre><code>docker compose exec api python -m scripts.db_reset            # dry-run
+docker compose exec api python -m scripts.db_reset --yes-i-am-sure</code></pre></div>
+<div class="symbol-list"><strong>Public:</strong> <a href="#scripts-db-reset-py-main"><code>main</code></a></div>
+<div class="symbol symbol-function" id="scripts-db-reset-py-main">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#scripts-db-reset-py-main">main</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def main(argv: list[str] | None = None) -&gt; int</code></pre>
+</div>
+</section>
+<section class="file" id="scripts-run-migrations-py">
+<h3 class="file-heading"><a class="anchor" href="#scripts-run-migrations-py" aria-hidden="true">#</a><code>scripts/run_migrations.py</code></h3>
+<p class="file-summary">Apply Alembic migrations programmatically.</p>
+<div class="file-doc"><p>Apply Alembic migrations programmatically.</p>
+<p>Useful for container entrypoints where invoking the <code>alembic</code> CLI would require shipping the ini. This calls the same code paths using a programmatic <code>Config</code> that points at <code>alembic.ini</code>.</p></div>
+<div class="symbol-list"><strong>Public:</strong> <a href="#scripts-run-migrations-py-upgrade-head"><code>upgrade_head</code></a></div>
+<div class="symbol symbol-function" id="scripts-run-migrations-py-upgrade-head">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#scripts-run-migrations-py-upgrade-head">upgrade_head</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def upgrade_head() -&gt; None</code></pre>
+</div>
+</section></article>
+  <div class="content-toc"><h4>On this page</h4><ul><li class="toc-h2"><a href="#files">Files</a></li><li class="toc-h3 sub"><a href="#scripts-init-py">scripts/__init__.py</a></li><li class="toc-h3 sub"><a href="#scripts-capture-sample-py">scripts/capture_sample.py</a></li><li class="toc-h3 sub"><a href="#scripts-db-reset-py">scripts/db_reset.py</a></li><li class="toc-h3 sub"><a href="#scripts-run-migrations-py">scripts/run_migrations.py</a></li></ul></div>
+</main>
+<script src="../assets/lunr.min.js"></script>
+<script src="../assets/highlight.min.js"></script>
+<script>hljs.highlightAll();</script>
+<script src="../assets/mermaid.min.js"></script>
+<script>mermaid.initialize({startOnLoad:true, theme:'neutral', securityLevel:'loose', flowchart:{curve:'basis'}});</script>
+<script>window.SEARCH_INDEX_URL = "../search-index.json";</script>
+<script src="../assets/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,3395 @@
+{
+  "packages": [
+    {
+      "id": "apps-collector",
+      "name": "apps/collector",
+      "path": "apps/collector",
+      "label": "Collector",
+      "summary": "GTFS-Realtime acquisition: fetch, parse, normalize, persist.",
+      "entry_points": [
+        "python -m apps.collector.main --once",
+        "python -m apps.collector.main --loop"
+      ],
+      "owns_tables": [
+        "feed_fetch_logs",
+        "raw_gtfsrt_snapshots",
+        "vehicle_positions"
+      ],
+      "files": [
+        {
+          "path": "apps/collector/__init__.py",
+          "docstring": "",
+          "summary": "",
+          "symbols": [],
+          "imports": []
+        },
+        {
+          "path": "apps/collector/feed_specs.py",
+          "docstring": "Feed registry.\n\nOne ``FeedSpec`` per GTFS-RT feed the collector knows how to ingest. Adding\na new feed (e.g. trip-updates, alerts) is: write a normalizer, register a\nspec here. The runner is feed-agnostic.",
+          "summary": "Feed registry.",
+          "symbols": [
+            {
+              "kind": "class",
+              "name": "FeedSpec",
+              "signature": "@dataclass(frozen=True)\nclass FeedSpec",
+              "docstring": "Declarative wiring for one feed: how to name it, where to get it, how to normalize it.",
+              "decorators": [
+                "dataclass(frozen=True)"
+              ],
+              "methods": []
+            },
+            {
+              "kind": "function",
+              "name": "build_registry",
+              "signature": "def build_registry() -> dict[str, FeedSpec]",
+              "docstring": "Build the spec registry from current settings.\n\nRe-reading settings on each call keeps tests and env-override flows\nsimple without having to invalidate module-level state.",
+              "decorators": []
+            },
+            {
+              "kind": "function",
+              "name": "get_spec",
+              "signature": "def get_spec(feed_name: str) -> FeedSpec",
+              "docstring": "Look up a spec or raise ``KeyError`` with the known-feed list.",
+              "decorators": []
+            }
+          ],
+          "imports": [
+            "__future__.annotations",
+            "apps.collector.normalize_vehicles.normalize_vehicle_positions",
+            "core.config.get_settings",
+            "core.constants.FEED_VEHICLE_POSITIONS",
+            "dataclasses.dataclass",
+            "datetime.datetime",
+            "db.base.Base",
+            "functools.partial",
+            "google.transit.gtfs_realtime_pb2",
+            "typing.Callable"
+          ]
+        },
+        {
+          "path": "apps/collector/fetcher.py",
+          "docstring": "HTTP fetcher for GTFS-RT endpoints.\n\nThin wrapper around ``httpx`` that encapsulates timeout, retry on transient\nerrors, and User-Agent headers. Returns a ``FetchResult`` that carries the\nraw bytes, timing, and status — enough for the runner to build a\n``FeedFetchLog`` regardless of success or failure.",
+          "summary": "HTTP fetcher for GTFS-RT endpoints.",
+          "symbols": [
+            {
+              "kind": "class",
+              "name": "FetchError",
+              "signature": "class FetchError(Exception)",
+              "docstring": "Raised when a fetch ultimately fails after all retries.",
+              "decorators": [],
+              "methods": [
+                {
+                  "name": "__init__",
+                  "signature": "def __init__(self, message: str, *, error_type: str, http_status: int | None = None)",
+                  "docstring": ""
+                }
+              ]
+            },
+            {
+              "kind": "class",
+              "name": "FetchResult",
+              "signature": "@dataclass\nclass FetchResult",
+              "docstring": "",
+              "decorators": [
+                "dataclass"
+              ],
+              "methods": []
+            },
+            {
+              "kind": "function",
+              "name": "fetch_bytes",
+              "signature": "def fetch_bytes(url: str) -> FetchResult",
+              "docstring": "GET ``url`` and return the raw body.\n\nRetries ``COLLECTOR_HTTP_RETRIES`` times on connect/timeout errors and\non 5xx responses (with linear backoff). 4xx is treated as terminal.",
+              "decorators": []
+            }
+          ],
+          "imports": [
+            "__future__.annotations",
+            "core.config.get_settings",
+            "core.logging.get_logger",
+            "dataclasses.dataclass",
+            "httpx",
+            "time"
+          ]
+        },
+        {
+          "path": "apps/collector/main.py",
+          "docstring": "Collector CLI.\n\nUsage::\n\n    python -m apps.collector.main --once\n    python -m apps.collector.main --loop\n    python -m apps.collector.main --loop --interval 15\n    python -m apps.collector.main --once --feed vehicle-positions   # default",
+          "summary": "Collector CLI.",
+          "symbols": [
+            {
+              "kind": "function",
+              "name": "main",
+              "signature": "def main(argv: list[str] | None = None) -> int",
+              "docstring": "",
+              "decorators": []
+            }
+          ],
+          "imports": [
+            "__future__.annotations",
+            "apps.collector.feed_specs.get_spec",
+            "apps.collector.runner.run_once",
+            "argparse",
+            "core.config.get_settings",
+            "core.constants.CANONICAL_FEED",
+            "core.logging.configure_logging",
+            "core.logging.get_logger",
+            "db.session.SessionLocal",
+            "signal",
+            "sys",
+            "time",
+            "types.FrameType"
+          ]
+        },
+        {
+          "path": "apps/collector/normalize_vehicles.py",
+          "docstring": "Pure translation from a parsed ``FeedMessage`` to ``VehiclePosition`` rows.\n\nNo DB access happens here. The runner is responsible for attaching a\n``snapshot_id`` and committing.",
+          "summary": "Pure translation from a parsed ``FeedMessage`` to ``VehiclePosition`` rows.",
+          "symbols": [
+            {
+              "kind": "class",
+              "name": "HeaderInfo",
+              "signature": "@dataclass\nclass HeaderInfo",
+              "docstring": "Header-level fields extracted from a FeedMessage.",
+              "decorators": [
+                "dataclass"
+              ],
+              "methods": []
+            },
+            {
+              "kind": "function",
+              "name": "extract_header",
+              "signature": "def extract_header(message: gtfs_realtime_pb2.FeedMessage) -> HeaderInfo",
+              "docstring": "Extract header fields for the fetch log and snapshot row.",
+              "decorators": []
+            },
+            {
+              "kind": "function",
+              "name": "normalize_vehicle_positions",
+              "signature": "def normalize_vehicle_positions(message: gtfs_realtime_pb2.FeedMessage, *, fetched_at: datetime, feed_header_timestamp: datetime | None, route_allowlist: Iterable[str] | None = None) -> list[VehiclePosition]",
+              "docstring": "Convert every ``FeedEntity`` carrying a ``vehicle`` into a row.\n\nReturns detached ``VehiclePosition`` instances; the caller attaches\n``snapshot_id`` before adding them to the session.\n\nWhen ``route_allowlist`` is non-empty, entities whose ``trip.route_id``\nis not in the set are dropped — including entities that have no\n``route_id`` at all, since they cannot be attributed to an allowed\nroute. Passing ``None`` or an empty iterable disables filtering\n(every vehicle entity is kept, as before).",
+              "decorators": []
+            }
+          ],
+          "imports": [
+            "__future__.annotations",
+            "collections.abc.Iterable",
+            "core.time.epoch_to_utc",
+            "dataclasses.dataclass",
+            "datetime.datetime",
+            "db.models.vehicle_position.VehiclePosition",
+            "google.protobuf.json_format.MessageToDict",
+            "google.transit.gtfs_realtime_pb2"
+          ]
+        },
+        {
+          "path": "apps/collector/parser.py",
+          "docstring": "Parse raw protobuf bytes into a ``FeedMessage``.\n\nKept separate from the fetcher and normalizer so each layer is independently\ntestable against a recorded fixture.\n\nThe TTC endpoint can serve either the binary wire format (``?format=binary``)\nor protobuf text format by default. We try binary first and transparently\nfall back to text if the wire decode fails — this makes the collector robust\nto either endpoint configuration.",
+          "summary": "Parse raw protobuf bytes into a ``FeedMessage``.",
+          "symbols": [
+            {
+              "kind": "class",
+              "name": "ParseError",
+              "signature": "class ParseError(Exception)",
+              "docstring": "Raised when payload cannot be decoded as a FeedMessage.",
+              "decorators": [],
+              "methods": []
+            },
+            {
+              "kind": "function",
+              "name": "parse_feed_message",
+              "signature": "def parse_feed_message(payload: bytes) -> gtfs_realtime_pb2.FeedMessage",
+              "docstring": "Decode ``payload`` into a ``FeedMessage`` (binary first, text fallback).\n\nRaises ``ParseError`` if neither format decodes cleanly. The caller is\nresponsible for recording the failure in ``feed_fetch_logs``.",
+              "decorators": []
+            }
+          ],
+          "imports": [
+            "__future__.annotations",
+            "google.protobuf.text_format",
+            "google.transit.gtfs_realtime_pb2"
+          ]
+        },
+        {
+          "path": "apps/collector/runner.py",
+          "docstring": "One fetch→persist cycle.\n\nThe runner is **feed-agnostic**: it takes a ``FeedSpec`` and does:\n\n  1. Fetch bytes (fetcher).\n  2. On HTTP/timeout failure → write a failure ``FeedFetchLog`` row and return.\n  3. On success → parse bytes. On parse failure → write a failure log row.\n  4. Success → single transaction:\n       feed_fetch_logs → raw_gtfsrt_snapshots → normalized rows (via spec.normalize).\n\nSync SQLAlchemy: polling rate doesn't need async, and a sync session makes\ntransaction boundaries explicit.",
+          "summary": "One fetch→persist cycle.",
+          "symbols": [
+            {
+              "kind": "class",
+              "name": "RunOutcome",
+              "signature": "@dataclass\nclass RunOutcome",
+              "docstring": "",
+              "decorators": [
+                "dataclass"
+              ],
+              "methods": []
+            },
+            {
+              "kind": "function",
+              "name": "run_once",
+              "signature": "def run_once(session: Session, spec: FeedSpec) -> RunOutcome",
+              "docstring": "Execute one fetch+persist cycle for a given feed.\n\nCommits exactly one transaction on return — success or failure.",
+              "decorators": []
+            }
+          ],
+          "imports": [
+            "__future__.annotations",
+            "apps.collector.feed_specs.FeedSpec",
+            "apps.collector.fetcher.FetchError",
+            "apps.collector.fetcher.fetch_bytes",
+            "apps.collector.normalize_vehicles.extract_header",
+            "apps.collector.parser.ParseError",
+            "apps.collector.parser.parse_feed_message",
+            "core.logging.get_logger",
+            "dataclasses.dataclass",
+            "datetime.datetime",
+            "datetime.timezone",
+            "db.models.feed_fetch_log.FeedFetchLog",
+            "db.models.raw_snapshot.RawGtfsrtSnapshot",
+            "hashlib",
+            "sqlalchemy.orm.Session"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "apps-analytics",
+      "name": "apps/analytics",
+      "path": "apps/analytics",
+      "label": "Analytics",
+      "summary": "GTFS-aware trajectory reconstruction and anomaly inputs.",
+      "entry_points": [
+        "python -m apps.analytics.main --date YYYY-MM-DD [--route R] [--export-csv DIR]",
+        "python -m apps.analytics.worker"
+      ],
+      "owns_tables": [
+        "analytics_runs",
+        "trip_trajectories"
+      ],
+      "files": [
+        {
+          "path": "apps/analytics/__init__.py",
+          "docstring": "Analytics pipeline: vehicle_positions + static GTFS -> trip_trajectories.",
+          "summary": "Analytics pipeline: vehicle_positions + static GTFS -> trip_trajectories.",
+          "symbols": [],
+          "imports": []
+        },
+        {
+          "path": "apps/analytics/anomalies.py",
+          "docstring": "Anomaly detection over upsampled trip trajectories.\n\nProduces the three event types the iROAM dashboard renders:\n\n  * ``idle``  — bus stationary for ≥ ``idle_min_threshold`` minutes\n  * ``bunch`` — two consecutive trip instances pass the same point within\n                ≤ ``bunch_seconds_threshold`` of each other (``method=\"time\"``),\n                **or** along-route separation < ``bunch_distance_threshold_m``\n                for a contiguous stretch (``method=\"distance\"``).\n  * ``crowd`` — a point's GTFS-RT OccupancyStatus maps to ≥ ``crowd_pct_threshold``\n\nInput is a list of ``BusTrajectory`` rows (one per trip instance) with their\ntime/distance samples. Output is a flat list of ``AnomalyEvent`` rows keyed by\n``bus_index`` so the caller can merge them back per-bus.\n\nAll functions here are pure — no DB calls, no I/O — so they're trivial to\nunit-test and cheap to re-run on every threshold change.",
+          "summary": "Anomaly detection over upsampled trip trajectories.",
+          "symbols": [
+            {
+              "kind": "class",
+              "name": "TrajectoryPoint",
+              "signature": "@dataclass(frozen=True)\nclass TrajectoryPoint",
+              "docstring": "",
+              "decorators": [
+                "dataclass(frozen=True)"
+              ],
+              "methods": []
+            },
+            {
+              "kind": "class",
+              "name": "BusTrajectory",
+              "signature": "@dataclass(frozen=True)\nclass BusTrajectory",
+              "docstring": "",
+              "decorators": [
+                "dataclass(frozen=True)"
+              ],
+              "methods": []
+            },
+            {
+              "kind": "class",
+              "name": "AnomalyEvent",
+              "signature": "@dataclass(frozen=True)\nclass AnomalyEvent",
+              "docstring": "",
+              "decorators": [
+                "dataclass(frozen=True)"
+              ],
+              "methods": []
+            },
+            {
+              "kind": "function",
+              "name": "detect_idle_events",
+              "signature": "def detect_idle_events(bus: BusTrajectory, *, idle_min_threshold: float) -> list[AnomalyEvent]",
+              "docstring": "Emit one event per contiguous stationary run ≥ ``idle_min_threshold`` minutes.",
+              "decorators": []
+            },
+            {
+              "kind": "function",
+              "name": "detect_crowd_events",
+              "signature": "def detect_crowd_events(bus: BusTrajectory, *, crowd_pct_threshold: float) -> list[AnomalyEvent]",
+              "docstring": "Emit one event per contiguous run where occupancy%≥threshold.",
+              "decorators": []
+            },
+            {
+              "kind": "function",
+              "name": "detect_bunch_events",
+              "signature": "def detect_bunch_events(buses: list[BusTrajectory], *, bunch_seconds_threshold: float) -> list[AnomalyEvent]",
+              "docstring": "Flag trip pairs whose passage through the same ~stop is closer than threshold.\n\nStrategy: for every integer stop index, compute the time each bus passes it\n(by linear interpolation of ``(datetime, stop_index)`` samples). Sort by\ntime; any pair with Δt < threshold → emit an event on the trailing bus\nat the crossing time/stop.",
+              "decorators": []
+            },
+            {
+              "kind": "function",
+              "name": "detect_bunch_events_distance",
+              "signature": "def detect_bunch_events_distance(buses: list[BusTrajectory], *, bunch_distance_threshold_m: float, grid_seconds: float = 30.0) -> list[AnomalyEvent]",
+              "docstring": "Flag pairs of buses whose along-route separation stays < threshold.\n\nStrategy: sweep a uniform time grid (default 30 s, matches GTFS-RT cadence).\nAt each tick, for every bus active at that tick, linearly interpolate\n``travel_distance_m`` and ``stop_index``. Sort active buses by distance and\ncheck each consecutive (follower, leader) pair — their along-route gap is\n``leader.dist - follower.dist``. When the same ordered pair stays inside\nthe threshold across consecutive ticks we treat it as one contiguous run;\non run-end we emit a single event tagged on the follower at the run's\ntime/stop midpoint.\n\nTagging the *follower* (trailing bus, lower ``travel_distance_m``) matches\nthe time-based detector, which tags the later-arriving bus at the stop.",
+              "decorators": []
+            },
+            {
+              "kind": "function",
+              "name": "detect_all",
+              "signature": "def detect_all(buses: list[BusTrajectory], *, bunch_seconds_threshold: float, idle_min_threshold: float, crowd_pct_threshold: float, bunch_distance_threshold_m: float = 150.0, bunch_method: BunchMethodSelector = 'time') -> list[AnomalyEvent]",
+              "docstring": "Run all detectors and return the flat event list.\n\n``bunch_method`` controls which bunching detector(s) fire:\n  * ``\"time\"``     — only the stop-crossing time-gap detector (default; preserves\n                     pre-distance-detector behaviour).\n  * ``\"distance\"`` — only the along-route separation detector.\n  * ``\"both\"``     — both detectors run; events are tagged with ``method`` so\n                     callers can tell them apart.",
+              "decorators": []
+            }
+          ],
+          "imports": [
+            "__future__.annotations",
+            "bisect",
+            "dataclasses.dataclass",
+            "datetime.datetime",
+            "typing.Literal"
+          ]
+        },
+        {
+          "path": "apps/analytics/csv_export.py",
+          "docstring": "Optional CSV export of trajectory frames, grouped by (route_id, service_date, direction_id).",
+          "summary": "Optional CSV export of trajectory frames, grouped by (route_id, service_date, direction_id).",
+          "symbols": [
+            {
+              "kind": "function",
+              "name": "write_day_csvs",
+              "signature": "def write_day_csvs(out_dir: Path, frames_by_key: dict[tuple[str, str, int], list[pd.DataFrame]]) -> list[Path]",
+              "docstring": "Write one CSV per ``(route_id, service_date, direction_id)`` bucket.\n\nFilenames follow the legacy pipeline's shape: ``{route}_{service_date}_dir{N}.csv``.\nReturns the list of written paths.",
+              "decorators": []
+            }
+          ],
+          "imports": [
+            "__future__.annotations",
+            "pandas",
+            "pathlib.Path"
+          ]
+        },
+        {
+          "path": "apps/analytics/gtfs_static.py",
+          "docstring": "Lazy cached loader for the GTFS static bundle under ``Complete GTFS/``.\n\nThe four tables the pipeline actually uses are ``trips``, ``stops``,\n``stop_times``, and ``shapes``. ``routes`` is loaded for completeness.\n\nThe load is cached by directory mtime so dev iterations on the GTFS bundle are\npicked up without a process restart, but production reuses a single copy.",
+          "summary": "Lazy cached loader for the GTFS static bundle under ``Complete GTFS/``.",
+          "symbols": [
+            {
+              "kind": "class",
+              "name": "GtfsStatic",
+              "signature": "@dataclass(frozen=True)\nclass GtfsStatic",
+              "docstring": "",
+              "decorators": [
+                "dataclass(frozen=True)"
+              ],
+              "methods": []
+            },
+            {
+              "kind": "function",
+              "name": "load_all",
+              "signature": "def load_all(gtfs_dir: Path | None = None) -> GtfsStatic",
+              "docstring": "Return the cached ``GtfsStatic`` bundle.",
+              "decorators": []
+            },
+            {
+              "kind": "function",
+              "name": "resolve_shape_id",
+              "signature": "def resolve_shape_id(static: GtfsStatic, trip_id: str) -> str | None",
+              "docstring": "Return the ``shape_id`` for a given ``trip_id`` via ``trips.txt``, or None.",
+              "decorators": []
+            },
+            {
+              "kind": "function",
+              "name": "resolve_direction_id",
+              "signature": "def resolve_direction_id(static: GtfsStatic, trip_id: str) -> int | None",
+              "docstring": "Return ``direction_id`` (0 or 1) for a trip, or None.",
+              "decorators": []
+            }
+          ],
+          "imports": [
+            "__future__.annotations",
+            "core.config.get_settings",
+            "dataclasses.dataclass",
+            "functools.lru_cache",
+            "pandas",
+            "pathlib.Path"
+          ]
+        },
+        {
+          "path": "apps/analytics/main.py",
+          "docstring": "Analytics CLI.\n\nUsage::\n\n    python -m apps.analytics.main --date 2026-04-20\n    python -m apps.analytics.main --date 2026-04-20 --route 29\n    python -m apps.analytics.main --date 2026-04-20 --export-csv ./out/2026-04-20",
+          "summary": "Analytics CLI.",
+          "symbols": [
+            {
+              "kind": "function",
+              "name": "main",
+              "signature": "def main(argv: list[str] | None = None) -> int",
+              "docstring": "",
+              "decorators": []
+            }
+          ],
+          "imports": [
+            "__future__.annotations",
+            "apps.analytics.runner.run_for_date",
+            "argparse",
+            "core.config.get_settings",
+            "core.logging.configure_logging",
+            "core.logging.get_logger",
+            "datetime.date",
+            "datetime.datetime",
+            "datetime.timezone",
+            "db.session.SessionLocal",
+            "pathlib.Path",
+            "sys"
+          ]
+        },
+        {
+          "path": "apps/analytics/pipeline.py",
+          "docstring": "Per-trip-instance orchestration.\n\nPure-ish: reads the DB (via ``fetch_by_trip_instance``) but does not write.\nThe runner owns the transaction + analytics_runs lifecycle.",
+          "summary": "Per-trip-instance orchestration.",
+          "symbols": [
+            {
+              "kind": "function",
+              "name": "list_trip_instances",
+              "signature": "def list_trip_instances(session: Session, service_date: date, *, route_id: str | None = None) -> list[tuple[str, str]]",
+              "docstring": "Distinct ``(trip_id, start_date)`` pairs active on ``service_date``.\n\nPrefers TripDescriptor.start_date when present; otherwise synthesizes it\nfrom ``vehicle_timestamp`` / ``fetched_at`` at Toronto local time. This\nkeeps overnight trips (start_time >= 24:00) scoped to their true service\nday when the feed sets start_date, and still works on TTC's feed which\ndoesn't.",
+              "decorators": []
+            },
+            {
+              "kind": "function",
+              "name": "list_changed_trip_instances",
+              "signature": "def list_changed_trip_instances(session: Session, service_date: date, *, since: datetime, route_id: str | None = None) -> list[tuple[str, str]]",
+              "docstring": "Trip instances with at least one VehiclePosition row newer than ``since``.\n\nUsed by the analytics worker for incremental refresh: only trips whose\nraw observations have grown since the last tick need their trajectory\nre-derived. Safe for idempotent re-runs because the runner\ndelete-then-inserts per ``(trip_id, start_date)``.",
+              "decorators": []
+            },
+            {
+              "kind": "function",
+              "name": "process_trip_instance",
+              "signature": "def process_trip_instance(session: Session, static: GtfsStatic, shape_lines: dict, trip_id: str, start_date: str, *, upsample_resolution_s: int = 10, max_orthogonal_distance_m: float = 200.0) -> pd.DataFrame",
+              "docstring": "Full per-trip transform: fetch -> extract -> project -> speed -> upsample.\n\nReturns the final upsampled DataFrame (empty if the trip has <2 usable\npoints or if its shape can't be resolved). Caller converts to ORM rows\nand commits.",
+              "decorators": []
+            }
+          ],
+          "imports": [
+            "__future__.annotations",
+            "apps.analytics.gtfs_static.GtfsStatic",
+            "apps.analytics.gtfs_static.resolve_shape_id",
+            "apps.analytics.project_to_shape.project_trajectory",
+            "apps.analytics.trajectory_extract.build_trip_trajectory",
+            "apps.analytics.upsample.compute_moving_speed",
+            "apps.analytics.upsample.last_step_clean_up",
+            "apps.analytics.upsample.upsample_df",
+            "datetime.date",
+            "datetime.datetime",
+            "db.models.vehicle_position.VehiclePosition",
+            "db.queries.vehicles.fetch_by_trip_instance",
+            "pandas",
+            "sqlalchemy.func",
+            "sqlalchemy.orm.Session",
+            "sqlalchemy.select"
+          ]
+        },
+        {
+          "path": "apps/analytics/project_to_shape.py",
+          "docstring": "Project GPS points onto a route shape to get ``travel_distance_m``.\n\nPure: input DataFrame + LineString -> DataFrame with two added columns\n(``travel_distance_m``, ``orthogonal_distance_m``) and outliers dropped.",
+          "summary": "Project GPS points onto a route shape to get ``travel_distance_m``.",
+          "symbols": [
+            {
+              "kind": "function",
+              "name": "project_trajectory",
+              "signature": "def project_trajectory(df: pd.DataFrame, shape_line: LineString, *, max_orthogonal_distance_m: float = 200.0) -> pd.DataFrame",
+              "docstring": "Add ``travel_distance_m`` + ``orthogonal_distance_m``; drop far-off points.\n\nExpects columns ``latitude`` and ``longitude`` (WGS84).",
+              "decorators": []
+            }
+          ],
+          "imports": [
+            "__future__.annotations",
+            "apps.analytics.shapes.transform_lonlat_to_3857",
+            "numpy",
+            "pandas",
+            "shapely.geometry.LineString",
+            "shapely.geometry.Point"
+          ]
+        },
+        {
+          "path": "apps/analytics/runner.py",
+          "docstring": "Analytics runner — transaction owner and ``analytics_runs`` lifecycle.\n\nOne run = one service date. Commits per trip instance so a mid-day crash\npreserves all earlier work. The analytics_runs row is created up front with\n``status='running'`` and finalized at the end.",
+          "summary": "Analytics runner — transaction owner and ``analytics_runs`` lifecycle.",
+          "symbols": [
+            {
+              "kind": "class",
+              "name": "RunOutcome",
+              "signature": "@dataclass\nclass RunOutcome",
+              "docstring": "",
+              "decorators": [
+                "dataclass"
+              ],
+              "methods": []
+            },
+            {
+              "kind": "function",
+              "name": "run_for_date",
+              "signature": "def run_for_date(session: Session, service_date: date, *, route_id: str | None = None, upsample_resolution_s: int = 10, max_orthogonal_distance_m: float = 200.0, export_csv_dir: Path | None = None, only_changed_since: datetime | None = None) -> RunOutcome",
+              "docstring": "Process trip instances whose ``start_date`` matches ``service_date``.\n\nWhen ``only_changed_since`` is set, scopes work to trip instances that\nhave at least one VehiclePosition observation newer than the cutoff —\nthis is the hot path for the analytics worker, which runs every\n``ANALYTICS_WORKER_INTERVAL_SECONDS``. In both modes, each trip instance\nis refreshed atomically: old trajectory rows for ``(trip_id, start_date)``\nare deleted and fresh ones inserted in the same transaction.",
+              "decorators": []
+            }
+          ],
+          "imports": [
+            "__future__.annotations",
+            "apps.analytics.csv_export",
+            "apps.analytics.gtfs_static.load_all",
+            "apps.analytics.pipeline",
+            "apps.analytics.shapes.build_linestrings",
+            "core.logging.get_logger",
+            "dataclasses.dataclass",
+            "datetime.date",
+            "datetime.datetime",
+            "datetime.timezone",
+            "db.models.trip_trajectory.AnalyticsRun",
+            "db.models.trip_trajectory.TripTrajectory",
+            "pandas",
+            "pathlib.Path",
+            "sqlalchemy.delete",
+            "sqlalchemy.orm.Session"
+          ]
+        },
+        {
+          "path": "apps/analytics/shapes.py",
+          "docstring": "Build ``dict[shape_id, shapely.LineString]`` (EPSG:3857) from ``shapes.txt``.\n\nStored in EPSG:3857 because ``LineString.project`` returns CRS-native units;\nwe want meters. Transformation is done once at build time per shape.",
+          "summary": "Build ``dict[shape_id, shapely.LineString]`` (EPSG:3857) from ``shapes.txt``.",
+          "symbols": [
+            {
+              "kind": "function",
+              "name": "build_linestrings",
+              "signature": "def build_linestrings(shapes_df: pd.DataFrame) -> dict[str, LineString]",
+              "docstring": "One ``LineString`` per ``shape_id`` in EPSG:3857 (meter units).\n\nVertices are ordered by ``shape_pt_sequence``.",
+              "decorators": []
+            },
+            {
+              "kind": "function",
+              "name": "transform_lonlat_to_3857",
+              "signature": "def transform_lonlat_to_3857(lon: float, lat: float) -> tuple[float, float]",
+              "docstring": "Transform a single (lon, lat) point to EPSG:3857 meters.",
+              "decorators": []
+            }
+          ],
+          "imports": [
+            "__future__.annotations",
+            "functools.lru_cache",
+            "pandas",
+            "pyproj.Transformer",
+            "shapely.geometry.LineString"
+          ]
+        },
+        {
+          "path": "apps/analytics/stop_projection.py",
+          "docstring": "Project GTFS stops onto the route shape → ordered stop list with distance-along-shape.\n\nFor the iROAM dashboard we need a fractional ``stop_index`` for each trajectory\npoint. The cheapest way to compute it is to precompute, per ``(route_id,\ndirection_id)``, the ordered list of stops along the canonical shape plus each\nstop's distance along that shape (in meters). A trajectory point's\n``travel_distance_m`` then binary-searches into that distance array.\n\nThe canonical shape is picked as the most-common ``shape_id`` for the\n(route_id, direction_id) pair; ties broken by the trip with the most\nstop_times, so we don't pick a short-turn variant.\n\nCached per (route_id, direction_id); safe because the static bundle is\nprocess-local and rarely changes.",
+          "summary": "Project GTFS stops onto the route shape → ordered stop list with distance-along-shape.",
+          "symbols": [
+            {
+              "kind": "class",
+              "name": "StopOnRoute",
+              "signature": "@dataclass(frozen=True)\nclass StopOnRoute",
+              "docstring": "",
+              "decorators": [
+                "dataclass(frozen=True)"
+              ],
+              "methods": []
+            },
+            {
+              "kind": "class",
+              "name": "RouteStops",
+              "signature": "@dataclass(frozen=True)\nclass RouteStops",
+              "docstring": "",
+              "decorators": [
+                "dataclass(frozen=True)"
+              ],
+              "methods": []
+            },
+            {
+              "kind": "function",
+              "name": "compute_route_stops",
+              "signature": "def compute_route_stops(route_id: str, direction_id: int) -> RouteStops | None",
+              "docstring": "Return the ordered stops along the canonical shape for this route+direction.\n\nReturns ``None`` if the route+direction has no shape or no stop_times.",
+              "decorators": [
+                "lru_cache(maxsize=64)"
+              ]
+            },
+            {
+              "kind": "function",
+              "name": "distance_to_stop_index",
+              "signature": "def distance_to_stop_index(distance_m: float, route_stops: RouteStops) -> float",
+              "docstring": "Map ``travel_distance_m`` to a fractional stop index in ``[0, N-1]``.",
+              "decorators": []
+            }
+          ],
+          "imports": [
+            "__future__.annotations",
+            "apps.analytics.gtfs_static.GtfsStatic",
+            "apps.analytics.gtfs_static.load_all",
+            "apps.analytics.shapes.build_linestrings",
+            "apps.analytics.shapes.transform_lonlat_to_3857",
+            "dataclasses.dataclass",
+            "functools.lru_cache",
+            "shapely.geometry.Point"
+          ]
+        },
+        {
+          "path": "apps/analytics/trajectory_extract.py",
+          "docstring": "Turn a list of ``VehiclePosition`` rows into an analysis-ready DataFrame.\n\nPure: no DB access. The caller passes in the ORM rows (loaded via\n``db.queries.vehicles.fetch_by_trip_instance``) and the ``trips_df`` from the\nGTFS static bundle.",
+          "summary": "Turn a list of ``VehiclePosition`` rows into an analysis-ready DataFrame.",
+          "symbols": [
+            {
+              "kind": "function",
+              "name": "build_trip_trajectory",
+              "signature": "def build_trip_trajectory(rows: Iterable[VehiclePosition], trips_df: pd.DataFrame) -> pd.DataFrame",
+              "docstring": "Build the per-trip DataFrame on which projection + upsample operate.\n\nColumns: ``datetime``, ``latitude``, ``longitude``, ``vehicle_id``,\n``occupancy_status``, ``source_vehicle_position_id``, ``trip_id``,\n``start_date``, ``route_id``, ``direction_id``, ``shape_id``,\n``trip_start_datetime``.",
+              "decorators": []
+            }
+          ],
+          "imports": [
+            "__future__.annotations",
+            "datetime.date",
+            "datetime.datetime",
+            "datetime.timedelta",
+            "datetime.timezone",
+            "db.models.vehicle_position.VehiclePosition",
+            "pandas",
+            "typing.Iterable"
+          ]
+        },
+        {
+          "path": "apps/analytics/upsample.py",
+          "docstring": "Upsample the trip trajectory to a fixed temporal resolution.\n\n``upsample_df`` is carried over verbatim from the legacy\n``data_process/clean_and_combine.py`` with one addition — each emitted row is\ntagged ``observed=False`` (it is a synthetic boundary point), while source\nrows that happen to be carried through the nearer-midpoint logic inherit\n``observed=True`` from the input. The algorithm: for each consecutive pair of\nreal rows, insert one synthetic row at every ``resolution_seconds`` boundary\nbetween them; distance is interpolated via the next row's speed; other columns\nare copied from whichever of (current, next) is closer in distance.",
+          "summary": "Upsample the trip trajectory to a fixed temporal resolution.",
+          "symbols": [
+            {
+              "kind": "function",
+              "name": "compute_moving_speed",
+              "signature": "def compute_moving_speed(df: pd.DataFrame) -> pd.DataFrame",
+              "docstring": "Add ``moving_speed_m_s`` from distance/time diffs.\n\nThe leading NaN is filled with 0 so upsample can use it on the first gap.",
+              "decorators": []
+            },
+            {
+              "kind": "function",
+              "name": "upsample_df",
+              "signature": "def upsample_df(df: pd.DataFrame, resolution_seconds: int) -> pd.DataFrame",
+              "docstring": "Insert rows at fixed time boundaries between every consecutive pair.\n\nEach output row has ``observed`` set to False (it is synthesized). Source\nrows are NOT appended here — the boundary-point logic preserves one row's\nidentity at each midpoint, matching the legacy pipeline's behavior.\n\nRequires columns: ``datetime``, ``travel_distance_m``, ``moving_speed_m_s``.",
+              "decorators": []
+            },
+            {
+              "kind": "function",
+              "name": "last_step_clean_up",
+              "signature": "def last_step_clean_up(df: pd.DataFrame) -> pd.DataFrame",
+              "docstring": "Round numeric fields and reorder columns to the canonical output schema.",
+              "decorators": []
+            }
+          ],
+          "imports": [
+            "__future__.annotations",
+            "pandas"
+          ]
+        },
+        {
+          "path": "apps/analytics/worker.py",
+          "docstring": "Long-running analytics worker.\n\nPolls the DB on a fixed interval. Each tick:\n\n1. Computes ``today`` in the configured service-date timezone\n   (``ANALYTICS_WORKER_SERVICE_DATE_TZ``).\n2. Calls ``run_for_date(today, only_changed_since=last_tick_started_at)``\n   so only trip instances that gained new VehiclePosition observations\n   since the previous tick are reprocessed. On the very first tick the\n   cutoff is ``(now - 2 * interval)`` so we catch trips that were active\n   just before the worker booted.\n3. Sleeps until the next interval boundary, cooperatively honoring\n   SIGINT/SIGTERM so ``docker compose stop`` is quick and clean.\n\nThe runner itself is idempotent (delete-then-insert per trip instance,\nschema-level unique index as safety net), so overlapping with a manual\n``python -m apps.analytics.main`` run is safe: the last writer wins per\ntrip instance, no duplicates.",
+          "summary": "Long-running analytics worker.",
+          "symbols": [
+            {
+              "kind": "function",
+              "name": "main",
+              "signature": "def main() -> int",
+              "docstring": "",
+              "decorators": []
+            }
+          ],
+          "imports": [
+            "__future__.annotations",
+            "apps.analytics.runner.run_for_date",
+            "core.config.get_settings",
+            "core.logging.configure_logging",
+            "core.logging.get_logger",
+            "datetime.datetime",
+            "datetime.timedelta",
+            "datetime.timezone",
+            "db.session.SessionLocal",
+            "signal",
+            "sys",
+            "time",
+            "types.FrameType",
+            "zoneinfo.ZoneInfo"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "apps-api",
+      "name": "apps/api",
+      "path": "apps/api",
+      "label": "API",
+      "summary": "FastAPI read-only REST surface; vehicle, route, trajectory, and forecast endpoints.",
+      "entry_points": [
+        "uvicorn apps.api.main:app --host 0.0.0.0 --port 8000"
+      ],
+      "owns_tables": [],
+      "files": [
+        {
+          "path": "apps/api/__init__.py",
+          "docstring": "",
+          "summary": "",
+          "symbols": [],
+          "imports": []
+        },
+        {
+          "path": "apps/api/deps.py",
+          "docstring": "FastAPI dependencies.\n\n``get_db`` yields a Session that is closed on request completion.",
+          "summary": "FastAPI dependencies.",
+          "symbols": [
+            {
+              "kind": "function",
+              "name": "get_db",
+              "signature": "def get_db() -> Iterator[Session]",
+              "docstring": "",
+              "decorators": []
+            }
+          ],
+          "imports": [
+            "__future__.annotations",
+            "collections.abc.Iterator",
+            "db.session.SessionLocal",
+            "sqlalchemy.orm.Session"
+          ]
+        },
+        {
+          "path": "apps/api/main.py",
+          "docstring": "FastAPI application factory.\n\n``app`` is the module-level ASGI callable expected by ``uvicorn`` in both\ndocker-compose and ``make api``.",
+          "summary": "FastAPI application factory.",
+          "symbols": [
+            {
+              "kind": "function",
+              "name": "create_app",
+              "signature": "def create_app() -> FastAPI",
+              "docstring": "",
+              "decorators": []
+            }
+          ],
+          "imports": [
+            "__future__.annotations",
+            "apps.api.routers.feed_status",
+            "apps.api.routers.health",
+            "apps.api.routers.iroam",
+            "apps.api.routers.replay",
+            "apps.api.routers.routes",
+            "apps.api.routers.trajectories",
+            "apps.api.routers.vehicles",
+            "contextlib.asynccontextmanager",
+            "core.config.get_settings",
+            "core.logging.configure_logging",
+            "core.logging.get_logger",
+            "fastapi.FastAPI",
+            "fastapi.Request",
+            "fastapi.middleware.cors.CORSMiddleware",
+            "fastapi.responses.JSONResponse"
+          ]
+        },
+        {
+          "path": "apps/api/routers/__init__.py",
+          "docstring": "API routers. Each file owns one URL prefix / resource.",
+          "summary": "API routers. Each file owns one URL prefix / resource.",
+          "symbols": [],
+          "imports": []
+        },
+        {
+          "path": "apps/api/routers/feed_status.py",
+          "docstring": "Feed health endpoints.",
+          "summary": "Feed health endpoints.",
+          "symbols": [
+            {
+              "kind": "function",
+              "name": "vehicle_positions_status",
+              "signature": "def vehicle_positions_status(db: Session = Depends(get_db)) -> FeedStatusResponse",
+              "docstring": "Summary + recent fetches for the VehiclePositions feed.",
+              "decorators": [
+                "router.get('/vehicle-positions', response_model=FeedStatusResponse)"
+              ]
+            }
+          ],
+          "imports": [
+            "__future__.annotations",
+            "apps.api.deps.get_db",
+            "apps.api.schemas.FeedStatusResponse",
+            "apps.api.schemas.FetchLogEntry",
+            "core.constants.FEED_VEHICLE_POSITIONS",
+            "db.queries.feed_stats.feed_status",
+            "db.queries.feed_stats.recent_fetches",
+            "fastapi.APIRouter",
+            "fastapi.Depends",
+            "sqlalchemy.orm.Session"
+          ]
+        },
+        {
+          "path": "apps/api/routers/health.py",
+          "docstring": "Health check.",
+          "summary": "Health check.",
+          "symbols": [
+            {
+              "kind": "function",
+              "name": "health",
+              "signature": "def health(db: Session = Depends(get_db)) -> HealthResponse",
+              "docstring": "",
+              "decorators": [
+                "router.get('/health', response_model=HealthResponse)"
+              ]
+            }
+          ],
+          "imports": [
+            "__future__.annotations",
+            "apps.api.deps.get_db",
+            "apps.api.schemas.HealthResponse",
+            "core.constants.CANONICAL_FEED",
+            "core.time.utc_now",
+            "fastapi.APIRouter",
+            "fastapi.Depends",
+            "sqlalchemy.orm.Session",
+            "sqlalchemy.text"
+          ]
+        },
+        {
+          "path": "apps/api/routers/iroam.py",
+          "docstring": "iROAM Dashboard data endpoints.\n\nThe front-end (``apps/api/static/iroam.html``) calls four JSON endpoints:\n\n  GET /iroam/routes\n      → catalog of routes + service dates + direction IDs with trajectories\n\n  GET /iroam/stops?route_id=&direction_id=\n      → ordered stops along the canonical shape with distance-along-route\n\n  GET /iroam/buses?route_id=&service_date=&direction_id=&bunch_sec=&idle_min=&crowd_pct=\n      → one entry per trip instance with ``points=[{t,d}]`` and\n        ``anomalies=[{t,d,type}]`` in the exact shape the dashboard renders.\n        ``t`` = minutes-of-day (local TZ), ``d`` = fractional stop index.\n\n  GET /iroam/analytics?route_id=&service_date=&direction_id=&bunch_sec=&idle_min=&crowd_pct=\n      → hour-by-hour aggregates for the Analytics page (anomaly counts per\n        hour, per stop; operating speed per hour; running-time allocation).\n\nAll endpoints are read-only and safe to hit on every slider tweak — the slice\nis already bounded by (route, date, direction).",
+          "summary": "iROAM Dashboard data endpoints.",
+          "symbols": [
+            {
+              "kind": "function",
+              "name": "iroam_routes",
+              "signature": "def iroam_routes(db: Session = Depends(get_db)) -> list[dict[str, Any]]",
+              "docstring": "Catalog of routes with trajectory data and their available service dates.",
+              "decorators": [
+                "router.get('/routes')"
+              ]
+            },
+            {
+              "kind": "function",
+              "name": "iroam_stops",
+              "signature": "def iroam_stops(route_id: str = Query(...), direction_id: int = Query(..., ge=0, le=1)) -> dict[str, Any]",
+              "docstring": "Ordered stops along the canonical shape for (route, direction).",
+              "decorators": [
+                "router.get('/stops')"
+              ]
+            },
+            {
+              "kind": "function",
+              "name": "iroam_buses",
+              "signature": "def iroam_buses(route_id: str = Query(...), service_date: date = Query(...), direction_id: int = Query(..., ge=0, le=1), bunch_sec: float = Query(default=120, ge=10, le=600), idle_min: float = Query(default=5, ge=0.5, le=60), crowd_pct: float = Query(default=100, ge=0, le=150), bunch_dist: float = Query(default=150, ge=10, le=1000), bunch_method: Literal['time', 'distance', 'both'] = Query(default='time'), db: Session = Depends(get_db)) -> dict[str, Any]",
+              "docstring": "Dashboard-shaped bus data for one (route, date, direction) slice.",
+              "decorators": [
+                "router.get('/buses')"
+              ]
+            },
+            {
+              "kind": "function",
+              "name": "iroam_analytics",
+              "signature": "def iroam_analytics(route_id: str = Query(...), service_date: date = Query(...), direction_id: int = Query(..., ge=0, le=1), bunch_sec: float = Query(default=120, ge=10, le=600), idle_min: float = Query(default=5, ge=0.5, le=60), crowd_pct: float = Query(default=100, ge=0, le=150), bunch_dist: float = Query(default=150, ge=10, le=1000), bunch_method: Literal['time', 'distance', 'both'] = Query(default='time'), db: Session = Depends(get_db)) -> dict[str, Any]",
+              "docstring": "Aggregate metrics for the Analytics page.",
+              "decorators": [
+                "router.get('/analytics')"
+              ]
+            },
+            {
+              "kind": "function",
+              "name": "iroam_forecast",
+              "signature": "def iroam_forecast(route_id: str = Query(...), service_date: date = Query(...), direction_id: int = Query(..., ge=0, le=1), t_ref_min: float = Query(..., ge=0.0, le=1440.0, description='Reference time as minute-of-day (America/Toronto). Live mode: use latest /iroam/buses time_window.end. Historical mode: use current playhead.'), freshness_s: float = Query(default=90.0, ge=10.0, le=600.0), edge_exclude: int = Query(default=2, ge=0, le=25), db: Session = Depends(get_db)) -> dict[str, Any]",
+              "docstring": "Per-bus + aggregate bunching-risk forecast for one (route, date, direction).\n\nRuns the bundled LightGBM predictor (see ``deployment/bunching_lightgbm``)\nover every \"running\" bus in the slice: fresh sample, inside the active-stop\nband, enough history to fill a 60-tick × 9-channel window. Returns per-bus\nprobability horizons + two aggregate series (``any_alert_rate`` and\n``mean_prob``) sized to the model's 30-step horizon.\n\nShape is stable across modes; the frontend passes the same payload shape\ninto its Forecast panel whether this is live or historical.",
+              "decorators": [
+                "router.get('/forecast')"
+              ]
+            }
+          ],
+          "imports": [
+            "__future__.annotations",
+            "apps.analytics.anomalies.BusTrajectory",
+            "apps.analytics.anomalies.OCCUPANCY_PCT",
+            "apps.analytics.anomalies.TrajectoryPoint",
+            "apps.analytics.anomalies._to_minute_of_day",
+            "apps.analytics.anomalies.detect_all",
+            "apps.analytics.stop_projection.compute_route_stops",
+            "apps.analytics.stop_projection.distance_to_stop_index",
+            "apps.api.deps.get_db",
+            "apps.api.services.bunching_predictor.PredictorUnavailable",
+            "apps.api.services.forecast.run_forecast",
+            "collections.Counter",
+            "collections.defaultdict",
+            "dataclasses.asdict",
+            "datetime.date",
+            "datetime.datetime",
+            "db.queries.iroam.fetch_trajectories_for_slice",
+            "db.queries.iroam.list_route_catalog",
+            "fastapi.APIRouter",
+            "fastapi.Depends",
+            "fastapi.HTTPException",
+            "fastapi.Query",
+            "sqlalchemy.orm.Session",
+            "typing.Any",
+            "typing.Literal"
+          ]
+        },
+        {
+          "path": "apps/api/routers/replay.py",
+          "docstring": "Append-ordered replay over a time window.",
+          "summary": "Append-ordered replay over a time window.",
+          "symbols": [
+            {
+              "kind": "function",
+              "name": "replay_vehicles_endpoint",
+              "signature": "def replay_vehicles_endpoint(start: datetime = Query(..., description='Inclusive UTC start.'), end: datetime = Query(..., description='Exclusive UTC end.'), route_id: str | None = Query(default=None), limit: int | None = Query(default=None, ge=1), include: Literal['raw'] | None = Query(default=None), db: Session = Depends(get_db))",
+              "docstring": "Append-ordered vehicle positions for map replay.",
+              "decorators": [
+                "router.get('/vehicles')"
+              ]
+            }
+          ],
+          "imports": [
+            "__future__.annotations",
+            "apps.api.deps.get_db",
+            "apps.api.schemas.VehiclePositionResponse",
+            "apps.api.schemas.VehiclePositionWithRaw",
+            "core.config.get_settings",
+            "datetime.datetime",
+            "db.queries.vehicles.replay_vehicles",
+            "fastapi.APIRouter",
+            "fastapi.Depends",
+            "fastapi.HTTPException",
+            "fastapi.Query",
+            "sqlalchemy.orm.Session",
+            "typing.Literal"
+          ]
+        },
+        {
+          "path": "apps/api/routers/routes.py",
+          "docstring": "Route-centric endpoints.\n\nGET /routes                            — list routes observed recently\nGET /routes/{route_id}/vehicles/latest — latest vehicle per vehicle_id on route\nGET /routes/{route_id}/metrics         — fleet-health aggregates",
+          "summary": "Route-centric endpoints.",
+          "symbols": [
+            {
+              "kind": "function",
+              "name": "routes_index",
+              "signature": "def routes_index(minutes: int = Query(default=15, ge=1, le=180), db: Session = Depends(get_db)) -> list[str]",
+              "docstring": "Routes with at least one observation in the last ``minutes`` minutes.",
+              "decorators": [
+                "router.get('/routes', response_model=list[str])"
+              ]
+            },
+            {
+              "kind": "function",
+              "name": "route_vehicles_latest",
+              "signature": "def route_vehicles_latest(route_id: str, limit: int | None = Query(default=None, ge=1), minutes: int = Query(default=5, ge=1, le=180), include: Literal['raw'] | None = Query(default=None), db: Session = Depends(get_db))",
+              "docstring": "Latest observation per vehicle currently on ``route_id``.",
+              "decorators": [
+                "router.get('/routes/{route_id}/vehicles/latest')"
+              ]
+            },
+            {
+              "kind": "function",
+              "name": "route_metrics_endpoint",
+              "signature": "def route_metrics_endpoint(route_id: str, window_minutes: int = Query(default=15, ge=1, le=180), db: Session = Depends(get_db)) -> RouteMetricsResponse",
+              "docstring": "Fleet-level metrics over the latest observation per vehicle on a route.",
+              "decorators": [
+                "router.get('/routes/{route_id}/metrics', response_model=RouteMetricsResponse)"
+              ]
+            }
+          ],
+          "imports": [
+            "__future__.annotations",
+            "apps.api.deps.get_db",
+            "apps.api.schemas.BoundingBox",
+            "apps.api.schemas.RouteMetricsResponse",
+            "apps.api.schemas.VehiclePositionResponse",
+            "apps.api.schemas.VehiclePositionWithRaw",
+            "core.config.get_settings",
+            "datetime.datetime",
+            "datetime.timedelta",
+            "datetime.timezone",
+            "db.queries.vehicles.active_route_ids",
+            "db.queries.vehicles.latest_vehicle_positions",
+            "db.queries.vehicles.route_metrics",
+            "fastapi.APIRouter",
+            "fastapi.Depends",
+            "fastapi.Query",
+            "sqlalchemy.orm.Session",
+            "typing.Literal"
+          ]
+        },
+        {
+          "path": "apps/api/routers/trajectories.py",
+          "docstring": "Trip trajectory endpoints — upsampled analytics output.\n\n  GET /trajectories/service-dates                        — dates with data\n  GET /trajectories/routes?service_date=                 — routes on a date\n  GET /trajectories/trips?service_date=[&route_id=]      — picker list\n  GET /trajectories/trips/{trip_id}?start_date=[&include=shape]\n      — full points, optionally enriched with shape-interpolated lon/lat\n\nThe ``include=shape`` option loads the GTFS static bundle (cached per-process\nvia ``apps.analytics.gtfs_static.load_all``) and interpolates lon/lat for\nevery upsampled point. It is opt-in so clients that only need a chart don't\npay the shapes-load cost.",
+          "summary": "Trip trajectory endpoints — upsampled analytics output.",
+          "symbols": [
+            {
+              "kind": "function",
+              "name": "trajectory_service_dates",
+              "signature": "def trajectory_service_dates(limit: int = Query(default=30, ge=1, le=365), db: Session = Depends(get_db)) -> list[date]",
+              "docstring": "Distinct service dates with any trajectory rows, newest first.",
+              "decorators": [
+                "router.get('/service-dates')"
+              ]
+            },
+            {
+              "kind": "function",
+              "name": "trajectory_routes",
+              "signature": "def trajectory_routes(service_date: date = Query(...), db: Session = Depends(get_db)) -> list[str]",
+              "docstring": "Routes that have at least one trip trajectory on ``service_date``.",
+              "decorators": [
+                "router.get('/routes')"
+              ]
+            },
+            {
+              "kind": "function",
+              "name": "trajectory_trips",
+              "signature": "def trajectory_trips(service_date: date = Query(...), route_id: str | None = Query(default=None), limit: int = Query(default=500, ge=1, le=5000), db: Session = Depends(get_db)) -> list[TripInstanceSummary]",
+              "docstring": "Picker list: one summary per trip instance on a given service date.",
+              "decorators": [
+                "router.get('/trips', response_model=list[TripInstanceSummary])"
+              ]
+            },
+            {
+              "kind": "function",
+              "name": "trajectory_detail",
+              "signature": "def trajectory_detail(trip_id: str, start_date: str = Query(..., min_length=8, max_length=8, pattern='^\\\\d{8}$'), include: Literal['shape'] | None = Query(default=None, description=\"Set to 'shape' to enrich each point with interpolated lon/lat.\"), db: Session = Depends(get_db)) -> TripTrajectoryResponse",
+              "docstring": "Full trajectory for ``(trip_id, start_date)`` in time order.",
+              "decorators": [
+                "router.get('/trips/{trip_id}', response_model=TripTrajectoryResponse)"
+              ]
+            }
+          ],
+          "imports": [
+            "__future__.annotations",
+            "apps.api.deps.get_db",
+            "apps.api.schemas.TrajectoryPoint",
+            "apps.api.schemas.TripInstanceSummary",
+            "apps.api.schemas.TripTrajectoryResponse",
+            "datetime.date",
+            "db.queries.trajectories.fetch_trip_trajectory",
+            "db.queries.trajectories.list_active_routes_on_date",
+            "db.queries.trajectories.list_service_dates",
+            "db.queries.trajectories.list_trip_instances",
+            "fastapi.APIRouter",
+            "fastapi.Depends",
+            "fastapi.HTTPException",
+            "fastapi.Query",
+            "functools.lru_cache",
+            "pyproj.Transformer",
+            "sqlalchemy.orm.Session",
+            "typing.Literal"
+          ]
+        },
+        {
+          "path": "apps/api/routers/vehicles.py",
+          "docstring": "Vehicle-centric endpoints.\n\nGET /vehicles/latest[?route_id=&limit=]     — latest row per vehicle\nGET /vehicles/{vehicle_id}/latest           — single latest row (404 if none)\nGET /vehicles/{vehicle_id}/history          — append-ordered history window",
+          "summary": "Vehicle-centric endpoints.",
+          "symbols": [
+            {
+              "kind": "function",
+              "name": "vehicles_latest",
+              "signature": "def vehicles_latest(route_id: str | None = Query(default=None), limit: int | None = Query(default=None, ge=1), minutes: int = Query(default=5, ge=1, le=180, description='Only vehicles seen within this window'), include: Literal['raw'] | None = Query(default=None), db: Session = Depends(get_db))",
+              "docstring": "Latest observation per ``vehicle_id``, optionally filtered to a route.\n\n``minutes`` bounds staleness — default 5 min keeps the map clean; set\nhigher for sparse debugging or to see recently-parked vehicles.",
+              "decorators": [
+                "router.get('/latest')"
+              ]
+            },
+            {
+              "kind": "function",
+              "name": "vehicle_latest",
+              "signature": "def vehicle_latest(vehicle_id: str, include: Literal['raw'] | None = Query(default=None), db: Session = Depends(get_db))",
+              "docstring": "Single most-recent observation for a vehicle (404 if never seen).",
+              "decorators": [
+                "router.get('/{vehicle_id}/latest')"
+              ]
+            },
+            {
+              "kind": "function",
+              "name": "vehicle_history_endpoint",
+              "signature": "def vehicle_history_endpoint(vehicle_id: str, start: datetime = Query(...), end: datetime = Query(...), limit: int | None = Query(default=None, ge=1), include: Literal['raw'] | None = Query(default=None), db: Session = Depends(get_db))",
+              "docstring": "Append-ordered observations in [start, end) for one vehicle.",
+              "decorators": [
+                "router.get('/{vehicle_id}/history')"
+              ]
+            }
+          ],
+          "imports": [
+            "__future__.annotations",
+            "apps.api.deps.get_db",
+            "apps.api.schemas.VehiclePositionResponse",
+            "apps.api.schemas.VehiclePositionWithRaw",
+            "core.config.get_settings",
+            "datetime.datetime",
+            "datetime.timedelta",
+            "datetime.timezone",
+            "db.queries.vehicles.latest_vehicle_position",
+            "db.queries.vehicles.latest_vehicle_positions",
+            "db.queries.vehicles.vehicle_history",
+            "fastapi.APIRouter",
+            "fastapi.Depends",
+            "fastapi.HTTPException",
+            "fastapi.Query",
+            "sqlalchemy.orm.Session",
+            "typing.Literal"
+          ]
+        },
+        {
+          "path": "apps/api/schemas/__init__.py",
+          "docstring": "Pydantic response schemas for the API.",
+          "summary": "Pydantic response schemas for the API.",
+          "symbols": [],
+          "imports": [
+            "apps.api.schemas.feed.FeedStatusResponse",
+            "apps.api.schemas.feed.FetchLogEntry",
+            "apps.api.schemas.feed.HealthResponse",
+            "apps.api.schemas.route_metrics.BoundingBox",
+            "apps.api.schemas.route_metrics.RouteMetricsResponse",
+            "apps.api.schemas.trajectory.TrajectoryPoint",
+            "apps.api.schemas.trajectory.TripInstanceSummary",
+            "apps.api.schemas.trajectory.TripTrajectoryResponse",
+            "apps.api.schemas.vehicle.VehiclePositionResponse",
+            "apps.api.schemas.vehicle.VehiclePositionWithRaw"
+          ]
+        },
+        {
+          "path": "apps/api/schemas/feed.py",
+          "docstring": "Health and feed-status schemas.",
+          "summary": "Health and feed-status schemas.",
+          "symbols": [
+            {
+              "kind": "class",
+              "name": "HealthResponse",
+              "signature": "class HealthResponse(BaseModel)",
+              "docstring": "",
+              "decorators": [],
+              "methods": []
+            },
+            {
+              "kind": "class",
+              "name": "FetchLogEntry",
+              "signature": "class FetchLogEntry(BaseModel)",
+              "docstring": "",
+              "decorators": [],
+              "methods": []
+            },
+            {
+              "kind": "class",
+              "name": "FeedStatusResponse",
+              "signature": "class FeedStatusResponse(BaseModel)",
+              "docstring": "",
+              "decorators": [],
+              "methods": []
+            }
+          ],
+          "imports": [
+            "__future__.annotations",
+            "datetime.datetime",
+            "pydantic.BaseModel",
+            "pydantic.ConfigDict"
+          ]
+        },
+        {
+          "path": "apps/api/schemas/route_metrics.py",
+          "docstring": "RouteMetrics response schema.",
+          "summary": "RouteMetrics response schema.",
+          "symbols": [
+            {
+              "kind": "class",
+              "name": "BoundingBox",
+              "signature": "class BoundingBox(BaseModel)",
+              "docstring": "",
+              "decorators": [],
+              "methods": []
+            },
+            {
+              "kind": "class",
+              "name": "RouteMetricsResponse",
+              "signature": "class RouteMetricsResponse(BaseModel)",
+              "docstring": "",
+              "decorators": [],
+              "methods": []
+            }
+          ],
+          "imports": [
+            "__future__.annotations",
+            "datetime.datetime",
+            "pydantic.BaseModel"
+          ]
+        },
+        {
+          "path": "apps/api/schemas/trajectory.py",
+          "docstring": "Trip-trajectory response schemas (analytics output).\n\nDistinct from ``vehicle.py`` — those expose raw observations; these expose\nthe upsampled, shape-projected trajectory produced by ``apps/analytics``.",
+          "summary": "Trip-trajectory response schemas (analytics output).",
+          "symbols": [
+            {
+              "kind": "class",
+              "name": "TripInstanceSummary",
+              "signature": "class TripInstanceSummary(BaseModel)",
+              "docstring": "One ``(trip_id, start_date)`` pair with coarse metadata for the picker.",
+              "decorators": [],
+              "methods": []
+            },
+            {
+              "kind": "class",
+              "name": "TrajectoryPoint",
+              "signature": "class TrajectoryPoint(BaseModel)",
+              "docstring": "One upsampled row, optionally enriched with interpolated lon/lat.",
+              "decorators": [],
+              "methods": []
+            },
+            {
+              "kind": "class",
+              "name": "TripTrajectoryResponse",
+              "signature": "class TripTrajectoryResponse(BaseModel)",
+              "docstring": "Envelope for a single trip instance's full trajectory.",
+              "decorators": [],
+              "methods": []
+            }
+          ],
+          "imports": [
+            "__future__.annotations",
+            "datetime.date",
+            "datetime.datetime",
+            "pydantic.BaseModel",
+            "pydantic.ConfigDict"
+          ]
+        },
+        {
+          "path": "apps/api/schemas/vehicle.py",
+          "docstring": "VehiclePosition response schemas.",
+          "summary": "VehiclePosition response schemas.",
+          "symbols": [
+            {
+              "kind": "class",
+              "name": "VehiclePositionResponse",
+              "signature": "class VehiclePositionResponse(BaseModel)",
+              "docstring": "Flat view of a ``vehicle_positions`` row.\n\n``raw_entity`` is excluded by default to keep map payloads small —\ncallers that need it can opt in via ``?include=raw``.",
+              "decorators": [],
+              "methods": []
+            },
+            {
+              "kind": "class",
+              "name": "VehiclePositionWithRaw",
+              "signature": "class VehiclePositionWithRaw(VehiclePositionResponse)",
+              "docstring": "Full row including ``raw_entity`` JSON (per-entity protobuf dict).",
+              "decorators": [],
+              "methods": []
+            }
+          ],
+          "imports": [
+            "__future__.annotations",
+            "datetime.datetime",
+            "pydantic.BaseModel",
+            "pydantic.ConfigDict",
+            "typing.Any"
+          ]
+        },
+        {
+          "path": "apps/api/services/__init__.py",
+          "docstring": "",
+          "summary": "",
+          "symbols": [],
+          "imports": []
+        },
+        {
+          "path": "apps/api/services/bunching_predictor.py",
+          "docstring": "Lazy singleton around the bundled ``BunchingPredictor``.\n\nLoading the predictor means reading 30 LightGBM booster files + 3 JSON blobs and\ninitialising a ``lightgbm`` runtime. ~100 ms on first touch, which is why we\ncache it per process. LightGBM inference itself is thread-safe for reads, so\nthe cached instance is safe to share across FastAPI's thread pool.\n\nSet ``BUNCHING_MODEL_DIR`` to point at an alternate bundle (e.g. for A/B tests\nor retrained variants); otherwise the bundled ``deployment/bunching_lightgbm/model``\nis used.",
+          "summary": "Lazy singleton around the bundled ``BunchingPredictor``.",
+          "symbols": [
+            {
+              "kind": "class",
+              "name": "PredictorUnavailable",
+              "signature": "class PredictorUnavailable(RuntimeError)",
+              "docstring": "Raised when the model bundle is present but cannot be loaded (bad files,\nmissing ``lightgbm`` runtime, etc.). Kept distinct from the stdlib errors so\nthe API layer can translate it to a 503.",
+              "decorators": [],
+              "methods": []
+            },
+            {
+              "kind": "function",
+              "name": "get_predictor",
+              "signature": "def get_predictor()",
+              "docstring": "Return the process-local ``BunchingPredictor`` instance.",
+              "decorators": []
+            },
+            {
+              "kind": "function",
+              "name": "reset_cache",
+              "signature": "def reset_cache() -> None",
+              "docstring": "Test hook: drop the cached predictor so ``get_predictor`` rebuilds it.",
+              "decorators": []
+            }
+          ],
+          "imports": [
+            "__future__.annotations",
+            "functools.lru_cache",
+            "os",
+            "pathlib.Path"
+          ]
+        },
+        {
+          "path": "apps/api/services/forecast.py",
+          "docstring": "Top-level forecast orchestration.\n\nGiven a materialised slice of the iROAM dataset (same object list the ``/buses``\nendpoint assembles), pick the eligible \"running\" buses at ``t_ref``, build their\nfeature windows, batch them through the shipped LightGBM predictor, and emit\nper-bus + aggregate output.\n\nThe payload shape is tuned for what the dashboard's ForecastPanel needs: each\nper-bus entry carries enough to show a bar in the at-risk list, and the aggregate\n``horizon_summary`` drives the 5-minute probability curve.",
+          "summary": "Top-level forecast orchestration.",
+          "symbols": [
+            {
+              "kind": "class",
+              "name": "ForecastResult",
+              "signature": "@dataclass(frozen=True)\nclass ForecastResult",
+              "docstring": "",
+              "decorators": [
+                "dataclass(frozen=True)"
+              ],
+              "methods": []
+            },
+            {
+              "kind": "function",
+              "name": "run_forecast",
+              "signature": "def run_forecast(buses: list[BusTrajectory], *, num_stops: int, t_ref_min: float, freshness_s: float = 90.0, edge_exclude: int = 2, predictor: Any | None = None) -> ForecastResult",
+              "docstring": "Run the bunching predictor for every \"running\" bus in ``buses``.\n\n``predictor`` override exists for tests; production path calls ``get_predictor``.",
+              "decorators": []
+            }
+          ],
+          "imports": [
+            "__future__.annotations",
+            "apps.analytics.anomalies.BusTrajectory",
+            "bunching_predictor.PredictorUnavailable",
+            "bunching_predictor.get_predictor",
+            "dataclasses.dataclass",
+            "forecast_features.BusWindowResult",
+            "forecast_features.SEQ_LEN",
+            "forecast_features.STEP_SECONDS",
+            "forecast_features.build_bus_window",
+            "numpy",
+            "typing.Any"
+          ]
+        },
+        {
+          "path": "apps/api/services/forecast_features.py",
+          "docstring": "Build raw-unit (60, 9) feature windows for the bunching predictor.\n\nThe vendor model expects a rolling 60-step × 9-channel window per bus in the\norder ``(target_speed, target_gap, target_aux,\n         u1_speed, u1_gap, u1_aux,\n         u2_speed, u2_gap, u2_aux)``\nin *raw* units (m/s for speed, metres for gap). The ``aux`` channel is a\npassthrough route-position / categorical feature in the training pipeline; the\nvendor README recommends filling it with the training-time mean (0.0 in scaled\nspace) when the live feed does not include it. We use 0.0 and document this as\nan assumption — see the top-level plan for rationale.\n\nThis module is pure: no DB access, no I/O. It takes the same\n``list[BusTrajectory]`` objects that ``/iroam/buses`` assembles and a\n``t_ref_minute`` (minute-of-day in America/Toronto, matching the minute-of-day\naxis used throughout the dashboard), and emits per-bus windows + eligibility\nverdicts.\n\n\"Running\" bus definition (what makes a bus predictable at ``t_ref``):\n\n* Has a sample within ``freshness_s`` of ``t_ref`` (default 90 s).\n* Rounded stop index at ``t_ref`` satisfies ``edge_exclude ≤ si < N - edge_exclude``\n  (default excludes first-2 and last-2 stops).\n* Has ≥ ``seq_len`` consecutive samples ending at ``t_ref`` with per-sample\n  gaps ≤ ``2 * step_seconds``.\n* Window values are finite.\n* At least one upstream bus exists on at least one of the 60 ticks.",
+          "summary": "Build raw-unit (60, 9) feature windows for the bunching predictor.",
+          "symbols": [
+            {
+              "kind": "class",
+              "name": "BusWindowResult",
+              "signature": "@dataclass(frozen=True)\nclass BusWindowResult",
+              "docstring": "",
+              "decorators": [
+                "dataclass(frozen=True)"
+              ],
+              "methods": []
+            },
+            {
+              "kind": "function",
+              "name": "build_bus_window",
+              "signature": "def build_bus_window(target: BusTrajectory, peers: Sequence[BusTrajectory], *, t_ref_min: float, num_stops: int, freshness_s: float = 90.0, edge_exclude: int = 2) -> BusWindowResult",
+              "docstring": "Build a single (60, 9) raw-unit window for ``target`` ending at ``t_ref_min``.\n\n``peers`` must be the full list of buses on the same slice; ``target`` itself\nmay be included and is filtered out internally.",
+              "decorators": []
+            }
+          ],
+          "imports": [
+            "__future__.annotations",
+            "apps.analytics.anomalies.BusTrajectory",
+            "apps.analytics.anomalies.TrajectoryPoint",
+            "apps.analytics.anomalies._to_minute_of_day",
+            "dataclasses.dataclass",
+            "datetime.datetime",
+            "math",
+            "numpy",
+            "typing.Sequence"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "apps-dashboard",
+      "name": "apps/dashboard",
+      "path": "apps/dashboard",
+      "label": "Dashboard",
+      "summary": "Streamlit multipage operator UI; talks only to the API, never the DB directly.",
+      "entry_points": [
+        "streamlit run apps/dashboard/Home.py"
+      ],
+      "owns_tables": [],
+      "files": [
+        {
+          "path": "apps/dashboard/Home.py",
+          "docstring": "Streamlit dashboard home — platform summary for VehiclePositions.",
+          "summary": "Streamlit dashboard home — platform summary for VehiclePositions.",
+          "symbols": [],
+          "imports": [
+            "__future__.annotations",
+            "apps.dashboard.api_client.APIError",
+            "apps.dashboard.api_client.feed_status_vehicle_positions",
+            "apps.dashboard.api_client.health",
+            "apps.dashboard.api_client.vehicles_latest",
+            "collections.Counter",
+            "pandas",
+            "streamlit"
+          ]
+        },
+        {
+          "path": "apps/dashboard/__init__.py",
+          "docstring": "",
+          "summary": "",
+          "symbols": [],
+          "imports": []
+        },
+        {
+          "path": "apps/dashboard/api_client.py",
+          "docstring": "Thin HTTP client the Streamlit pages use to talk to the FastAPI backend.\n\nKeeping all HTTP access here means individual pages stay focused on rendering,\nand the client is the only thing that needs to change if the API contract\nmoves.",
+          "summary": "Thin HTTP client the Streamlit pages use to talk to the FastAPI backend.",
+          "symbols": [
+            {
+              "kind": "class",
+              "name": "APIError",
+              "signature": "class APIError(Exception)",
+              "docstring": "",
+              "decorators": [],
+              "methods": [
+                {
+                  "name": "__init__",
+                  "signature": "def __init__(self, status: int, message: str)",
+                  "docstring": ""
+                }
+              ]
+            },
+            {
+              "kind": "function",
+              "name": "health",
+              "signature": "def health() -> dict[str, Any]",
+              "docstring": "",
+              "decorators": []
+            },
+            {
+              "kind": "function",
+              "name": "feed_status_vehicle_positions",
+              "signature": "def feed_status_vehicle_positions() -> dict[str, Any]",
+              "docstring": "",
+              "decorators": []
+            },
+            {
+              "kind": "function",
+              "name": "vehicles_latest",
+              "signature": "def vehicles_latest(*, route_id: str | None = None, minutes: int = 5, limit: int | None = None, include_raw: bool = False) -> list[dict[str, Any]]",
+              "docstring": "",
+              "decorators": []
+            },
+            {
+              "kind": "function",
+              "name": "vehicle_latest",
+              "signature": "def vehicle_latest(vehicle_id: str, *, include_raw: bool = False) -> dict[str, Any]",
+              "docstring": "",
+              "decorators": []
+            },
+            {
+              "kind": "function",
+              "name": "vehicle_history",
+              "signature": "def vehicle_history(vehicle_id: str, *, start: datetime, end: datetime, limit: int | None = None, include_raw: bool = False) -> list[dict[str, Any]]",
+              "docstring": "",
+              "decorators": []
+            },
+            {
+              "kind": "function",
+              "name": "routes_index",
+              "signature": "def routes_index(minutes: int = 15) -> list[str]",
+              "docstring": "",
+              "decorators": []
+            },
+            {
+              "kind": "function",
+              "name": "route_vehicles_latest",
+              "signature": "def route_vehicles_latest(route_id: str, *, minutes: int = 5, limit: int | None = None, include_raw: bool = False) -> list[dict[str, Any]]",
+              "docstring": "",
+              "decorators": []
+            },
+            {
+              "kind": "function",
+              "name": "route_metrics",
+              "signature": "def route_metrics(route_id: str, *, window_minutes: int = 15) -> dict[str, Any]",
+              "docstring": "",
+              "decorators": []
+            },
+            {
+              "kind": "function",
+              "name": "trajectory_service_dates",
+              "signature": "def trajectory_service_dates(limit: int = 30) -> list[str]",
+              "docstring": "",
+              "decorators": []
+            },
+            {
+              "kind": "function",
+              "name": "trajectory_routes",
+              "signature": "def trajectory_routes(service_date: str) -> list[str]",
+              "docstring": "",
+              "decorators": []
+            },
+            {
+              "kind": "function",
+              "name": "trajectory_trips",
+              "signature": "def trajectory_trips(service_date: str, *, route_id: str | None = None, limit: int = 500) -> list[dict[str, Any]]",
+              "docstring": "",
+              "decorators": []
+            },
+            {
+              "kind": "function",
+              "name": "trajectory_detail",
+              "signature": "def trajectory_detail(trip_id: str, *, start_date: str, include_shape: bool = False) -> dict[str, Any]",
+              "docstring": "",
+              "decorators": []
+            },
+            {
+              "kind": "function",
+              "name": "replay_vehicles",
+              "signature": "def replay_vehicles(*, start: datetime, end: datetime, route_id: str | None = None, limit: int | None = None, include_raw: bool = False) -> list[dict[str, Any]]",
+              "docstring": "",
+              "decorators": []
+            }
+          ],
+          "imports": [
+            "__future__.annotations",
+            "datetime.datetime",
+            "os",
+            "requests",
+            "typing.Any"
+          ]
+        },
+        {
+          "path": "apps/dashboard/pages/1_Feed_Health.py",
+          "docstring": "Feed Health — recent fetches + per-minute success/failure chart.",
+          "summary": "Feed Health — recent fetches + per-minute success/failure chart.",
+          "symbols": [],
+          "imports": [
+            "__future__.annotations",
+            "altair",
+            "apps.dashboard.api_client.APIError",
+            "apps.dashboard.api_client.feed_status_vehicle_positions",
+            "pandas",
+            "streamlit"
+          ]
+        },
+        {
+          "path": "apps/dashboard/pages/2_Live_Fleet_Map.py",
+          "docstring": "Live Fleet Map — every active vehicle plotted from /vehicles/latest.",
+          "summary": "Live Fleet Map — every active vehicle plotted from /vehicles/latest.",
+          "symbols": [],
+          "imports": [
+            "__future__.annotations",
+            "apps.dashboard.api_client.APIError",
+            "apps.dashboard.api_client.routes_index",
+            "apps.dashboard.api_client.vehicles_latest",
+            "datetime.datetime",
+            "datetime.timezone",
+            "pandas",
+            "pydeck",
+            "streamlit"
+          ]
+        },
+        {
+          "path": "apps/dashboard/pages/3_Route_Explorer.py",
+          "docstring": "Route Explorer — fleet-health aggregates + vehicle map for one route.",
+          "summary": "Route Explorer — fleet-health aggregates + vehicle map for one route.",
+          "symbols": [],
+          "imports": [
+            "__future__.annotations",
+            "apps.dashboard.api_client.APIError",
+            "apps.dashboard.api_client.route_metrics",
+            "apps.dashboard.api_client.route_vehicles_latest",
+            "apps.dashboard.api_client.routes_index",
+            "datetime.datetime",
+            "datetime.timezone",
+            "pandas",
+            "pydeck",
+            "streamlit"
+          ]
+        },
+        {
+          "path": "apps/dashboard/pages/4_Vehicle_Detail.py",
+          "docstring": "Vehicle Detail — latest state, recent trail, speed chart for one vehicle.",
+          "summary": "Vehicle Detail — latest state, recent trail, speed chart for one vehicle.",
+          "symbols": [],
+          "imports": [
+            "__future__.annotations",
+            "altair",
+            "apps.dashboard.api_client.APIError",
+            "apps.dashboard.api_client.vehicle_history",
+            "apps.dashboard.api_client.vehicle_latest",
+            "datetime.datetime",
+            "datetime.timedelta",
+            "datetime.timezone",
+            "pandas",
+            "pydeck",
+            "streamlit"
+          ]
+        },
+        {
+          "path": "apps/dashboard/pages/5_Replay.py",
+          "docstring": "Replay — play back a time window on a map using /replay/vehicles.",
+          "summary": "Replay — play back a time window on a map using /replay/vehicles.",
+          "symbols": [],
+          "imports": [
+            "__future__.annotations",
+            "altair",
+            "apps.dashboard.api_client.APIError",
+            "apps.dashboard.api_client.replay_vehicles",
+            "apps.dashboard.api_client.routes_index",
+            "datetime.datetime",
+            "datetime.timedelta",
+            "datetime.timezone",
+            "pandas",
+            "pydeck",
+            "streamlit"
+          ]
+        },
+        {
+          "path": "apps/dashboard/pages/6_Trajectories.py",
+          "docstring": "Trip Trajectories — upsampled 10s-grid output of the analytics worker.\n\nPick a service date → route → trip instance. Shows:\n  * summary metrics (duration, distance, point count, mean speed)\n  * map with the shape-interpolated path (points color-graded by time)\n  * distance-over-time and speed-over-time charts\n  * raw rows expander\n\nThe underlying data is append-only-per-trip-instance (delete-then-insert on\nrefresh); no stale-run de-duplication is needed in the client.",
+          "summary": "Trip Trajectories — upsampled 10s-grid output of the analytics worker.",
+          "symbols": [],
+          "imports": [
+            "__future__.annotations",
+            "altair",
+            "apps.dashboard.api_client.APIError",
+            "apps.dashboard.api_client.trajectory_detail",
+            "apps.dashboard.api_client.trajectory_routes",
+            "apps.dashboard.api_client.trajectory_service_dates",
+            "apps.dashboard.api_client.trajectory_trips",
+            "pandas",
+            "pydeck",
+            "streamlit"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "core",
+      "name": "core",
+      "path": "core",
+      "label": "Core",
+      "summary": "Settings, logging, time helpers, and GTFS-RT enum constants shared by every app.",
+      "entry_points": [],
+      "owns_tables": [],
+      "files": [
+        {
+          "path": "core/__init__.py",
+          "docstring": "Shared configuration, logging, time, and constants used by all apps.",
+          "summary": "Shared configuration, logging, time, and constants used by all apps.",
+          "symbols": [],
+          "imports": []
+        },
+        {
+          "path": "core/config.py",
+          "docstring": "Application configuration, loaded from environment / .env via pydantic-settings.\n\nAll apps (api, collector, dashboard) import ``get_settings()`` to read config.\nValues are cached; mutate environment + restart the process to re-read.",
+          "summary": "Application configuration, loaded from environment / .env via pydantic-settings.",
+          "symbols": [
+            {
+              "kind": "class",
+              "name": "Settings",
+              "signature": "class Settings(BaseSettings)",
+              "docstring": "Typed view over the environment. See ``.env.example`` for documentation.",
+              "decorators": [],
+              "methods": [
+                {
+                  "name": "cors_origin_list",
+                  "signature": "def cors_origin_list(self) -> list[str]",
+                  "docstring": ""
+                },
+                {
+                  "name": "route_allowlist_set",
+                  "signature": "def route_allowlist_set(self) -> frozenset[str]",
+                  "docstring": "Parsed ``COLLECTOR_ROUTE_ALLOWLIST`` as a frozenset.\n\nEmpty / unset ⇒ empty set, meaning \"no filter\" to the normalizer."
+                }
+              ]
+            },
+            {
+              "kind": "function",
+              "name": "get_settings",
+              "signature": "def get_settings() -> Settings",
+              "docstring": "Return the process-wide Settings singleton.",
+              "decorators": [
+                "lru_cache(maxsize=1)"
+              ]
+            }
+          ],
+          "imports": [
+            "__future__.annotations",
+            "functools.lru_cache",
+            "pathlib.Path",
+            "pydantic.Field",
+            "pydantic_settings.BaseSettings",
+            "pydantic_settings.SettingsConfigDict"
+          ]
+        },
+        {
+          "path": "core/constants.py",
+          "docstring": "Shared constants.\n\nVehiclePositions is the canonical feed for this MVP. Adding another GTFS-RT\nfeed (trip-updates, alerts) is a one-line change here plus a new ``FeedSpec``\nand normalizer in ``apps/collector/feed_specs.py``.",
+          "summary": "Shared constants.",
+          "symbols": [],
+          "imports": [
+            "__future__.annotations",
+            "typing.Final"
+          ]
+        },
+        {
+          "path": "core/logging.py",
+          "docstring": "Structured logging setup.\n\nCall ``configure_logging()`` once at process start (API lifespan, collector main,\ndashboard bootstrap). Subsequent calls are idempotent.",
+          "summary": "Structured logging setup.",
+          "symbols": [
+            {
+              "kind": "class",
+              "name": "JsonFormatter",
+              "signature": "class JsonFormatter(logging.Formatter)",
+              "docstring": "Minimal JSON line formatter — one object per log record.\n\nKeeps structured fields (``extra=...``) alongside message/level/logger so\ndownstream log collectors can parse without a custom grok pattern.",
+              "decorators": [],
+              "methods": [
+                {
+                  "name": "format",
+                  "signature": "def format(self, record: logging.LogRecord) -> str",
+                  "docstring": ""
+                }
+              ]
+            },
+            {
+              "kind": "function",
+              "name": "configure_logging",
+              "signature": "def configure_logging() -> None",
+              "docstring": "Configure root logger once; safe to call multiple times.",
+              "decorators": []
+            },
+            {
+              "kind": "function",
+              "name": "get_logger",
+              "signature": "def get_logger(name: str) -> logging.Logger",
+              "docstring": "Return a module-scoped logger, configuring the root first if needed.",
+              "decorators": []
+            }
+          ],
+          "imports": [
+            "__future__.annotations",
+            "core.config.get_settings",
+            "datetime.datetime",
+            "datetime.timezone",
+            "json",
+            "logging",
+            "sys"
+          ]
+        },
+        {
+          "path": "core/time.py",
+          "docstring": "Time helpers. All datetimes in the system are timezone-aware UTC.\n\nGTFS-Realtime timestamps are Unix epoch seconds (UTC). Conversion to\n``America/Toronto`` happens only in presentation layers (dashboard).",
+          "summary": "Time helpers. All datetimes in the system are timezone-aware UTC.",
+          "symbols": [
+            {
+              "kind": "function",
+              "name": "utc_now",
+              "signature": "def utc_now() -> datetime",
+              "docstring": "Return the current UTC time as a tz-aware datetime.",
+              "decorators": []
+            },
+            {
+              "kind": "function",
+              "name": "epoch_to_utc",
+              "signature": "def epoch_to_utc(epoch_seconds: int | float | None) -> datetime | None",
+              "docstring": "Convert Unix epoch seconds to a UTC datetime, or None if the input is falsy.\n\nGTFS-RT encodes \"unset\" as 0 (or the field missing); callers should pass\nNone for \"missing\". We additionally treat 0 as missing because it's never\na valid TTC timestamp.",
+              "decorators": []
+            },
+            {
+              "kind": "function",
+              "name": "to_toronto",
+              "signature": "def to_toronto(dt: datetime | None) -> datetime | None",
+              "docstring": "Convert a UTC datetime to America/Toronto for display.",
+              "decorators": []
+            }
+          ],
+          "imports": [
+            "__future__.annotations",
+            "datetime.datetime",
+            "datetime.timezone",
+            "zoneinfo.ZoneInfo"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "db",
+      "name": "db",
+      "path": "db",
+      "label": "Database",
+      "summary": "SQLAlchemy 2.x ORM models, query helpers, and session factory.",
+      "entry_points": [],
+      "owns_tables": [
+        "feed_fetch_logs",
+        "raw_gtfsrt_snapshots",
+        "vehicle_positions",
+        "analytics_runs",
+        "trip_trajectories"
+      ],
+      "files": [
+        {
+          "path": "db/__init__.py",
+          "docstring": "Database layer: engine, session factory, ORM models, and reusable queries.",
+          "summary": "Database layer: engine, session factory, ORM models, and reusable queries.",
+          "symbols": [],
+          "imports": []
+        },
+        {
+          "path": "db/base.py",
+          "docstring": "Declarative base for all ORM models.\n\nImporting a model module (e.g. ``db.models.trip_update``) registers it with\n``Base.metadata`` and makes it visible to Alembic's autogenerate.",
+          "summary": "Declarative base for all ORM models.",
+          "symbols": [
+            {
+              "kind": "class",
+              "name": "Base",
+              "signature": "class Base(DeclarativeBase)",
+              "docstring": "Shared declarative base.",
+              "decorators": [],
+              "methods": []
+            },
+            {
+              "kind": "function",
+              "name": "register_all_models",
+              "signature": "def register_all_models() -> None",
+              "docstring": "Force-import every model module so Base.metadata is fully populated.\n\nCalled by Alembic's env.py and anywhere we need an exhaustive metadata view\n(e.g. integration tests that use ``Base.metadata.create_all``).",
+              "decorators": []
+            }
+          ],
+          "imports": [
+            "__future__.annotations",
+            "sqlalchemy.orm.DeclarativeBase"
+          ]
+        },
+        {
+          "path": "db/migrations/env.py",
+          "docstring": "Alembic environment.\n\nPulls the DSN from ``core.config.get_settings()`` (env var DATABASE_URL),\nand hands Alembic the fully-populated ORM metadata so ``--autogenerate``\nhas an accurate picture.",
+          "summary": "Alembic environment.",
+          "symbols": [
+            {
+              "kind": "function",
+              "name": "run_migrations_offline",
+              "signature": "def run_migrations_offline() -> None",
+              "docstring": "",
+              "decorators": []
+            },
+            {
+              "kind": "function",
+              "name": "run_migrations_online",
+              "signature": "def run_migrations_online() -> None",
+              "docstring": "",
+              "decorators": []
+            }
+          ],
+          "imports": [
+            "__future__.annotations",
+            "alembic.context",
+            "core.config.get_settings",
+            "db.base.Base",
+            "db.base.register_all_models",
+            "logging.config.fileConfig",
+            "sqlalchemy.engine_from_config",
+            "sqlalchemy.pool"
+          ]
+        },
+        {
+          "path": "db/models/__init__.py",
+          "docstring": "ORM model package.\n\nImporting this package registers every table on ``Base.metadata``.",
+          "summary": "ORM model package.",
+          "symbols": [],
+          "imports": [
+            "db.models.feed_fetch_log.FeedFetchLog",
+            "db.models.raw_snapshot.RawGtfsrtSnapshot",
+            "db.models.trip_trajectory.AnalyticsRun",
+            "db.models.trip_trajectory.TripTrajectory",
+            "db.models.vehicle_position.VehiclePosition"
+          ]
+        },
+        {
+          "path": "db/models/feed_fetch_log.py",
+          "docstring": "Log of every fetch attempt against a GTFS-RT feed.\n\nEvery poll — success or failure — creates exactly one row here. On success,\nexactly one child ``RawGtfsrtSnapshot`` row is also written.",
+          "summary": "Log of every fetch attempt against a GTFS-RT feed.",
+          "symbols": [
+            {
+              "kind": "class",
+              "name": "FeedFetchLog",
+              "signature": "class FeedFetchLog(Base)",
+              "docstring": "",
+              "decorators": [],
+              "methods": []
+            }
+          ],
+          "imports": [
+            "__future__.annotations",
+            "datetime.datetime",
+            "db.base.Base",
+            "sqlalchemy.Boolean",
+            "sqlalchemy.Index",
+            "sqlalchemy.Integer",
+            "sqlalchemy.SmallInteger",
+            "sqlalchemy.String",
+            "sqlalchemy.Text",
+            "sqlalchemy.dialects.postgresql.TIMESTAMP",
+            "sqlalchemy.func",
+            "sqlalchemy.orm.Mapped",
+            "sqlalchemy.orm.mapped_column",
+            "sqlalchemy.orm.relationship",
+            "typing.TYPE_CHECKING"
+          ]
+        },
+        {
+          "path": "db/models/raw_snapshot.py",
+          "docstring": "Raw GTFS-RT protobuf snapshot, one row per successful fetch.\n\nKeeping the bytes lets us re-normalize if the parser changes and lets the\nfuture /replay endpoint serve byte-identical historical payloads.",
+          "summary": "Raw GTFS-RT protobuf snapshot, one row per successful fetch.",
+          "symbols": [
+            {
+              "kind": "class",
+              "name": "RawGtfsrtSnapshot",
+              "signature": "class RawGtfsrtSnapshot(Base)",
+              "docstring": "",
+              "decorators": [],
+              "methods": []
+            }
+          ],
+          "imports": [
+            "__future__.annotations",
+            "datetime.datetime",
+            "db.base.Base",
+            "sqlalchemy.ForeignKey",
+            "sqlalchemy.Index",
+            "sqlalchemy.LargeBinary",
+            "sqlalchemy.String",
+            "sqlalchemy.UniqueConstraint",
+            "sqlalchemy.dialects.postgresql.TIMESTAMP",
+            "sqlalchemy.orm.Mapped",
+            "sqlalchemy.orm.mapped_column",
+            "sqlalchemy.orm.relationship",
+            "typing.TYPE_CHECKING"
+          ]
+        },
+        {
+          "path": "db/models/trip_trajectory.py",
+          "docstring": "Analytics output tables.\n\n``AnalyticsRun`` is one row per ``apps/analytics`` invocation (mirrors\n``FeedFetchLog`` for the collector). ``TripTrajectory`` is one row per upsampled\ntrajectory point; children cascade-delete with their run.\n\nBoth are append-only: re-running for the same ``service_date`` inserts a new\nrun and new rows. Latest-per-point is a ``DISTINCT ON`` query against the\nindexes, not a mutation.",
+          "summary": "Analytics output tables.",
+          "symbols": [
+            {
+              "kind": "class",
+              "name": "AnalyticsRun",
+              "signature": "class AnalyticsRun(Base)",
+              "docstring": "",
+              "decorators": [],
+              "methods": []
+            },
+            {
+              "kind": "class",
+              "name": "TripTrajectory",
+              "signature": "class TripTrajectory(Base)",
+              "docstring": "",
+              "decorators": [],
+              "methods": []
+            }
+          ],
+          "imports": [
+            "__future__.annotations",
+            "datetime.date",
+            "datetime.datetime",
+            "db.base.Base",
+            "sqlalchemy.Boolean",
+            "sqlalchemy.Date",
+            "sqlalchemy.Float",
+            "sqlalchemy.ForeignKey",
+            "sqlalchemy.Index",
+            "sqlalchemy.Integer",
+            "sqlalchemy.SmallInteger",
+            "sqlalchemy.String",
+            "sqlalchemy.Text",
+            "sqlalchemy.dialects.postgresql.DOUBLE_PRECISION",
+            "sqlalchemy.dialects.postgresql.JSONB",
+            "sqlalchemy.dialects.postgresql.TIMESTAMP",
+            "sqlalchemy.func",
+            "sqlalchemy.orm.Mapped",
+            "sqlalchemy.orm.mapped_column",
+            "typing.Any"
+          ]
+        },
+        {
+          "path": "db/models/vehicle_position.py",
+          "docstring": "VehiclePosition — one row per FeedEntity.vehicle per snapshot.\n\nAppend-only. The hottest read path is \"latest row per vehicle_id\" and\n\"latest row per route_id,\" both served by composite `(vehicle_id|route_id,\nfetched_at DESC)` indexes.\n\nThe ``geom`` column is a PostgreSQL GENERATED column derived from\n``(longitude, latitude)`` by the migration; it is not mapped as an\nattribute on this ORM class because Python code never writes to it.\nQueries that need spatial filtering access ``geom`` through raw SQL\nexpressions.",
+          "summary": "VehiclePosition — one row per FeedEntity.vehicle per snapshot.",
+          "symbols": [
+            {
+              "kind": "class",
+              "name": "VehiclePosition",
+              "signature": "class VehiclePosition(Base)",
+              "docstring": "",
+              "decorators": [],
+              "methods": []
+            }
+          ],
+          "imports": [
+            "__future__.annotations",
+            "datetime.datetime",
+            "db.base.Base",
+            "sqlalchemy.Float",
+            "sqlalchemy.ForeignKey",
+            "sqlalchemy.Index",
+            "sqlalchemy.Integer",
+            "sqlalchemy.SmallInteger",
+            "sqlalchemy.String",
+            "sqlalchemy.dialects.postgresql.JSONB",
+            "sqlalchemy.dialects.postgresql.TIMESTAMP",
+            "sqlalchemy.orm.Mapped",
+            "sqlalchemy.orm.mapped_column",
+            "typing.Any"
+          ]
+        },
+        {
+          "path": "db/queries/__init__.py",
+          "docstring": "Reusable complex read-side queries.\n\nRouter code stays thin; complex SQL lives here and can be unit-tested directly.",
+          "summary": "Reusable complex read-side queries.",
+          "symbols": [],
+          "imports": []
+        },
+        {
+          "path": "db/queries/feed_stats.py",
+          "docstring": "Feed health aggregates derived from ``feed_fetch_logs``.",
+          "summary": "Feed health aggregates derived from ``feed_fetch_logs``.",
+          "symbols": [
+            {
+              "kind": "class",
+              "name": "FeedStatus",
+              "signature": "@dataclass\nclass FeedStatus",
+              "docstring": "",
+              "decorators": [
+                "dataclass"
+              ],
+              "methods": []
+            },
+            {
+              "kind": "function",
+              "name": "feed_status",
+              "signature": "def feed_status(session: Session, feed_name: str) -> FeedStatus",
+              "docstring": "Return a summary of the last fetch and the last-hour success rate.",
+              "decorators": []
+            },
+            {
+              "kind": "function",
+              "name": "recent_fetches",
+              "signature": "def recent_fetches(session: Session, feed_name: str, *, limit: int = 50) -> list[FeedFetchLog]",
+              "docstring": "The last N fetch-log rows, newest-first.",
+              "decorators": []
+            }
+          ],
+          "imports": [
+            "__future__.annotations",
+            "dataclasses.dataclass",
+            "datetime.datetime",
+            "datetime.timedelta",
+            "datetime.timezone",
+            "db.models.feed_fetch_log.FeedFetchLog",
+            "sqlalchemy.Integer",
+            "sqlalchemy.case",
+            "sqlalchemy.func",
+            "sqlalchemy.orm.Session",
+            "sqlalchemy.select"
+          ]
+        },
+        {
+          "path": "db/queries/iroam.py",
+          "docstring": "Query helpers for the iROAM dashboard route-and-day view.\n\nThe dashboard picks a ``(route_id, service_date, direction_id)`` triple and\nneeds:\n\n  * catalog — which routes have any trajectory data, and on which dates per\n    route / direction combo, for the sidebar dropdowns;\n  * bulk trajectories — every point of every trip instance in the picked\n    slice, in one round-trip (per-instance fetching would hammer the DB\n    when the dashboard refreshes every few seconds).\n\nWe deliberately avoid joining to ``vehicle_positions`` etc.; trajectories\nalready carry everything the UI renders. Sort order is ``(trip_id,\nstart_date, datetime)`` so the caller can walk the list linearly and group\non change-of-key.",
+          "summary": "Query helpers for the iROAM dashboard route-and-day view.",
+          "symbols": [
+            {
+              "kind": "class",
+              "name": "RouteDateDir",
+              "signature": "@dataclass(frozen=True)\nclass RouteDateDir",
+              "docstring": "",
+              "decorators": [
+                "dataclass(frozen=True)"
+              ],
+              "methods": []
+            },
+            {
+              "kind": "function",
+              "name": "list_route_catalog",
+              "signature": "def list_route_catalog(session: Session) -> list[dict[str, Any]]",
+              "docstring": "One entry per distinct ``(route_id, direction_id)`` with the dates it ran on.",
+              "decorators": []
+            },
+            {
+              "kind": "function",
+              "name": "fetch_trajectories_for_slice",
+              "signature": "def fetch_trajectories_for_slice(session: Session, *, service_date: date, route_id: str, direction_id: int) -> list[TripTrajectory]",
+              "docstring": "Every trajectory point for the given slice, ordered for linear grouping.",
+              "decorators": []
+            }
+          ],
+          "imports": [
+            "__future__.annotations",
+            "dataclasses.dataclass",
+            "datetime.date",
+            "db.models.trip_trajectory.TripTrajectory",
+            "sqlalchemy.orm.Session",
+            "sqlalchemy.select",
+            "typing.Any"
+          ]
+        },
+        {
+          "path": "db/queries/replay.py",
+          "docstring": "Replay-oriented queries.\n\nThin wrappers that exist so future additions (replay of raw payloads,\nreconstruction from snapshots) have a natural home.",
+          "summary": "Replay-oriented queries.",
+          "symbols": [
+            {
+              "kind": "function",
+              "name": "snapshots_in_window",
+              "signature": "def snapshots_in_window(session: Session, *, feed_name: str, start: datetime, end: datetime, limit: int = 500) -> Sequence[RawGtfsrtSnapshot]",
+              "docstring": "All snapshots for a feed in a time window, oldest-first.",
+              "decorators": []
+            }
+          ],
+          "imports": [
+            "__future__.annotations",
+            "datetime.datetime",
+            "db.models.raw_snapshot.RawGtfsrtSnapshot",
+            "sqlalchemy.orm.Session",
+            "sqlalchemy.select",
+            "typing.Sequence"
+          ]
+        },
+        {
+          "path": "db/queries/trajectories.py",
+          "docstring": "Read-side helpers for the ``trip_trajectories`` analytics output.\n\nAll queries are bounded by ``service_date`` (+ optionally ``route_id``) and\nsorted by ``datetime``. The table is refreshed delete-then-insert per trip\ninstance so callers don't need to think about multiple analytics runs — the\n``(trip_id, start_date)`` unique-on-datetime index guarantees one row per\nupsampled tick.",
+          "summary": "Read-side helpers for the ``trip_trajectories`` analytics output.",
+          "symbols": [
+            {
+              "kind": "class",
+              "name": "TripInstanceSummary",
+              "signature": "@dataclass(frozen=True)\nclass TripInstanceSummary",
+              "docstring": "",
+              "decorators": [
+                "dataclass(frozen=True)"
+              ],
+              "methods": []
+            },
+            {
+              "kind": "function",
+              "name": "list_service_dates",
+              "signature": "def list_service_dates(session: Session, *, limit: int = 30) -> list[date]",
+              "docstring": "Distinct service_dates present in ``trip_trajectories``, newest first.",
+              "decorators": []
+            },
+            {
+              "kind": "function",
+              "name": "list_trip_instances",
+              "signature": "def list_trip_instances(session: Session, service_date: date, *, route_id: str | None = None, limit: int = 500) -> list[TripInstanceSummary]",
+              "docstring": "One summary row per ``(trip_id, start_date)`` for a service date.\n\n``vehicle_id`` and ``route_id`` are picked from the row with the largest\ntravel_distance_m so a trip instance that changed vehicles mid-trip gets a\nstable representative; this is rare but non-zero in the feed.",
+              "decorators": []
+            },
+            {
+              "kind": "function",
+              "name": "fetch_trip_trajectory",
+              "signature": "def fetch_trip_trajectory(session: Session, trip_id: str, start_date: str) -> list[TripTrajectory]",
+              "docstring": "All upsampled points for one trip instance, time-ascending.\n\nServed by the ``ux_trip_trajectories_instance_dt`` unique index\n(``trip_id, start_date, datetime``).",
+              "decorators": []
+            },
+            {
+              "kind": "function",
+              "name": "list_active_routes_on_date",
+              "signature": "def list_active_routes_on_date(session: Session, service_date: date, *, limit: int = 500) -> list[str]",
+              "docstring": "Distinct ``route_id`` values present in trajectories for a service_date.",
+              "decorators": []
+            }
+          ],
+          "imports": [
+            "__future__.annotations",
+            "dataclasses.dataclass",
+            "datetime.date",
+            "datetime.datetime",
+            "db.models.trip_trajectory.TripTrajectory",
+            "sqlalchemy.Date",
+            "sqlalchemy.cast",
+            "sqlalchemy.func",
+            "sqlalchemy.orm.Session",
+            "sqlalchemy.select"
+          ]
+        },
+        {
+          "path": "db/queries/vehicles.py",
+          "docstring": "VehiclePosition query helpers.\n\nAll \"latest\" lookups use Postgres ``DISTINCT ON``: with the composite\n``(vehicle_id | route_id, fetched_at DESC)`` indexes, the planner picks\nthe first row per key without a sort.",
+          "summary": "VehiclePosition query helpers.",
+          "symbols": [
+            {
+              "kind": "function",
+              "name": "latest_vehicle_positions",
+              "signature": "def latest_vehicle_positions(session: Session, *, route_id: str | None = None, since: datetime | None = None, limit: int = 5000) -> list[VehiclePosition]",
+              "docstring": "Latest row per ``vehicle_id`` (optionally filtered by route).\n\n``since`` bounds the scan — defaults to now-24h so a stale DB doesn't\nreturn ancient rows. Use a smaller window for the live map.",
+              "decorators": []
+            },
+            {
+              "kind": "function",
+              "name": "latest_vehicle_position",
+              "signature": "def latest_vehicle_position(session: Session, vehicle_id: str) -> VehiclePosition | None",
+              "docstring": "Single most-recent row for a specific vehicle, or None.",
+              "decorators": []
+            },
+            {
+              "kind": "function",
+              "name": "vehicle_history",
+              "signature": "def vehicle_history(session: Session, vehicle_id: str, *, start: datetime, end: datetime, limit: int = 5000) -> list[VehiclePosition]",
+              "docstring": "Append-ordered history for a vehicle within [start, end].",
+              "decorators": []
+            },
+            {
+              "kind": "function",
+              "name": "fetch_by_trip_instance",
+              "signature": "def fetch_by_trip_instance(session: Session, trip_id: str, start_date: str) -> list[VehiclePosition]",
+              "docstring": "All rows for one trip instance, chronological.\n\nKeyed on ``(trip_id, start_date)`` because the same ``trip_id`` repeats\nacross service days. When the feed populates TripDescriptor.start_date the\nfilter is exact; otherwise we fall back to the Toronto-local date derived\nfrom ``vehicle_timestamp`` / ``fetched_at``. Sort is ASC by observation\ntime so analytics can compute diffs directly.",
+              "decorators": []
+            },
+            {
+              "kind": "function",
+              "name": "active_route_ids",
+              "signature": "def active_route_ids(session: Session, *, window: timedelta = timedelta(minutes=15), limit: int = 500) -> list[str]",
+              "docstring": "Distinct route_ids observed within the last ``window``, newest-activity-first.",
+              "decorators": []
+            },
+            {
+              "kind": "class",
+              "name": "RouteMetrics",
+              "signature": "@dataclass\nclass RouteMetrics",
+              "docstring": "",
+              "decorators": [
+                "dataclass"
+              ],
+              "methods": []
+            },
+            {
+              "kind": "function",
+              "name": "route_metrics",
+              "signature": "def route_metrics(session: Session, route_id: str, *, window_minutes: int = 15) -> RouteMetrics",
+              "docstring": "Aggregate metrics over the latest observation per vehicle on a route.",
+              "decorators": []
+            },
+            {
+              "kind": "function",
+              "name": "replay_vehicles",
+              "signature": "def replay_vehicles(session: Session, *, start: datetime, end: datetime, route_id: str | None = None, limit: int = 5000) -> list[VehiclePosition]",
+              "docstring": "Append-ordered rows for map replay in a time window.",
+              "decorators": []
+            }
+          ],
+          "imports": [
+            "__future__.annotations",
+            "dataclasses.dataclass",
+            "datetime.datetime",
+            "datetime.timedelta",
+            "datetime.timezone",
+            "db.models.vehicle_position.VehiclePosition",
+            "sqlalchemy.func",
+            "sqlalchemy.orm.Session",
+            "sqlalchemy.orm.aliased",
+            "sqlalchemy.select"
+          ]
+        },
+        {
+          "path": "db/session.py",
+          "docstring": "Engine + session factory.\n\nEngine is lazily created the first time ``get_engine()`` or ``SessionLocal()``\nis called, so importing this module is cheap and safe during tests.",
+          "summary": "Engine + session factory.",
+          "symbols": [
+            {
+              "kind": "function",
+              "name": "get_engine",
+              "signature": "def get_engine() -> Engine",
+              "docstring": "Return the process-wide SQLAlchemy Engine.",
+              "decorators": []
+            },
+            {
+              "kind": "function",
+              "name": "get_session_factory",
+              "signature": "def get_session_factory() -> sessionmaker[Session]",
+              "docstring": "Return the process-wide SessionLocal factory.",
+              "decorators": []
+            },
+            {
+              "kind": "function",
+              "name": "session_scope",
+              "signature": "def session_scope() -> Iterator[Session]",
+              "docstring": "Context-manager-style session yielder for scripts and the API.\n\nThe caller is responsible for commit/rollback. Used as a FastAPI dependency\nvia ``Depends(get_db)``; for ad-hoc usage, prefer ``with SessionLocal() as s``.",
+              "decorators": []
+            },
+            {
+              "kind": "function",
+              "name": "SessionLocal",
+              "signature": "def SessionLocal() -> Session",
+              "docstring": "",
+              "decorators": []
+            }
+          ],
+          "imports": [
+            "__future__.annotations",
+            "core.config.get_settings",
+            "sqlalchemy.Engine",
+            "sqlalchemy.create_engine",
+            "sqlalchemy.orm.Session",
+            "sqlalchemy.orm.sessionmaker",
+            "typing.Iterator"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "scripts",
+      "name": "scripts",
+      "path": "scripts",
+      "label": "Scripts",
+      "summary": "Operational CLIs: capture fixture, reset DB, run migrations.",
+      "entry_points": [
+        "python -m scripts.capture_sample",
+        "python -m scripts.db_reset [--yes-i-am-sure]",
+        "python -m scripts.run_migrations"
+      ],
+      "owns_tables": [],
+      "files": [
+        {
+          "path": "scripts/__init__.py",
+          "docstring": "",
+          "summary": "",
+          "symbols": [],
+          "imports": []
+        },
+        {
+          "path": "scripts/capture_sample.py",
+          "docstring": "Download a fresh TTC GTFS-RT VehiclePositions payload and save it to tests/fixtures/.\n\nRun manually::\n\n    python -m scripts.capture_sample",
+          "summary": "Download a fresh TTC GTFS-RT VehiclePositions payload and save it to tests/fixtures/.",
+          "symbols": [
+            {
+              "kind": "function",
+              "name": "main",
+              "signature": "def main() -> int",
+              "docstring": "",
+              "decorators": []
+            }
+          ],
+          "imports": [
+            "__future__.annotations",
+            "apps.collector.fetcher.fetch_bytes",
+            "apps.collector.parser.parse_feed_message",
+            "core.config.get_settings",
+            "core.logging.configure_logging",
+            "core.logging.get_logger",
+            "pathlib.Path",
+            "sys"
+          ]
+        },
+        {
+          "path": "scripts/db_reset.py",
+          "docstring": "Destructive data reset — empty every data table in one transaction.\n\nLeaves the schema (and ``alembic_version``) untouched so migrations don't\nhave to be re-applied. Intended for dev/demo resets and for kicking off\na fresh analytics run after a scope change (e.g. a new route allowlist).\n\nSafety:\n\n* Requires the explicit ``--yes-i-am-sure`` flag. Without it, the script\n  prints the row counts it *would* delete and exits with code 2.\n* Runs a single ``TRUNCATE ... RESTART IDENTITY CASCADE`` so child rows\n  (stop_times on trip_updates, analytics rows on trajectories, etc.) are\n  cleared atomically and sequences reset to 1.\n\nUsage (dev):\n\n    docker compose exec api python -m scripts.db_reset            # dry-run\n    docker compose exec api python -m scripts.db_reset --yes-i-am-sure",
+          "summary": "Destructive data reset — empty every data table in one transaction.",
+          "symbols": [
+            {
+              "kind": "function",
+              "name": "main",
+              "signature": "def main(argv: list[str] | None = None) -> int",
+              "docstring": "",
+              "decorators": []
+            }
+          ],
+          "imports": [
+            "__future__.annotations",
+            "argparse",
+            "collections.abc.Sequence",
+            "core.logging.configure_logging",
+            "core.logging.get_logger",
+            "db.session.SessionLocal",
+            "sqlalchemy.text",
+            "sys"
+          ]
+        },
+        {
+          "path": "scripts/run_migrations.py",
+          "docstring": "Apply Alembic migrations programmatically.\n\nUseful for container entrypoints where invoking the ``alembic`` CLI would\nrequire shipping the ini. This calls the same code paths using a programmatic\n``Config`` that points at ``alembic.ini``.",
+          "summary": "Apply Alembic migrations programmatically.",
+          "symbols": [
+            {
+              "kind": "function",
+              "name": "upgrade_head",
+              "signature": "def upgrade_head() -> None",
+              "docstring": "",
+              "decorators": []
+            }
+          ],
+          "imports": [
+            "__future__.annotations",
+            "alembic.command",
+            "alembic.config.Config",
+            "core.logging.configure_logging",
+            "core.logging.get_logger",
+            "pathlib.Path"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "deployment-bunching",
+      "name": "deployment/bunching_lightgbm",
+      "path": "deployment/bunching_lightgbm",
+      "label": "Bunching predictor",
+      "summary": "LightGBM model bundle (30 per-horizon boosters) and retraining glue served by the API.",
+      "entry_points": [],
+      "owns_tables": [],
+      "files": [
+        {
+          "path": "deployment/bunching_lightgbm/__init__.py",
+          "docstring": "Deployment bundle for the LightGBM bunching predictor.\n\nThin re-export so the parent app can do::\n\n    from deployment.bunching_lightgbm import BunchingPredictor\n\nwithout the submodule gymnastics the bundle's own ``src`` package assumes (it\nis otherwise designed to be used standalone from inside its own folder).",
+          "summary": "Deployment bundle for the LightGBM bunching predictor.",
+          "symbols": [],
+          "imports": [
+            "src.BunchingPredictor",
+            "src.scale_window",
+            "src.unscale_gap",
+            "src.validate_window"
+          ]
+        },
+        {
+          "path": "deployment/bunching_lightgbm/examples/integration_snippet.py",
+          "docstring": "Sketch of how to embed the predictor in a live transit-monitoring loop.\n\nThis is a *template* — the AVL-ingestion / upstream-bus bookkeeping bits are\nproject-specific and left as stubs.",
+          "summary": "Sketch of how to embed the predictor in a live transit-monitoring loop.",
+          "symbols": [
+            {
+              "kind": "function",
+              "name": "record_tick",
+              "signature": "def record_tick(bus_id: str, row: np.ndarray) -> None",
+              "docstring": "",
+              "decorators": []
+            },
+            {
+              "kind": "function",
+              "name": "predict_for",
+              "signature": "def predict_for(bus_id: str) -> dict | None",
+              "docstring": "",
+              "decorators": []
+            },
+            {
+              "kind": "function",
+              "name": "live_loop_example",
+              "signature": "def live_loop_example()",
+              "docstring": "",
+              "decorators": []
+            },
+            {
+              "kind": "function",
+              "name": "fetch_avl_snapshot",
+              "signature": "def fetch_avl_snapshot()",
+              "docstring": "",
+              "decorators": []
+            },
+            {
+              "kind": "function",
+              "name": "publish_alert",
+              "signature": "def publish_alert(payload: dict)",
+              "docstring": "",
+              "decorators": []
+            }
+          ],
+          "imports": [
+            "__future__.annotations",
+            "collections.deque",
+            "numpy",
+            "pathlib.Path",
+            "src.BunchingPredictor",
+            "sys",
+            "time"
+          ]
+        },
+        {
+          "path": "deployment/bunching_lightgbm/examples/run_example.py",
+          "docstring": "End-to-end smoke test: load the predictor and run it on the bundled sample.\n\nUsage\n-----\n    cd deployment/bunching_lightgbm\n    python examples/run_example.py\n\nExpected output: probability vector of length 30, plus an alert dict.",
+          "summary": "End-to-end smoke test: load the predictor and run it on the bundled sample.",
+          "symbols": [
+            {
+              "kind": "function",
+              "name": "main",
+              "signature": "def main() -> int",
+              "docstring": "",
+              "decorators": []
+            }
+          ],
+          "imports": [
+            "__future__.annotations",
+            "json",
+            "numpy",
+            "os",
+            "pathlib.Path",
+            "src.BunchingPredictor",
+            "sys"
+          ]
+        },
+        {
+          "path": "deployment/bunching_lightgbm/src/__init__.py",
+          "docstring": "",
+          "summary": "",
+          "symbols": [],
+          "imports": [
+            "predict.BunchingPredictor",
+            "preprocess.scale_window",
+            "preprocess.unscale_gap",
+            "schema.validate_window"
+          ]
+        },
+        {
+          "path": "deployment/bunching_lightgbm/src/predict.py",
+          "docstring": "Bunching predictor: loads per-horizon LightGBM boosters and serves predictions.\n\nDesigned to be embedded inside a transit-monitoring service. Load once at\nstartup; call ``predict_proba`` / ``alert`` on every incoming AVL snapshot.\n\nEverything needed to run this class lives under ``<model_dir>/``:\n    booster_h00.txt ... booster_h{pred_len-1}.txt    # per-horizon boosters\n    scaler.json                                       # normalization stats\n    thresholds.json                                   # F2-optimal decision thresholds\n    metadata.json                                     # training config",
+          "summary": "Bunching predictor: loads per-horizon LightGBM boosters and serves predictions.",
+          "symbols": [
+            {
+              "kind": "class",
+              "name": "BunchingPredictor",
+              "signature": "class BunchingPredictor",
+              "docstring": "Per-horizon bunching-probability predictor backed by LightGBM boosters.\n\nParameters\n----------\nmodel_dir : path\n    Folder produced by ``train.py`` containing booster_h*.txt, scaler.json,\n    thresholds.json, metadata.json.",
+              "decorators": [],
+              "methods": [
+                {
+                  "name": "__init__",
+                  "signature": "def __init__(self, model_dir: str | Path)",
+                  "docstring": ""
+                },
+                {
+                  "name": "predict_proba",
+                  "signature": "def predict_proba(self, x: np.ndarray, *, is_scaled: bool = True) -> np.ndarray",
+                  "docstring": "Return per-horizon bunching probabilities.\n\nParameters\n----------\nx : ndarray\n    A window ``(seq_len, n_channels)`` or a batch\n    ``(batch, seq_len, n_channels)``.\nis_scaled : bool\n    ``True`` (default) if ``x`` is already in the scaled units the\n    model was trained on. ``False`` means raw units (m/s, metres)\n    and will be scaled with the bundled scaler before inference.\n\nReturns\n-------\nndarray of shape ``(batch, pred_len)`` containing probabilities in [0, 1]."
+                },
+                {
+                  "name": "predict_scalar",
+                  "signature": "def predict_scalar(self, x: np.ndarray, *, mode: str = 'max', is_scaled: bool = True) -> np.ndarray",
+                  "docstring": "Collapse per-horizon probabilities into a single scalar per sample.\n\nmode='max' (default): highest probability across horizons — the\noperationally useful \"will this bus bunch *at any point* in the\nnext ``pred_len`` steps?\"\nmode='last': probability at the final horizon.\nmode='mean': mean probability across horizons."
+                },
+                {
+                  "name": "alert",
+                  "signature": "def alert(self, x: np.ndarray, *, is_scaled: bool = True) -> list[dict]",
+                  "docstring": "For each sample, return a dict describing the alert status.\n\nEach dict has:\n    any_alert        : bool, whether any horizon exceeds its F2 threshold\n    first_alert_step : earliest horizon step above threshold, or None\n    max_prob         : highest probability across horizons\n    max_prob_step    : horizon where max_prob occurs\n    per_horizon      : full probability vector"
+                }
+              ]
+            }
+          ],
+          "imports": [
+            "__future__.annotations",
+            "json",
+            "numpy",
+            "pathlib.Path",
+            "preprocess.scale_window",
+            "schema.validate_window",
+            "typing.Iterable",
+            "typing.Mapping"
+          ]
+        },
+        {
+          "path": "deployment/bunching_lightgbm/src/preprocess.py",
+          "docstring": "Raw-unit ↔ scaled-unit conversion for model inputs and gap outputs.\n\nThe model was trained on z-score scaled features (see ``scaler.json``).\nLive AVL pipelines typically have raw-unit measurements (m/s, metres),\nso the helpers here close the gap.",
+          "summary": "Raw-unit ↔ scaled-unit conversion for model inputs and gap outputs.",
+          "symbols": [
+            {
+              "kind": "function",
+              "name": "load_scaler",
+              "signature": "def load_scaler(path: str | Path) -> dict",
+              "docstring": "",
+              "decorators": []
+            },
+            {
+              "kind": "function",
+              "name": "scale_window",
+              "signature": "def scale_window(raw: np.ndarray, scaler: Mapping) -> np.ndarray",
+              "docstring": "Convert raw units to scaled units for a (seq_len, n_channels) window.\n\n``n_channels`` must be a multiple of 3. Channels are interpreted as\nrepeated (speed, gap, aux) triples, one per bus (target + upstream).",
+              "decorators": []
+            },
+            {
+              "kind": "function",
+              "name": "unscale_gap",
+              "signature": "def unscale_gap(scaled_gap: np.ndarray, scaler: Mapping) -> np.ndarray",
+              "docstring": "Inverse-scale a gap-only tensor back to metres.",
+              "decorators": []
+            }
+          ],
+          "imports": [
+            "__future__.annotations",
+            "json",
+            "numpy",
+            "pathlib.Path",
+            "typing.Mapping"
+          ]
+        },
+        {
+          "path": "deployment/bunching_lightgbm/src/schema.py",
+          "docstring": "Input-shape validation for the bunching predictor.",
+          "summary": "Input-shape validation for the bunching predictor.",
+          "symbols": [
+            {
+              "kind": "class",
+              "name": "SchemaError",
+              "signature": "class SchemaError(ValueError)",
+              "docstring": "Raised when an input window does not match the expected shape.",
+              "decorators": [],
+              "methods": []
+            },
+            {
+              "kind": "function",
+              "name": "validate_window",
+              "signature": "def validate_window(x: np.ndarray, seq_len: int, n_channels: int, *, allow_batch: bool = True) -> np.ndarray",
+              "docstring": "Return ``x`` as a float32 ndarray with shape ``(batch, seq_len, n_channels)``.\n\nAccepts either a single window ``(seq_len, n_channels)`` or a batch\n``(batch, seq_len, n_channels)``. Any other shape raises ``SchemaError``.\n\nDoes NOT check whether the values are already scaled — use\n``preprocess.scale_window`` if your input is still in raw units.",
+              "decorators": []
+            }
+          ],
+          "imports": [
+            "__future__.annotations",
+            "numpy"
+          ]
+        },
+        {
+          "path": "deployment/bunching_lightgbm/tests/test_end_to_end.py",
+          "docstring": "Minimal end-to-end test runnable without the parent repo.\n\ncd deployment/bunching_lightgbm\npython -m tests.test_end_to_end",
+          "summary": "Minimal end-to-end test runnable without the parent repo.",
+          "symbols": [
+            {
+              "kind": "function",
+              "name": "main",
+              "signature": "def main() -> int",
+              "docstring": "",
+              "decorators": []
+            }
+          ],
+          "imports": [
+            "__future__.annotations",
+            "numpy",
+            "pathlib.Path",
+            "src.BunchingPredictor",
+            "sys"
+          ]
+        },
+        {
+          "path": "deployment/bunching_lightgbm/train.py",
+          "docstring": "Train and persist a per-horizon LightGBM bunching classifier.\n\nThis is the only script in this bundle that touches the training pickles.\nAt inference time the `model/` folder is fully self-contained: 30 LightGBM\nboosters (.txt native format), a scaler, per-horizon thresholds, and a\nmetadata manifest.\n\nInput data layout (produced by data_process/build_chronological.py)\n--------------------------------------------------------------------\nA folder like ``filtered/training_data/chrono/`` containing:\n\n    scaler.pkl                  # 4-tuple (speed_mean, speed_std, gap_mean, gap_std)\n    matched/scaled_chrono_train.pkl\n    matched/scaled_chrono_val.pkl\n    matched/scaled_chrono_test.pkl\n\nEach pickle is a list of ``(X, Y, CAT)`` tuples where\n    X: (seq_len, 3 + step*3) scaled float32         # e.g. (60, 9) for step=2\n    Y: (pred_len, 3) scaled float32                 # Y[:,0] is scaled forward gap\n    CAT: auxiliary categorical metadata (unused here)\n\nChannel layout inside X (repeats per upstream bus, starting with the target bus):\n    offset 0: speed     (scaled with speed_mean/std)\n    offset 1: gap       (scaled with gap_mean/std)\n    offset 2: auxiliary (passed through unchanged)\n\nBunching label at horizon h: ``Y[h, 0] < (threshold_raw - gap_mean) / gap_std``.\nDefault ``threshold_raw = 100`` (metres).\n\nUsage\n-----\n    python train.py         --data_root /home/jiahao/Documents/iroam_qt/filtered/training_data/chrono         --variant matched         --step 2 --seq_len 60 --pred_len 30         --out_dir ./model         --seed 2021\n\nRetraining on your own data: produce pickles in the same schema and pass\n``--data_root`` pointing at that folder.",
+          "summary": "Train and persist a per-horizon LightGBM bunching classifier.",
+          "symbols": [
+            {
+              "kind": "function",
+              "name": "main",
+              "signature": "def main()",
+              "docstring": "",
+              "decorators": []
+            }
+          ],
+          "imports": [
+            "__future__.annotations",
+            "argparse",
+            "json",
+            "numpy",
+            "os",
+            "pathlib.Path",
+            "pickle",
+            "sys",
+            "time"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "legacy",
+      "name": "data_process/arch_legacy",
+      "path": "data_process/arch_legacy",
+      "label": "Legacy",
+      "summary": "Archived proof-of-concept pipeline. Not used by the live system. Kept for reference.",
+      "entry_points": [],
+      "owns_tables": [],
+      "archived": true,
+      "files": [
+        {
+          "path": "data_process/arch_legacy/agent_schedule_check.py",
+          "docstring": "",
+          "summary": "",
+          "symbols": [
+            {
+              "kind": "function",
+              "name": "return_agent_schedule_for_route_at_date",
+              "signature": "def return_agent_schedule_for_route_at_date(route, date)",
+              "docstring": "",
+              "decorators": []
+            },
+            {
+              "kind": "function",
+              "name": "read_agent_schedule",
+              "signature": "def read_agent_schedule()",
+              "docstring": "",
+              "decorators": []
+            },
+            {
+              "kind": "function",
+              "name": "main",
+              "signature": "def main()",
+              "docstring": "",
+              "decorators": []
+            }
+          ],
+          "imports": [
+            "data_process.arch.trip_stop_schedule_check.*",
+            "os",
+            "pandas"
+          ]
+        },
+        {
+          "path": "data_process/arch_legacy/clean_and_combine.py",
+          "docstring": "",
+          "summary": "",
+          "symbols": [
+            {
+              "kind": "function",
+              "name": "parse_distance_to_meters",
+              "signature": "def parse_distance_to_meters(dist_str)",
+              "docstring": "Converts a distance string that may end with 'm' or 'km'\ninto a numeric (float) value in meters.\n\nExamples:\n  '120m'  -> 120.0\n  '3.4km' -> 3400.0\n  '  240 ' (no suffix) -> 240.0\n  'NaN', None, '' -> np.nan",
+              "decorators": []
+            },
+            {
+              "kind": "function",
+              "name": "convert_time_offset_to_seconds",
+              "signature": "def convert_time_offset_to_seconds(df: pd.DataFrame, col_in = 'time_offset', col_out = 'time_offset_seconds') -> pd.DataFrame",
+              "docstring": "Convert a time offset string to an integer number of seconds.\n\nExpected formats:\n  - \"mm:ss\" (e.g., \"1:46\" -> 106 seconds)\n  - \"hh:mm:ss\" (e.g., \"1:01:46\" -> 3706 seconds)\n\nIf the value is NaN or empty, we set it to NaN in the output.\n\nParameters\n----------\ndf : pd.DataFrame\n    The input DataFrame.\ncol_in : str\n    Name of the existing time offset column.\ncol_out : str\n    Name of the new column with integer seconds.\n\nReturns\n-------\npd.DataFrame\n    The original DataFrame with a new column `col_out` containing \n    the integer offset in seconds.",
+              "decorators": []
+            },
+            {
+              "kind": "function",
+              "name": "upsample_df",
+              "signature": "def upsample_df(df: pd.DataFrame, resolution_seconds: int) -> pd.DataFrame",
+              "docstring": "Upsample a DataFrame to a higher temporal resolution.\n\nParameters\n----------\ndf : pd.DataFrame\n    Must contain:\n      - 'datetime' (sorted ascending)\n      - 'travel_distance_m'\n      - 'moving_speed_m_s' (the speed from the *next* row).\n    All other columns will be carried over or duplicated from the current row.\nresolution_seconds : int\n    Desired time resolution in seconds (e.g., 10 means we add rows every 10s).\n\nReturns\n-------\npd.DataFrame\n    A new DataFrame, sorted by datetime, with additional rows inserted at the\n    specified resolution. Each new row has an interpolated (or extrapolated)\n    travel_distance_m based on (time delta) * moving_speed_m_s(next).",
+              "decorators": []
+            },
+            {
+              "kind": "function",
+              "name": "reorder_columns",
+              "signature": "def reorder_columns(df: pd.DataFrame) -> pd.DataFrame",
+              "docstring": "",
+              "decorators": []
+            },
+            {
+              "kind": "function",
+              "name": "last_step_clean_up",
+              "signature": "def last_step_clean_up(df: pd.DataFrame) -> pd.DataFrame",
+              "docstring": "",
+              "decorators": []
+            },
+            {
+              "kind": "function",
+              "name": "clean_and_transform_direction",
+              "signature": "def clean_and_transform_direction(df: pd.DataFrame) -> pd.DataFrame",
+              "docstring": "Cleans and transforms the DataFrame (parsing datetime, distance, speed, etc.)\nand additionally computes direction of travel. Also identifies if there's a \ndirection switch within the trip and splits into two sub-DataFrames if needed.",
+              "decorators": []
+            },
+            {
+              "kind": "function",
+              "name": "filter_with_time_limit",
+              "signature": "def filter_with_time_limit(df: pd.DataFrame, start_time: str, end_time: str) -> pd.DataFrame",
+              "docstring": "Filter DataFrame to rows within a time range.",
+              "decorators": []
+            },
+            {
+              "kind": "function",
+              "name": "clean_and_transform",
+              "signature": "def clean_and_transform(df: pd.DataFrame) -> pd.DataFrame",
+              "docstring": "",
+              "decorators": []
+            },
+            {
+              "kind": "function",
+              "name": "process_folder",
+              "signature": "def process_folder(source_folder, upsample_resolution = 10)",
+              "docstring": "Process all trip files in a source folder.",
+              "decorators": []
+            }
+          ],
+          "imports": [
+            "logging",
+            "numpy",
+            "os",
+            "pandas",
+            "re",
+            "tqdm.tqdm"
+          ]
+        },
+        {
+          "path": "data_process/arch_legacy/data_processing_pipe.py",
+          "docstring": "",
+          "summary": "",
+          "symbols": [
+            {
+              "kind": "function",
+              "name": "reformat_time_column",
+              "signature": "def reformat_time_column(df: pd.DataFrame) -> pd.DataFrame",
+              "docstring": "- Some rows may have time_val like: ['5:23:15AM','5:23:45AM'].\n- This function keeps only the last time in that list.\n- Then sets speed/distance to 0 for that row.",
+              "decorators": []
+            },
+            {
+              "kind": "function",
+              "name": "read_trip_csv",
+              "signature": "def read_trip_csv(path: str) -> gpd.GeoDataFrame",
+              "docstring": "Read a trip CSV into a GeoDataFrame.\nIf CHUNK_SIZE is set, read in chunks; otherwise read entire CSV at once.",
+              "decorators": []
+            },
+            {
+              "kind": "function",
+              "name": "write_results",
+              "signature": "def write_results(gdf: gpd.GeoDataFrame, dest_path: str, drop_cols: Optional[list] = None) -> None",
+              "docstring": "Write the final GeoDataFrame to CSV, dropping geometry columns.",
+              "decorators": []
+            },
+            {
+              "kind": "function",
+              "name": "nearest_point_on_shape",
+              "signature": "def nearest_point_on_shape(point: Point, shape_line) -> (Point, float)",
+              "docstring": "Return the nearest point on the given shape line and the distance between them.",
+              "decorators": []
+            },
+            {
+              "kind": "function",
+              "name": "distance_along_shape",
+              "signature": "def distance_along_shape(point: Point, line) -> float",
+              "docstring": "Return the distance along the shape (line) from its start to the nearest projection of 'point'.",
+              "decorators": []
+            },
+            {
+              "kind": "function",
+              "name": "process_folder",
+              "signature": "def process_folder(folder: str) -> pd.DataFrame",
+              "docstring": "Traverse the source folder (route/date/trip structure).\nPerform buffer filtering, nearest shape points, and travel distance.\nReturns a combined DataFrame of all processed results.",
+              "decorators": []
+            }
+          ],
+          "imports": [
+            "geopandas",
+            "logging",
+            "numpy",
+            "os",
+            "pandas",
+            "shapely.geometry.Point",
+            "shapely.wkt.loads",
+            "tqdm.tqdm",
+            "typing.Optional"
+          ]
+        },
+        {
+          "path": "data_process/arch_legacy/location_to_shape_projection.py",
+          "docstring": "",
+          "summary": "",
+          "symbols": [
+            {
+              "kind": "function",
+              "name": "nearest_point_on_shape",
+              "signature": "def nearest_point_on_shape(point, shape)",
+              "docstring": "Calculate the nearest point on the shape line and distance.",
+              "decorators": []
+            }
+          ],
+          "imports": [
+            "geopandas",
+            "numpy",
+            "pandas",
+            "shapely.geometry.Point",
+            "shapely.wkt.loads"
+          ]
+        },
+        {
+          "path": "data_process/arch_legacy/travel_distance_calculation.py",
+          "docstring": "",
+          "summary": "",
+          "symbols": [
+            {
+              "kind": "function",
+              "name": "distance_along_shape",
+              "signature": "def distance_along_shape(point, line)",
+              "docstring": "Calculate distance along the shape from the start to the point.",
+              "decorators": []
+            }
+          ],
+          "imports": [
+            "geopandas",
+            "pandas",
+            "shapely.geometry.Point",
+            "shapely.wkt.loads"
+          ]
+        },
+        {
+          "path": "data_process/arch_legacy/trip_filtering.py",
+          "docstring": "",
+          "summary": "",
+          "symbols": [
+            {
+              "kind": "function",
+              "name": "load_trip_csv",
+              "signature": "def load_trip_csv(trip_path)",
+              "docstring": "Load a trip CSV into a GeoDataFrame.",
+              "decorators": []
+            },
+            {
+              "kind": "function",
+              "name": "save_filtered_trip",
+              "signature": "def save_filtered_trip(filtered_gdf, output_folder, trip_file)",
+              "docstring": "Save original and filtered trips.",
+              "decorators": []
+            },
+            {
+              "kind": "function",
+              "name": "plot_trip",
+              "signature": "def plot_trip(shape_gdf, buffer_gdf, trip_gdf, filtered_gdf, output_folder, trip_file)",
+              "docstring": "Plot before and after filtering.",
+              "decorators": []
+            },
+            {
+              "kind": "function",
+              "name": "process_folder",
+              "signature": "def process_folder(source_folder)",
+              "docstring": "Process all trip files in a source folder.",
+              "decorators": []
+            }
+          ],
+          "imports": [
+            "contextily",
+            "geopandas",
+            "matplotlib.pyplot",
+            "os",
+            "pandas",
+            "shapely.geometry.Point",
+            "shapely.wkt.loads",
+            "tqdm.tqdm"
+          ]
+        },
+        {
+          "path": "data_process/arch_legacy/trip_stop_schedule_check.py",
+          "docstring": "",
+          "summary": "",
+          "symbols": [],
+          "imports": [
+            "pandas"
+          ]
+        }
+      ]
+    }
+  ],
+  "imports_index": {
+    "apps.collector.feed_specs.FeedSpec": [
+      "apps/collector/runner.py"
+    ],
+    "apps.collector.feed_specs.build_registry": [],
+    "apps.collector.feed_specs.get_spec": [
+      "apps/collector/main.py"
+    ],
+    "apps.collector.fetcher.FetchError": [
+      "apps/collector/runner.py"
+    ],
+    "apps.collector.fetcher.FetchResult": [],
+    "apps.collector.fetcher.fetch_bytes": [
+      "apps/collector/runner.py",
+      "scripts/capture_sample.py"
+    ],
+    "apps.collector.main.main": [],
+    "apps.collector.normalize_vehicles.HeaderInfo": [],
+    "apps.collector.normalize_vehicles.extract_header": [
+      "apps/collector/runner.py"
+    ],
+    "apps.collector.normalize_vehicles.normalize_vehicle_positions": [
+      "apps/collector/feed_specs.py"
+    ],
+    "apps.collector.parser.ParseError": [
+      "apps/collector/runner.py"
+    ],
+    "apps.collector.parser.parse_feed_message": [
+      "apps/collector/runner.py",
+      "scripts/capture_sample.py"
+    ],
+    "apps.collector.runner.RunOutcome": [],
+    "apps.collector.runner.run_once": [
+      "apps/collector/main.py"
+    ],
+    "apps.analytics.anomalies.TrajectoryPoint": [
+      "apps/api/routers/iroam.py",
+      "apps/api/services/forecast_features.py"
+    ],
+    "apps.analytics.anomalies.BusTrajectory": [
+      "apps/api/routers/iroam.py",
+      "apps/api/services/forecast.py",
+      "apps/api/services/forecast_features.py"
+    ],
+    "apps.analytics.anomalies.AnomalyEvent": [],
+    "apps.analytics.anomalies.detect_idle_events": [],
+    "apps.analytics.anomalies.detect_crowd_events": [],
+    "apps.analytics.anomalies.detect_bunch_events": [],
+    "apps.analytics.anomalies.detect_bunch_events_distance": [],
+    "apps.analytics.anomalies.detect_all": [
+      "apps/api/routers/iroam.py"
+    ],
+    "apps.analytics.csv_export.write_day_csvs": [],
+    "apps.analytics.gtfs_static.GtfsStatic": [
+      "apps/analytics/pipeline.py",
+      "apps/analytics/stop_projection.py"
+    ],
+    "apps.analytics.gtfs_static.load_all": [
+      "apps/analytics/runner.py",
+      "apps/analytics/stop_projection.py"
+    ],
+    "apps.analytics.gtfs_static.resolve_shape_id": [
+      "apps/analytics/pipeline.py"
+    ],
+    "apps.analytics.gtfs_static.resolve_direction_id": [],
+    "apps.analytics.main.main": [],
+    "apps.analytics.pipeline.list_trip_instances": [],
+    "apps.analytics.pipeline.list_changed_trip_instances": [],
+    "apps.analytics.pipeline.process_trip_instance": [],
+    "apps.analytics.project_to_shape.project_trajectory": [
+      "apps/analytics/pipeline.py"
+    ],
+    "apps.analytics.runner.RunOutcome": [],
+    "apps.analytics.runner.run_for_date": [
+      "apps/analytics/main.py",
+      "apps/analytics/worker.py"
+    ],
+    "apps.analytics.shapes.build_linestrings": [
+      "apps/analytics/runner.py",
+      "apps/analytics/stop_projection.py"
+    ],
+    "apps.analytics.shapes.transform_lonlat_to_3857": [
+      "apps/analytics/project_to_shape.py",
+      "apps/analytics/stop_projection.py"
+    ],
+    "apps.analytics.stop_projection.StopOnRoute": [],
+    "apps.analytics.stop_projection.RouteStops": [],
+    "apps.analytics.stop_projection.compute_route_stops": [
+      "apps/api/routers/iroam.py"
+    ],
+    "apps.analytics.stop_projection.distance_to_stop_index": [
+      "apps/api/routers/iroam.py"
+    ],
+    "apps.analytics.trajectory_extract.build_trip_trajectory": [
+      "apps/analytics/pipeline.py"
+    ],
+    "apps.analytics.upsample.compute_moving_speed": [
+      "apps/analytics/pipeline.py"
+    ],
+    "apps.analytics.upsample.upsample_df": [
+      "apps/analytics/pipeline.py"
+    ],
+    "apps.analytics.upsample.last_step_clean_up": [
+      "apps/analytics/pipeline.py"
+    ],
+    "apps.analytics.worker.main": [],
+    "apps.api.deps.get_db": [
+      "apps/api/routers/feed_status.py",
+      "apps/api/routers/health.py",
+      "apps/api/routers/iroam.py",
+      "apps/api/routers/replay.py",
+      "apps/api/routers/routes.py",
+      "apps/api/routers/trajectories.py",
+      "apps/api/routers/vehicles.py"
+    ],
+    "apps.api.main.create_app": [],
+    "apps.api.routers.feed_status.vehicle_positions_status": [],
+    "apps.api.routers.health.health": [],
+    "apps.api.routers.iroam.iroam_routes": [],
+    "apps.api.routers.iroam.iroam_stops": [],
+    "apps.api.routers.iroam.iroam_buses": [],
+    "apps.api.routers.iroam.iroam_analytics": [],
+    "apps.api.routers.iroam.iroam_forecast": [],
+    "apps.api.routers.replay.replay_vehicles_endpoint": [],
+    "apps.api.routers.routes.routes_index": [],
+    "apps.api.routers.routes.route_vehicles_latest": [],
+    "apps.api.routers.routes.route_metrics_endpoint": [],
+    "apps.api.routers.trajectories.trajectory_service_dates": [],
+    "apps.api.routers.trajectories.trajectory_routes": [],
+    "apps.api.routers.trajectories.trajectory_trips": [],
+    "apps.api.routers.trajectories.trajectory_detail": [],
+    "apps.api.routers.vehicles.vehicles_latest": [],
+    "apps.api.routers.vehicles.vehicle_latest": [],
+    "apps.api.routers.vehicles.vehicle_history_endpoint": [],
+    "apps.api.schemas.feed.HealthResponse": [
+      "apps/api/schemas/__init__.py"
+    ],
+    "apps.api.schemas.feed.FetchLogEntry": [
+      "apps/api/schemas/__init__.py"
+    ],
+    "apps.api.schemas.feed.FeedStatusResponse": [
+      "apps/api/schemas/__init__.py"
+    ],
+    "apps.api.schemas.route_metrics.BoundingBox": [
+      "apps/api/schemas/__init__.py"
+    ],
+    "apps.api.schemas.route_metrics.RouteMetricsResponse": [
+      "apps/api/schemas/__init__.py"
+    ],
+    "apps.api.schemas.trajectory.TripInstanceSummary": [
+      "apps/api/schemas/__init__.py"
+    ],
+    "apps.api.schemas.trajectory.TrajectoryPoint": [
+      "apps/api/schemas/__init__.py"
+    ],
+    "apps.api.schemas.trajectory.TripTrajectoryResponse": [
+      "apps/api/schemas/__init__.py"
+    ],
+    "apps.api.schemas.vehicle.VehiclePositionResponse": [
+      "apps/api/schemas/__init__.py"
+    ],
+    "apps.api.schemas.vehicle.VehiclePositionWithRaw": [
+      "apps/api/schemas/__init__.py"
+    ],
+    "apps.api.services.bunching_predictor.PredictorUnavailable": [
+      "apps/api/routers/iroam.py"
+    ],
+    "apps.api.services.bunching_predictor.get_predictor": [],
+    "apps.api.services.bunching_predictor.reset_cache": [],
+    "apps.api.services.forecast.ForecastResult": [],
+    "apps.api.services.forecast.run_forecast": [
+      "apps/api/routers/iroam.py"
+    ],
+    "apps.api.services.forecast_features.BusWindowResult": [],
+    "apps.api.services.forecast_features.build_bus_window": [],
+    "apps.dashboard.api_client.APIError": [
+      "apps/dashboard/Home.py",
+      "apps/dashboard/pages/1_Feed_Health.py",
+      "apps/dashboard/pages/2_Live_Fleet_Map.py",
+      "apps/dashboard/pages/3_Route_Explorer.py",
+      "apps/dashboard/pages/4_Vehicle_Detail.py",
+      "apps/dashboard/pages/5_Replay.py",
+      "apps/dashboard/pages/6_Trajectories.py"
+    ],
+    "apps.dashboard.api_client.health": [
+      "apps/dashboard/Home.py"
+    ],
+    "apps.dashboard.api_client.feed_status_vehicle_positions": [
+      "apps/dashboard/Home.py",
+      "apps/dashboard/pages/1_Feed_Health.py"
+    ],
+    "apps.dashboard.api_client.vehicles_latest": [
+      "apps/dashboard/Home.py",
+      "apps/dashboard/pages/2_Live_Fleet_Map.py"
+    ],
+    "apps.dashboard.api_client.vehicle_latest": [
+      "apps/dashboard/pages/4_Vehicle_Detail.py"
+    ],
+    "apps.dashboard.api_client.vehicle_history": [
+      "apps/dashboard/pages/4_Vehicle_Detail.py"
+    ],
+    "apps.dashboard.api_client.routes_index": [
+      "apps/dashboard/pages/2_Live_Fleet_Map.py",
+      "apps/dashboard/pages/3_Route_Explorer.py",
+      "apps/dashboard/pages/5_Replay.py"
+    ],
+    "apps.dashboard.api_client.route_vehicles_latest": [
+      "apps/dashboard/pages/3_Route_Explorer.py"
+    ],
+    "apps.dashboard.api_client.route_metrics": [
+      "apps/dashboard/pages/3_Route_Explorer.py"
+    ],
+    "apps.dashboard.api_client.trajectory_service_dates": [
+      "apps/dashboard/pages/6_Trajectories.py"
+    ],
+    "apps.dashboard.api_client.trajectory_routes": [
+      "apps/dashboard/pages/6_Trajectories.py"
+    ],
+    "apps.dashboard.api_client.trajectory_trips": [
+      "apps/dashboard/pages/6_Trajectories.py"
+    ],
+    "apps.dashboard.api_client.trajectory_detail": [
+      "apps/dashboard/pages/6_Trajectories.py"
+    ],
+    "apps.dashboard.api_client.replay_vehicles": [
+      "apps/dashboard/pages/5_Replay.py"
+    ],
+    "core.config.Settings": [],
+    "core.config.get_settings": [
+      "apps/collector/feed_specs.py",
+      "apps/collector/fetcher.py",
+      "apps/collector/main.py",
+      "apps/analytics/gtfs_static.py",
+      "apps/analytics/main.py",
+      "apps/analytics/worker.py",
+      "apps/api/main.py",
+      "apps/api/routers/replay.py",
+      "apps/api/routers/routes.py",
+      "apps/api/routers/vehicles.py",
+      "core/logging.py",
+      "db/migrations/env.py",
+      "db/session.py",
+      "scripts/capture_sample.py"
+    ],
+    "core.logging.JsonFormatter": [],
+    "core.logging.configure_logging": [
+      "apps/collector/main.py",
+      "apps/analytics/main.py",
+      "apps/analytics/worker.py",
+      "apps/api/main.py",
+      "scripts/capture_sample.py",
+      "scripts/db_reset.py",
+      "scripts/run_migrations.py"
+    ],
+    "core.logging.get_logger": [
+      "apps/collector/fetcher.py",
+      "apps/collector/main.py",
+      "apps/collector/runner.py",
+      "apps/analytics/main.py",
+      "apps/analytics/runner.py",
+      "apps/analytics/worker.py",
+      "apps/api/main.py",
+      "scripts/capture_sample.py",
+      "scripts/db_reset.py",
+      "scripts/run_migrations.py"
+    ],
+    "core.time.utc_now": [
+      "apps/api/routers/health.py"
+    ],
+    "core.time.epoch_to_utc": [
+      "apps/collector/normalize_vehicles.py"
+    ],
+    "core.time.to_toronto": [],
+    "db.base.Base": [
+      "apps/collector/feed_specs.py",
+      "db/migrations/env.py",
+      "db/models/feed_fetch_log.py",
+      "db/models/raw_snapshot.py",
+      "db/models/trip_trajectory.py",
+      "db/models/vehicle_position.py"
+    ],
+    "db.base.register_all_models": [
+      "db/migrations/env.py"
+    ],
+    "db.migrations.env.run_migrations_offline": [],
+    "db.migrations.env.run_migrations_online": [],
+    "db.models.feed_fetch_log.FeedFetchLog": [
+      "apps/collector/runner.py",
+      "db/models/__init__.py",
+      "db/queries/feed_stats.py"
+    ],
+    "db.models.raw_snapshot.RawGtfsrtSnapshot": [
+      "apps/collector/runner.py",
+      "db/models/__init__.py",
+      "db/queries/replay.py"
+    ],
+    "db.models.trip_trajectory.AnalyticsRun": [
+      "apps/analytics/runner.py",
+      "db/models/__init__.py"
+    ],
+    "db.models.trip_trajectory.TripTrajectory": [
+      "apps/analytics/runner.py",
+      "db/models/__init__.py",
+      "db/queries/iroam.py",
+      "db/queries/trajectories.py"
+    ],
+    "db.models.vehicle_position.VehiclePosition": [
+      "apps/collector/normalize_vehicles.py",
+      "apps/analytics/pipeline.py",
+      "apps/analytics/trajectory_extract.py",
+      "db/models/__init__.py",
+      "db/queries/vehicles.py"
+    ],
+    "db.queries.feed_stats.FeedStatus": [],
+    "db.queries.feed_stats.feed_status": [
+      "apps/api/routers/feed_status.py"
+    ],
+    "db.queries.feed_stats.recent_fetches": [
+      "apps/api/routers/feed_status.py"
+    ],
+    "db.queries.iroam.RouteDateDir": [],
+    "db.queries.iroam.list_route_catalog": [
+      "apps/api/routers/iroam.py"
+    ],
+    "db.queries.iroam.fetch_trajectories_for_slice": [
+      "apps/api/routers/iroam.py"
+    ],
+    "db.queries.replay.snapshots_in_window": [],
+    "db.queries.trajectories.TripInstanceSummary": [],
+    "db.queries.trajectories.list_service_dates": [
+      "apps/api/routers/trajectories.py"
+    ],
+    "db.queries.trajectories.list_trip_instances": [
+      "apps/api/routers/trajectories.py"
+    ],
+    "db.queries.trajectories.fetch_trip_trajectory": [
+      "apps/api/routers/trajectories.py"
+    ],
+    "db.queries.trajectories.list_active_routes_on_date": [
+      "apps/api/routers/trajectories.py"
+    ],
+    "db.queries.vehicles.latest_vehicle_positions": [
+      "apps/api/routers/routes.py",
+      "apps/api/routers/vehicles.py"
+    ],
+    "db.queries.vehicles.latest_vehicle_position": [
+      "apps/api/routers/vehicles.py"
+    ],
+    "db.queries.vehicles.vehicle_history": [
+      "apps/api/routers/vehicles.py"
+    ],
+    "db.queries.vehicles.fetch_by_trip_instance": [
+      "apps/analytics/pipeline.py"
+    ],
+    "db.queries.vehicles.active_route_ids": [
+      "apps/api/routers/routes.py"
+    ],
+    "db.queries.vehicles.RouteMetrics": [],
+    "db.queries.vehicles.route_metrics": [
+      "apps/api/routers/routes.py"
+    ],
+    "db.queries.vehicles.replay_vehicles": [
+      "apps/api/routers/replay.py"
+    ],
+    "db.session.get_engine": [],
+    "db.session.get_session_factory": [],
+    "db.session.session_scope": [],
+    "db.session.SessionLocal": [
+      "apps/collector/main.py",
+      "apps/analytics/main.py",
+      "apps/analytics/worker.py",
+      "apps/api/deps.py",
+      "scripts/db_reset.py"
+    ],
+    "scripts.capture_sample.main": [],
+    "scripts.db_reset.main": [],
+    "scripts.run_migrations.upgrade_head": [],
+    "deployment.bunching_lightgbm.examples.integration_snippet.record_tick": [],
+    "deployment.bunching_lightgbm.examples.integration_snippet.predict_for": [],
+    "deployment.bunching_lightgbm.examples.integration_snippet.live_loop_example": [],
+    "deployment.bunching_lightgbm.examples.integration_snippet.fetch_avl_snapshot": [],
+    "deployment.bunching_lightgbm.examples.integration_snippet.publish_alert": [],
+    "deployment.bunching_lightgbm.examples.run_example.main": [],
+    "deployment.bunching_lightgbm.src.predict.BunchingPredictor": [],
+    "deployment.bunching_lightgbm.src.preprocess.load_scaler": [],
+    "deployment.bunching_lightgbm.src.preprocess.scale_window": [],
+    "deployment.bunching_lightgbm.src.preprocess.unscale_gap": [],
+    "deployment.bunching_lightgbm.src.schema.SchemaError": [],
+    "deployment.bunching_lightgbm.src.schema.validate_window": [],
+    "deployment.bunching_lightgbm.tests.test_end_to_end.main": [],
+    "deployment.bunching_lightgbm.train.main": [],
+    "data_process.arch_legacy.agent_schedule_check.return_agent_schedule_for_route_at_date": [],
+    "data_process.arch_legacy.agent_schedule_check.read_agent_schedule": [],
+    "data_process.arch_legacy.agent_schedule_check.main": [],
+    "data_process.arch_legacy.clean_and_combine.parse_distance_to_meters": [],
+    "data_process.arch_legacy.clean_and_combine.convert_time_offset_to_seconds": [],
+    "data_process.arch_legacy.clean_and_combine.upsample_df": [],
+    "data_process.arch_legacy.clean_and_combine.reorder_columns": [],
+    "data_process.arch_legacy.clean_and_combine.last_step_clean_up": [],
+    "data_process.arch_legacy.clean_and_combine.clean_and_transform_direction": [],
+    "data_process.arch_legacy.clean_and_combine.filter_with_time_limit": [],
+    "data_process.arch_legacy.clean_and_combine.clean_and_transform": [],
+    "data_process.arch_legacy.clean_and_combine.process_folder": [],
+    "data_process.arch_legacy.data_processing_pipe.reformat_time_column": [],
+    "data_process.arch_legacy.data_processing_pipe.read_trip_csv": [],
+    "data_process.arch_legacy.data_processing_pipe.write_results": [],
+    "data_process.arch_legacy.data_processing_pipe.nearest_point_on_shape": [],
+    "data_process.arch_legacy.data_processing_pipe.distance_along_shape": [],
+    "data_process.arch_legacy.data_processing_pipe.process_folder": [],
+    "data_process.arch_legacy.location_to_shape_projection.nearest_point_on_shape": [],
+    "data_process.arch_legacy.travel_distance_calculation.distance_along_shape": [],
+    "data_process.arch_legacy.trip_filtering.load_trip_csv": [],
+    "data_process.arch_legacy.trip_filtering.save_filtered_trip": [],
+    "data_process.arch_legacy.trip_filtering.plot_trip": [],
+    "data_process.arch_legacy.trip_filtering.process_folder": []
+  },
+  "migrations": [
+    "0001_initial_schema.py",
+    "0002_pivot_to_vehicle_positions.py",
+    "0003_trip_trajectories.py",
+    "0004_trip_trajectory_unique.py"
+  ]
+}

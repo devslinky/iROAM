@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>apps/analytics — iROAM docs</title>
+<link rel="stylesheet" href="../assets/styles.css" />
+<link rel="stylesheet" href="../assets/highlight-github.css" />
+</head>
+<body>
+<button class="nav-toggle" aria-label="Toggle navigation">☰</button>
+<aside class="sidebar">
+  <div class="sidebar-header">
+    <a class="brand" href="../index.html">iROAM <span>docs</span></a>
+  </div>
+  <div class="search-box">
+    <input id="search-input" type="search" placeholder="Search docs…" autocomplete="off" />
+    <div id="search-results" class="search-results" hidden></div>
+  </div>
+  <nav class="nav"><div class="nav-section"><h4>Start here</h4><ul>
+<li><a href="../index.html">Overview</a></li>
+<li><a href="../architecture.html">Architecture</a></li>
+<li><a href="../data-model.html">Data model</a></li>
+<li><a href="../database-dataflow.html">Database dataflow</a></li>
+<li><a href="../frontend.html">Frontend</a></li>
+<li><a href="../operations.html">Operations</a></li>
+<li><a href="../examples.html">Examples</a></li>
+</ul></div>
+<div class="nav-section"><h4>Reference</h4><ul>
+<li><a href="../api.html">API reference</a></li>
+</ul></div>
+<div class="nav-section"><h4>Modules</h4><ul>
+<li><a href="../modules/apps-collector.html">Collector</a></li>
+<li class="active"><a href="../modules/apps-analytics.html">Analytics</a></li>
+<li><a href="../modules/apps-api.html">API</a></li>
+<li><a href="../modules/apps-dashboard.html">Dashboard</a></li>
+<li><a href="../modules/core.html">Core</a></li>
+<li><a href="../modules/db.html">Database</a></li>
+<li><a href="../modules/scripts.html">Scripts</a></li>
+<li><a href="../modules/deployment-bunching.html">Bunching predictor</a></li>
+<li><a href="../modules/legacy.html">Legacy</a></li>
+</ul></div></nav>
+  <div class="sidebar-footer">Built 2026-04-24<br/>89 files · 178 symbols</div>
+</aside>
+<main class="content">
+  <div class="breadcrumb"><a href="../index.html">Overview</a> / <a href="../api.html">Modules</a> / apps/analytics</div>
+  <article><h1>apps/analytics</h1>
+<p class="lead">GTFS-aware trajectory reconstruction and anomaly inputs.</p>
+<dl class="package-meta"><dt>Entry points</dt><dd><ul><li><code>python -m apps.analytics.main --date YYYY-MM-DD [--route R] [--export-csv DIR]</code></li><li><code>python -m apps.analytics.worker</code></li></ul></dd><dt>Owns tables</dt><dd><code>analytics_runs</code>, <code>trip_trajectories</code></dd><dt>Files</dt><dd>13</dd><dt>Public symbols</dt><dd>31</dd></dl>
+<h2 id="files">Files</h2>
+<ul class="file-index">
+<li><a href="#apps-analytics-init-py"><code>apps/analytics/__init__.py</code></a> — Analytics pipeline: vehicle_positions + static GTFS -&gt; trip_trajectories.</li>
+<li><a href="#apps-analytics-anomalies-py"><code>apps/analytics/anomalies.py</code></a> — Anomaly detection over upsampled trip trajectories.</li>
+<li><a href="#apps-analytics-csv-export-py"><code>apps/analytics/csv_export.py</code></a> — Optional CSV export of trajectory frames, grouped by (route_id, service_date, direction_id).</li>
+<li><a href="#apps-analytics-gtfs-static-py"><code>apps/analytics/gtfs_static.py</code></a> — Lazy cached loader for the GTFS static bundle under ``Complete GTFS/``.</li>
+<li><a href="#apps-analytics-main-py"><code>apps/analytics/main.py</code></a> — Analytics CLI.</li>
+<li><a href="#apps-analytics-pipeline-py"><code>apps/analytics/pipeline.py</code></a> — Per-trip-instance orchestration.</li>
+<li><a href="#apps-analytics-project-to-shape-py"><code>apps/analytics/project_to_shape.py</code></a> — Project GPS points onto a route shape to get ``travel_distance_m``.</li>
+<li><a href="#apps-analytics-runner-py"><code>apps/analytics/runner.py</code></a> — Analytics runner — transaction owner and ``analytics_runs`` lifecycle.</li>
+<li><a href="#apps-analytics-shapes-py"><code>apps/analytics/shapes.py</code></a> — Build ``dict[shape_id, shapely.LineString]`` (EPSG:3857) from ``shapes.txt``.</li>
+<li><a href="#apps-analytics-stop-projection-py"><code>apps/analytics/stop_projection.py</code></a> — Project GTFS stops onto the route shape → ordered stop list with distance-along-shape.</li>
+<li><a href="#apps-analytics-trajectory-extract-py"><code>apps/analytics/trajectory_extract.py</code></a> — Turn a list of ``VehiclePosition`` rows into an analysis-ready DataFrame.</li>
+<li><a href="#apps-analytics-upsample-py"><code>apps/analytics/upsample.py</code></a> — Upsample the trip trajectory to a fixed temporal resolution.</li>
+<li><a href="#apps-analytics-worker-py"><code>apps/analytics/worker.py</code></a> — Long-running analytics worker.</li>
+</ul>
+<section class="file" id="apps-analytics-init-py">
+<h3 class="file-heading"><a class="anchor" href="#apps-analytics-init-py" aria-hidden="true">#</a><code>apps/analytics/__init__.py</code></h3>
+<p class="file-summary">Analytics pipeline: vehicle_positions + static GTFS -&gt; trip_trajectories.</p>
+<p class="file-no-symbols">No public symbols.</p>
+</section>
+<section class="file" id="apps-analytics-anomalies-py">
+<h3 class="file-heading"><a class="anchor" href="#apps-analytics-anomalies-py" aria-hidden="true">#</a><code>apps/analytics/anomalies.py</code></h3>
+<p class="file-summary">Anomaly detection over upsampled trip trajectories.</p>
+<div class="file-doc"><p>Anomaly detection over upsampled trip trajectories.</p>
+<p>Produces the three event types the iROAM dashboard renders:</p>
+<p><em> <code>idle</code>  — bus stationary for ≥ <code>idle_min_threshold</code> minutes </em> <code>bunch</code> — two consecutive trip instances pass the same point within ≤ <code>bunch_seconds_threshold</code> of each other (<code>method=&quot;time&quot;</code>), <strong>or</strong> along-route separation &lt; <code>bunch_distance_threshold_m</code> for a contiguous stretch (<code>method=&quot;distance&quot;</code>). * <code>crowd</code> — a point&#x27;s GTFS-RT OccupancyStatus maps to ≥ <code>crowd_pct_threshold</code></p>
+<p>Input is a list of <code>BusTrajectory</code> rows (one per trip instance) with their time/distance samples. Output is a flat list of <code>AnomalyEvent</code> rows keyed by <code>bus_index</code> so the caller can merge them back per-bus.</p>
+<p>All functions here are pure — no DB calls, no I/O — so they&#x27;re trivial to unit-test and cheap to re-run on every threshold change.</p></div>
+<div class="symbol-list"><strong>Public:</strong> <a href="#apps-analytics-anomalies-py-trajectorypoint"><code>TrajectoryPoint</code></a>, <a href="#apps-analytics-anomalies-py-bustrajectory"><code>BusTrajectory</code></a>, <a href="#apps-analytics-anomalies-py-anomalyevent"><code>AnomalyEvent</code></a>, <a href="#apps-analytics-anomalies-py-detect-idle-events"><code>detect_idle_events</code></a>, <a href="#apps-analytics-anomalies-py-detect-crowd-events"><code>detect_crowd_events</code></a>, <a href="#apps-analytics-anomalies-py-detect-bunch-events"><code>detect_bunch_events</code></a>, <a href="#apps-analytics-anomalies-py-detect-bunch-events-distance"><code>detect_bunch_events_distance</code></a>, <a href="#apps-analytics-anomalies-py-detect-all"><code>detect_all</code></a></div>
+<div class="symbol symbol-class" id="apps-analytics-anomalies-py-trajectorypoint">
+<div class="symbol-head">
+<span class="symbol-kind">class</span>
+<a class="symbol-name" href="#apps-analytics-anomalies-py-trajectorypoint">TrajectoryPoint</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">@dataclass(frozen=True)
+class TrajectoryPoint</code></pre>
+</div>
+<div class="symbol symbol-class" id="apps-analytics-anomalies-py-bustrajectory">
+<div class="symbol-head">
+<span class="symbol-kind">class</span>
+<a class="symbol-name" href="#apps-analytics-anomalies-py-bustrajectory">BusTrajectory</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">@dataclass(frozen=True)
+class BusTrajectory</code></pre>
+</div>
+<div class="symbol symbol-class" id="apps-analytics-anomalies-py-anomalyevent">
+<div class="symbol-head">
+<span class="symbol-kind">class</span>
+<a class="symbol-name" href="#apps-analytics-anomalies-py-anomalyevent">AnomalyEvent</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">@dataclass(frozen=True)
+class AnomalyEvent</code></pre>
+</div>
+<div class="symbol symbol-function" id="apps-analytics-anomalies-py-detect-idle-events">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-analytics-anomalies-py-detect-idle-events">detect_idle_events</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def detect_idle_events(bus: BusTrajectory, *, idle_min_threshold: float) -&gt; list[AnomalyEvent]</code></pre>
+<div class="symbol-doc"><p>Emit one event per contiguous stationary run ≥ <code>idle_min_threshold</code> minutes.</p></div>
+</div>
+<div class="symbol symbol-function" id="apps-analytics-anomalies-py-detect-crowd-events">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-analytics-anomalies-py-detect-crowd-events">detect_crowd_events</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def detect_crowd_events(bus: BusTrajectory, *, crowd_pct_threshold: float) -&gt; list[AnomalyEvent]</code></pre>
+<div class="symbol-doc"><p>Emit one event per contiguous run where occupancy%≥threshold.</p></div>
+</div>
+<div class="symbol symbol-function" id="apps-analytics-anomalies-py-detect-bunch-events">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-analytics-anomalies-py-detect-bunch-events">detect_bunch_events</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def detect_bunch_events(buses: list[BusTrajectory], *, bunch_seconds_threshold: float) -&gt; list[AnomalyEvent]</code></pre>
+<div class="symbol-doc"><p>Flag trip pairs whose passage through the same ~stop is closer than threshold.</p>
+<p>Strategy: for every integer stop index, compute the time each bus passes it (by linear interpolation of <code>(datetime, stop_index)</code> samples). Sort by time; any pair with Δt &lt; threshold → emit an event on the trailing bus at the crossing time/stop.</p></div>
+</div>
+<div class="symbol symbol-function" id="apps-analytics-anomalies-py-detect-bunch-events-distance">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-analytics-anomalies-py-detect-bunch-events-distance">detect_bunch_events_distance</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def detect_bunch_events_distance(buses: list[BusTrajectory], *, bunch_distance_threshold_m: float, grid_seconds: float = 30.0) -&gt; list[AnomalyEvent]</code></pre>
+<div class="symbol-doc"><p>Flag pairs of buses whose along-route separation stays &lt; threshold.</p>
+<p>Strategy: sweep a uniform time grid (default 30 s, matches GTFS-RT cadence). At each tick, for every bus active at that tick, linearly interpolate <code>travel_distance_m</code> and <code>stop_index</code>. Sort active buses by distance and check each consecutive (follower, leader) pair — their along-route gap is <code>leader.dist - follower.dist</code>. When the same ordered pair stays inside the threshold across consecutive ticks we treat it as one contiguous run; on run-end we emit a single event tagged on the follower at the run&#x27;s time/stop midpoint.</p>
+<p>Tagging the <em>follower</em> (trailing bus, lower <code>travel_distance_m</code>) matches the time-based detector, which tags the later-arriving bus at the stop.</p></div>
+</div>
+<div class="symbol symbol-function" id="apps-analytics-anomalies-py-detect-all">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-analytics-anomalies-py-detect-all">detect_all</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def detect_all(buses: list[BusTrajectory], *, bunch_seconds_threshold: float, idle_min_threshold: float, crowd_pct_threshold: float, bunch_distance_threshold_m: float = 150.0, bunch_method: BunchMethodSelector = &#x27;time&#x27;) -&gt; list[AnomalyEvent]</code></pre>
+<div class="symbol-doc"><p>Run all detectors and return the flat event list.</p>
+<p><code>bunch_method</code> controls which bunching detector(s) fire: <em> <code>&quot;time&quot;</code>     — only the stop-crossing time-gap detector (default; preserves pre-distance-detector behaviour). </em> <code>&quot;distance&quot;</code> — only the along-route separation detector. * <code>&quot;both&quot;</code>     — both detectors run; events are tagged with <code>method</code> so callers can tell them apart.</p></div>
+</div>
+<div class="used-by"><strong>Used by</strong><ul><li><code>apps/api/routers/iroam.py</code></li><li><code>apps/api/services/forecast.py</code></li><li><code>apps/api/services/forecast_features.py</code></li></ul></div>
+</section>
+<section class="file" id="apps-analytics-csv-export-py">
+<h3 class="file-heading"><a class="anchor" href="#apps-analytics-csv-export-py" aria-hidden="true">#</a><code>apps/analytics/csv_export.py</code></h3>
+<p class="file-summary">Optional CSV export of trajectory frames, grouped by (route_id, service_date, direction_id).</p>
+<div class="symbol-list"><strong>Public:</strong> <a href="#apps-analytics-csv-export-py-write-day-csvs"><code>write_day_csvs</code></a></div>
+<div class="symbol symbol-function" id="apps-analytics-csv-export-py-write-day-csvs">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-analytics-csv-export-py-write-day-csvs">write_day_csvs</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def write_day_csvs(out_dir: Path, frames_by_key: dict[tuple[str, str, int], list[pd.DataFrame]]) -&gt; list[Path]</code></pre>
+<div class="symbol-doc"><p>Write one CSV per <code>(route_id, service_date, direction_id)</code> bucket.</p>
+<p>Filenames follow the legacy pipeline&#x27;s shape: <code>{route}_{service_date}_dir{N}.csv</code>. Returns the list of written paths.</p></div>
+</div>
+</section>
+<section class="file" id="apps-analytics-gtfs-static-py">
+<h3 class="file-heading"><a class="anchor" href="#apps-analytics-gtfs-static-py" aria-hidden="true">#</a><code>apps/analytics/gtfs_static.py</code></h3>
+<p class="file-summary">Lazy cached loader for the GTFS static bundle under ``Complete GTFS/``.</p>
+<div class="file-doc"><p>Lazy cached loader for the GTFS static bundle under <code>Complete GTFS/</code>.</p>
+<p>The four tables the pipeline actually uses are <code>trips</code>, <code>stops</code>, <code>stop_times</code>, and <code>shapes</code>. <code>routes</code> is loaded for completeness.</p>
+<p>The load is cached by directory mtime so dev iterations on the GTFS bundle are picked up without a process restart, but production reuses a single copy.</p></div>
+<div class="symbol-list"><strong>Public:</strong> <a href="#apps-analytics-gtfs-static-py-gtfsstatic"><code>GtfsStatic</code></a>, <a href="#apps-analytics-gtfs-static-py-load-all"><code>load_all</code></a>, <a href="#apps-analytics-gtfs-static-py-resolve-shape-id"><code>resolve_shape_id</code></a>, <a href="#apps-analytics-gtfs-static-py-resolve-direction-id"><code>resolve_direction_id</code></a></div>
+<div class="symbol symbol-class" id="apps-analytics-gtfs-static-py-gtfsstatic">
+<div class="symbol-head">
+<span class="symbol-kind">class</span>
+<a class="symbol-name" href="#apps-analytics-gtfs-static-py-gtfsstatic">GtfsStatic</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">@dataclass(frozen=True)
+class GtfsStatic</code></pre>
+</div>
+<div class="symbol symbol-function" id="apps-analytics-gtfs-static-py-load-all">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-analytics-gtfs-static-py-load-all">load_all</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def load_all(gtfs_dir: Path | None = None) -&gt; GtfsStatic</code></pre>
+<div class="symbol-doc"><p>Return the cached <code>GtfsStatic</code> bundle.</p></div>
+</div>
+<div class="symbol symbol-function" id="apps-analytics-gtfs-static-py-resolve-shape-id">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-analytics-gtfs-static-py-resolve-shape-id">resolve_shape_id</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def resolve_shape_id(static: GtfsStatic, trip_id: str) -&gt; str | None</code></pre>
+<div class="symbol-doc"><p>Return the <code>shape_id</code> for a given <code>trip_id</code> via <code>trips.txt</code>, or None.</p></div>
+</div>
+<div class="symbol symbol-function" id="apps-analytics-gtfs-static-py-resolve-direction-id">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-analytics-gtfs-static-py-resolve-direction-id">resolve_direction_id</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def resolve_direction_id(static: GtfsStatic, trip_id: str) -&gt; int | None</code></pre>
+<div class="symbol-doc"><p>Return <code>direction_id</code> (0 or 1) for a trip, or None.</p></div>
+</div>
+<div class="used-by"><strong>Used by</strong><ul><li><code>apps/analytics/pipeline.py</code></li><li><code>apps/analytics/runner.py</code></li><li><code>apps/analytics/stop_projection.py</code></li></ul></div>
+</section>
+<section class="file" id="apps-analytics-main-py">
+<h3 class="file-heading"><a class="anchor" href="#apps-analytics-main-py" aria-hidden="true">#</a><code>apps/analytics/main.py</code></h3>
+<p class="file-summary">Analytics CLI.</p>
+<div class="file-doc"><p>Analytics CLI.</p>
+<p>Usage::</p>
+<pre><code>python -m apps.analytics.main --date 2026-04-20
+python -m apps.analytics.main --date 2026-04-20 --route 29
+python -m apps.analytics.main --date 2026-04-20 --export-csv ./out/2026-04-20</code></pre></div>
+<div class="symbol-list"><strong>Public:</strong> <a href="#apps-analytics-main-py-main"><code>main</code></a></div>
+<div class="symbol symbol-function" id="apps-analytics-main-py-main">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-analytics-main-py-main">main</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def main(argv: list[str] | None = None) -&gt; int</code></pre>
+</div>
+</section>
+<section class="file" id="apps-analytics-pipeline-py">
+<h3 class="file-heading"><a class="anchor" href="#apps-analytics-pipeline-py" aria-hidden="true">#</a><code>apps/analytics/pipeline.py</code></h3>
+<p class="file-summary">Per-trip-instance orchestration.</p>
+<div class="file-doc"><p>Per-trip-instance orchestration.</p>
+<p>Pure-ish: reads the DB (via <code>fetch_by_trip_instance</code>) but does not write. The runner owns the transaction + analytics_runs lifecycle.</p></div>
+<div class="symbol-list"><strong>Public:</strong> <a href="#apps-analytics-pipeline-py-list-trip-instances"><code>list_trip_instances</code></a>, <a href="#apps-analytics-pipeline-py-list-changed-trip-instances"><code>list_changed_trip_instances</code></a>, <a href="#apps-analytics-pipeline-py-process-trip-instance"><code>process_trip_instance</code></a></div>
+<div class="symbol symbol-function" id="apps-analytics-pipeline-py-list-trip-instances">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-analytics-pipeline-py-list-trip-instances">list_trip_instances</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def list_trip_instances(session: Session, service_date: date, *, route_id: str | None = None) -&gt; list[tuple[str, str]]</code></pre>
+<div class="symbol-doc"><p>Distinct <code>(trip_id, start_date)</code> pairs active on <code>service_date</code>.</p>
+<p>Prefers TripDescriptor.start_date when present; otherwise synthesizes it from <code>vehicle_timestamp</code> / <code>fetched_at</code> at Toronto local time. This keeps overnight trips (start_time &gt;= 24:00) scoped to their true service day when the feed sets start_date, and still works on TTC&#x27;s feed which doesn&#x27;t.</p></div>
+</div>
+<div class="symbol symbol-function" id="apps-analytics-pipeline-py-list-changed-trip-instances">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-analytics-pipeline-py-list-changed-trip-instances">list_changed_trip_instances</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def list_changed_trip_instances(session: Session, service_date: date, *, since: datetime, route_id: str | None = None) -&gt; list[tuple[str, str]]</code></pre>
+<div class="symbol-doc"><p>Trip instances with at least one VehiclePosition row newer than <code>since</code>.</p>
+<p>Used by the analytics worker for incremental refresh: only trips whose raw observations have grown since the last tick need their trajectory re-derived. Safe for idempotent re-runs because the runner delete-then-inserts per <code>(trip_id, start_date)</code>.</p></div>
+</div>
+<div class="symbol symbol-function" id="apps-analytics-pipeline-py-process-trip-instance">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-analytics-pipeline-py-process-trip-instance">process_trip_instance</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def process_trip_instance(session: Session, static: GtfsStatic, shape_lines: dict, trip_id: str, start_date: str, *, upsample_resolution_s: int = 10, max_orthogonal_distance_m: float = 200.0) -&gt; pd.DataFrame</code></pre>
+<div class="symbol-doc"><p>Full per-trip transform: fetch -&gt; extract -&gt; project -&gt; speed -&gt; upsample.</p>
+<p>Returns the final upsampled DataFrame (empty if the trip has &lt;2 usable points or if its shape can&#x27;t be resolved). Caller converts to ORM rows and commits.</p></div>
+</div>
+</section>
+<section class="file" id="apps-analytics-project-to-shape-py">
+<h3 class="file-heading"><a class="anchor" href="#apps-analytics-project-to-shape-py" aria-hidden="true">#</a><code>apps/analytics/project_to_shape.py</code></h3>
+<p class="file-summary">Project GPS points onto a route shape to get ``travel_distance_m``.</p>
+<div class="file-doc"><p>Project GPS points onto a route shape to get <code>travel_distance_m</code>.</p>
+<p>Pure: input DataFrame + LineString -&gt; DataFrame with two added columns (<code>travel_distance_m</code>, <code>orthogonal_distance_m</code>) and outliers dropped.</p></div>
+<div class="symbol-list"><strong>Public:</strong> <a href="#apps-analytics-project-to-shape-py-project-trajectory"><code>project_trajectory</code></a></div>
+<div class="symbol symbol-function" id="apps-analytics-project-to-shape-py-project-trajectory">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-analytics-project-to-shape-py-project-trajectory">project_trajectory</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def project_trajectory(df: pd.DataFrame, shape_line: LineString, *, max_orthogonal_distance_m: float = 200.0) -&gt; pd.DataFrame</code></pre>
+<div class="symbol-doc"><p>Add <code>travel_distance_m</code> + <code>orthogonal_distance_m</code>; drop far-off points.</p>
+<p>Expects columns <code>latitude</code> and <code>longitude</code> (WGS84).</p></div>
+</div>
+<div class="used-by"><strong>Used by</strong><ul><li><code>apps/analytics/pipeline.py</code></li></ul></div>
+</section>
+<section class="file" id="apps-analytics-runner-py">
+<h3 class="file-heading"><a class="anchor" href="#apps-analytics-runner-py" aria-hidden="true">#</a><code>apps/analytics/runner.py</code></h3>
+<p class="file-summary">Analytics runner — transaction owner and ``analytics_runs`` lifecycle.</p>
+<div class="file-doc"><p>Analytics runner — transaction owner and <code>analytics_runs</code> lifecycle.</p>
+<p>One run = one service date. Commits per trip instance so a mid-day crash preserves all earlier work. The analytics_runs row is created up front with <code>status=&#x27;running&#x27;</code> and finalized at the end.</p></div>
+<div class="symbol-list"><strong>Public:</strong> <a href="#apps-analytics-runner-py-runoutcome"><code>RunOutcome</code></a>, <a href="#apps-analytics-runner-py-run-for-date"><code>run_for_date</code></a></div>
+<div class="symbol symbol-class" id="apps-analytics-runner-py-runoutcome">
+<div class="symbol-head">
+<span class="symbol-kind">class</span>
+<a class="symbol-name" href="#apps-analytics-runner-py-runoutcome">RunOutcome</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">@dataclass
+class RunOutcome</code></pre>
+</div>
+<div class="symbol symbol-function" id="apps-analytics-runner-py-run-for-date">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-analytics-runner-py-run-for-date">run_for_date</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def run_for_date(session: Session, service_date: date, *, route_id: str | None = None, upsample_resolution_s: int = 10, max_orthogonal_distance_m: float = 200.0, export_csv_dir: Path | None = None, only_changed_since: datetime | None = None) -&gt; RunOutcome</code></pre>
+<div class="symbol-doc"><p>Process trip instances whose <code>start_date</code> matches <code>service_date</code>.</p>
+<p>When <code>only_changed_since</code> is set, scopes work to trip instances that have at least one VehiclePosition observation newer than the cutoff — this is the hot path for the analytics worker, which runs every <code>ANALYTICS_WORKER_INTERVAL_SECONDS</code>. In both modes, each trip instance is refreshed atomically: old trajectory rows for <code>(trip_id, start_date)</code> are deleted and fresh ones inserted in the same transaction.</p></div>
+</div>
+<div class="used-by"><strong>Used by</strong><ul><li><code>apps/analytics/main.py</code></li><li><code>apps/analytics/worker.py</code></li></ul></div>
+</section>
+<section class="file" id="apps-analytics-shapes-py">
+<h3 class="file-heading"><a class="anchor" href="#apps-analytics-shapes-py" aria-hidden="true">#</a><code>apps/analytics/shapes.py</code></h3>
+<p class="file-summary">Build ``dict[shape_id, shapely.LineString]`` (EPSG:3857) from ``shapes.txt``.</p>
+<div class="file-doc"><p>Build <code>dict[shape_id, shapely.LineString]</code> (EPSG:3857) from <code>shapes.txt</code>.</p>
+<p>Stored in EPSG:3857 because <code>LineString.project</code> returns CRS-native units; we want meters. Transformation is done once at build time per shape.</p></div>
+<div class="symbol-list"><strong>Public:</strong> <a href="#apps-analytics-shapes-py-build-linestrings"><code>build_linestrings</code></a>, <a href="#apps-analytics-shapes-py-transform-lonlat-to-3857"><code>transform_lonlat_to_3857</code></a></div>
+<div class="symbol symbol-function" id="apps-analytics-shapes-py-build-linestrings">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-analytics-shapes-py-build-linestrings">build_linestrings</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def build_linestrings(shapes_df: pd.DataFrame) -&gt; dict[str, LineString]</code></pre>
+<div class="symbol-doc"><p>One <code>LineString</code> per <code>shape_id</code> in EPSG:3857 (meter units).</p>
+<p>Vertices are ordered by <code>shape_pt_sequence</code>.</p></div>
+</div>
+<div class="symbol symbol-function" id="apps-analytics-shapes-py-transform-lonlat-to-3857">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-analytics-shapes-py-transform-lonlat-to-3857">transform_lonlat_to_3857</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def transform_lonlat_to_3857(lon: float, lat: float) -&gt; tuple[float, float]</code></pre>
+<div class="symbol-doc"><p>Transform a single (lon, lat) point to EPSG:3857 meters.</p></div>
+</div>
+<div class="used-by"><strong>Used by</strong><ul><li><code>apps/analytics/project_to_shape.py</code></li><li><code>apps/analytics/runner.py</code></li><li><code>apps/analytics/stop_projection.py</code></li></ul></div>
+</section>
+<section class="file" id="apps-analytics-stop-projection-py">
+<h3 class="file-heading"><a class="anchor" href="#apps-analytics-stop-projection-py" aria-hidden="true">#</a><code>apps/analytics/stop_projection.py</code></h3>
+<p class="file-summary">Project GTFS stops onto the route shape → ordered stop list with distance-along-shape.</p>
+<div class="file-doc"><p>Project GTFS stops onto the route shape → ordered stop list with distance-along-shape.</p>
+<p>For the iROAM dashboard we need a fractional <code>stop_index</code> for each trajectory point. The cheapest way to compute it is to precompute, per <code>(route_id, direction_id)</code>, the ordered list of stops along the canonical shape plus each stop&#x27;s distance along that shape (in meters). A trajectory point&#x27;s <code>travel_distance_m</code> then binary-searches into that distance array.</p>
+<p>The canonical shape is picked as the most-common <code>shape_id</code> for the (route_id, direction_id) pair; ties broken by the trip with the most stop_times, so we don&#x27;t pick a short-turn variant.</p>
+<p>Cached per (route_id, direction_id); safe because the static bundle is process-local and rarely changes.</p></div>
+<div class="symbol-list"><strong>Public:</strong> <a href="#apps-analytics-stop-projection-py-stoponroute"><code>StopOnRoute</code></a>, <a href="#apps-analytics-stop-projection-py-routestops"><code>RouteStops</code></a>, <a href="#apps-analytics-stop-projection-py-compute-route-stops"><code>compute_route_stops</code></a>, <a href="#apps-analytics-stop-projection-py-distance-to-stop-index"><code>distance_to_stop_index</code></a></div>
+<div class="symbol symbol-class" id="apps-analytics-stop-projection-py-stoponroute">
+<div class="symbol-head">
+<span class="symbol-kind">class</span>
+<a class="symbol-name" href="#apps-analytics-stop-projection-py-stoponroute">StopOnRoute</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">@dataclass(frozen=True)
+class StopOnRoute</code></pre>
+</div>
+<div class="symbol symbol-class" id="apps-analytics-stop-projection-py-routestops">
+<div class="symbol-head">
+<span class="symbol-kind">class</span>
+<a class="symbol-name" href="#apps-analytics-stop-projection-py-routestops">RouteStops</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">@dataclass(frozen=True)
+class RouteStops</code></pre>
+</div>
+<div class="symbol symbol-function" id="apps-analytics-stop-projection-py-compute-route-stops">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-analytics-stop-projection-py-compute-route-stops">compute_route_stops</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def compute_route_stops(route_id: str, direction_id: int) -&gt; RouteStops | None</code></pre>
+<div class="symbol-doc"><p>Return the ordered stops along the canonical shape for this route+direction.</p>
+<p>Returns <code>None</code> if the route+direction has no shape or no stop_times.</p></div>
+</div>
+<div class="symbol symbol-function" id="apps-analytics-stop-projection-py-distance-to-stop-index">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-analytics-stop-projection-py-distance-to-stop-index">distance_to_stop_index</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def distance_to_stop_index(distance_m: float, route_stops: RouteStops) -&gt; float</code></pre>
+<div class="symbol-doc"><p>Map <code>travel_distance_m</code> to a fractional stop index in <code>[0, N-1]</code>.</p></div>
+</div>
+<div class="used-by"><strong>Used by</strong><ul><li><code>apps/api/routers/iroam.py</code></li></ul></div>
+</section>
+<section class="file" id="apps-analytics-trajectory-extract-py">
+<h3 class="file-heading"><a class="anchor" href="#apps-analytics-trajectory-extract-py" aria-hidden="true">#</a><code>apps/analytics/trajectory_extract.py</code></h3>
+<p class="file-summary">Turn a list of ``VehiclePosition`` rows into an analysis-ready DataFrame.</p>
+<div class="file-doc"><p>Turn a list of <code>VehiclePosition</code> rows into an analysis-ready DataFrame.</p>
+<p>Pure: no DB access. The caller passes in the ORM rows (loaded via <code>db.queries.vehicles.fetch_by_trip_instance</code>) and the <code>trips_df</code> from the GTFS static bundle.</p></div>
+<div class="symbol-list"><strong>Public:</strong> <a href="#apps-analytics-trajectory-extract-py-build-trip-trajectory"><code>build_trip_trajectory</code></a></div>
+<div class="symbol symbol-function" id="apps-analytics-trajectory-extract-py-build-trip-trajectory">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-analytics-trajectory-extract-py-build-trip-trajectory">build_trip_trajectory</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def build_trip_trajectory(rows: Iterable[VehiclePosition], trips_df: pd.DataFrame) -&gt; pd.DataFrame</code></pre>
+<div class="symbol-doc"><p>Build the per-trip DataFrame on which projection + upsample operate.</p>
+<p>Columns: <code>datetime</code>, <code>latitude</code>, <code>longitude</code>, <code>vehicle_id</code>, <code>occupancy_status</code>, <code>source_vehicle_position_id</code>, <code>trip_id</code>, <code>start_date</code>, <code>route_id</code>, <code>direction_id</code>, <code>shape_id</code>, <code>trip_start_datetime</code>.</p></div>
+</div>
+<div class="used-by"><strong>Used by</strong><ul><li><code>apps/analytics/pipeline.py</code></li></ul></div>
+</section>
+<section class="file" id="apps-analytics-upsample-py">
+<h3 class="file-heading"><a class="anchor" href="#apps-analytics-upsample-py" aria-hidden="true">#</a><code>apps/analytics/upsample.py</code></h3>
+<p class="file-summary">Upsample the trip trajectory to a fixed temporal resolution.</p>
+<div class="file-doc"><p>Upsample the trip trajectory to a fixed temporal resolution.</p>
+<p><code>upsample_df</code> is carried over verbatim from the legacy <code>data_process/clean_and_combine.py</code> with one addition — each emitted row is tagged <code>observed=False</code> (it is a synthetic boundary point), while source rows that happen to be carried through the nearer-midpoint logic inherit <code>observed=True</code> from the input. The algorithm: for each consecutive pair of real rows, insert one synthetic row at every <code>resolution_seconds</code> boundary between them; distance is interpolated via the next row&#x27;s speed; other columns are copied from whichever of (current, next) is closer in distance.</p></div>
+<div class="symbol-list"><strong>Public:</strong> <a href="#apps-analytics-upsample-py-compute-moving-speed"><code>compute_moving_speed</code></a>, <a href="#apps-analytics-upsample-py-upsample-df"><code>upsample_df</code></a>, <a href="#apps-analytics-upsample-py-last-step-clean-up"><code>last_step_clean_up</code></a></div>
+<div class="symbol symbol-function" id="apps-analytics-upsample-py-compute-moving-speed">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-analytics-upsample-py-compute-moving-speed">compute_moving_speed</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def compute_moving_speed(df: pd.DataFrame) -&gt; pd.DataFrame</code></pre>
+<div class="symbol-doc"><p>Add <code>moving_speed_m_s</code> from distance/time diffs.</p>
+<p>The leading NaN is filled with 0 so upsample can use it on the first gap.</p></div>
+</div>
+<div class="symbol symbol-function" id="apps-analytics-upsample-py-upsample-df">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-analytics-upsample-py-upsample-df">upsample_df</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def upsample_df(df: pd.DataFrame, resolution_seconds: int) -&gt; pd.DataFrame</code></pre>
+<div class="symbol-doc"><p>Insert rows at fixed time boundaries between every consecutive pair.</p>
+<p>Each output row has <code>observed</code> set to False (it is synthesized). Source rows are NOT appended here — the boundary-point logic preserves one row&#x27;s identity at each midpoint, matching the legacy pipeline&#x27;s behavior.</p>
+<p>Requires columns: <code>datetime</code>, <code>travel_distance_m</code>, <code>moving_speed_m_s</code>.</p></div>
+</div>
+<div class="symbol symbol-function" id="apps-analytics-upsample-py-last-step-clean-up">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-analytics-upsample-py-last-step-clean-up">last_step_clean_up</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def last_step_clean_up(df: pd.DataFrame) -&gt; pd.DataFrame</code></pre>
+<div class="symbol-doc"><p>Round numeric fields and reorder columns to the canonical output schema.</p></div>
+</div>
+<div class="used-by"><strong>Used by</strong><ul><li><code>apps/analytics/pipeline.py</code></li></ul></div>
+</section>
+<section class="file" id="apps-analytics-worker-py">
+<h3 class="file-heading"><a class="anchor" href="#apps-analytics-worker-py" aria-hidden="true">#</a><code>apps/analytics/worker.py</code></h3>
+<p class="file-summary">Long-running analytics worker.</p>
+<div class="file-doc"><p>Long-running analytics worker.</p>
+<p>Polls the DB on a fixed interval. Each tick:</p>
+<p>1. Computes <code>today</code> in the configured service-date timezone (<code>ANALYTICS_WORKER_SERVICE_DATE_TZ</code>). 2. Calls <code>run_for_date(today, only_changed_since=last_tick_started_at)</code> so only trip instances that gained new VehiclePosition observations since the previous tick are reprocessed. On the very first tick the cutoff is <code>(now - 2 * interval)</code> so we catch trips that were active just before the worker booted. 3. Sleeps until the next interval boundary, cooperatively honoring SIGINT/SIGTERM so <code>docker compose stop</code> is quick and clean.</p>
+<p>The runner itself is idempotent (delete-then-insert per trip instance, schema-level unique index as safety net), so overlapping with a manual <code>python -m apps.analytics.main</code> run is safe: the last writer wins per trip instance, no duplicates.</p></div>
+<div class="symbol-list"><strong>Public:</strong> <a href="#apps-analytics-worker-py-main"><code>main</code></a></div>
+<div class="symbol symbol-function" id="apps-analytics-worker-py-main">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-analytics-worker-py-main">main</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def main() -&gt; int</code></pre>
+</div>
+</section></article>
+  <div class="content-toc"><h4>On this page</h4><ul><li class="toc-h2"><a href="#files">Files</a></li><li class="toc-h3 sub"><a href="#apps-analytics-init-py">apps/analytics/__init__.py</a></li><li class="toc-h3 sub"><a href="#apps-analytics-anomalies-py">apps/analytics/anomalies.py</a></li><li class="toc-h3 sub"><a href="#apps-analytics-csv-export-py">apps/analytics/csv_export.py</a></li><li class="toc-h3 sub"><a href="#apps-analytics-gtfs-static-py">apps/analytics/gtfs_static.py</a></li><li class="toc-h3 sub"><a href="#apps-analytics-main-py">apps/analytics/main.py</a></li><li class="toc-h3 sub"><a href="#apps-analytics-pipeline-py">apps/analytics/pipeline.py</a></li><li class="toc-h3 sub"><a href="#apps-analytics-project-to-shape-py">apps/analytics/project_to_shape.py</a></li><li class="toc-h3 sub"><a href="#apps-analytics-runner-py">apps/analytics/runner.py</a></li><li class="toc-h3 sub"><a href="#apps-analytics-shapes-py">apps/analytics/shapes.py</a></li><li class="toc-h3 sub"><a href="#apps-analytics-stop-projection-py">apps/analytics/stop_projection.py</a></li><li class="toc-h3 sub"><a href="#apps-analytics-trajectory-extract-py">apps/analytics/trajectory_extract.py</a></li><li class="toc-h3 sub"><a href="#apps-analytics-upsample-py">apps/analytics/upsample.py</a></li><li class="toc-h3 sub"><a href="#apps-analytics-worker-py">apps/analytics/worker.py</a></li></ul></div>
+</main>
+<script src="../assets/lunr.min.js"></script>
+<script src="../assets/highlight.min.js"></script>
+<script>hljs.highlightAll();</script>
+<script src="../assets/mermaid.min.js"></script>
+<script>mermaid.initialize({startOnLoad:true, theme:'neutral', securityLevel:'loose', flowchart:{curve:'basis'}});</script>
+<script>window.SEARCH_INDEX_URL = "../search-index.json";</script>
+<script src="../assets/app.js"></script>
+</body>
+</html>

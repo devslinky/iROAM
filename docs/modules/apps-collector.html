@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>apps/collector — iROAM docs</title>
+<link rel="stylesheet" href="../assets/styles.css" />
+<link rel="stylesheet" href="../assets/highlight-github.css" />
+</head>
+<body>
+<button class="nav-toggle" aria-label="Toggle navigation">☰</button>
+<aside class="sidebar">
+  <div class="sidebar-header">
+    <a class="brand" href="../index.html">iROAM <span>docs</span></a>
+  </div>
+  <div class="search-box">
+    <input id="search-input" type="search" placeholder="Search docs…" autocomplete="off" />
+    <div id="search-results" class="search-results" hidden></div>
+  </div>
+  <nav class="nav"><div class="nav-section"><h4>Start here</h4><ul>
+<li><a href="../index.html">Overview</a></li>
+<li><a href="../architecture.html">Architecture</a></li>
+<li><a href="../data-model.html">Data model</a></li>
+<li><a href="../database-dataflow.html">Database dataflow</a></li>
+<li><a href="../frontend.html">Frontend</a></li>
+<li><a href="../operations.html">Operations</a></li>
+<li><a href="../examples.html">Examples</a></li>
+</ul></div>
+<div class="nav-section"><h4>Reference</h4><ul>
+<li><a href="../api.html">API reference</a></li>
+</ul></div>
+<div class="nav-section"><h4>Modules</h4><ul>
+<li class="active"><a href="../modules/apps-collector.html">Collector</a></li>
+<li><a href="../modules/apps-analytics.html">Analytics</a></li>
+<li><a href="../modules/apps-api.html">API</a></li>
+<li><a href="../modules/apps-dashboard.html">Dashboard</a></li>
+<li><a href="../modules/core.html">Core</a></li>
+<li><a href="../modules/db.html">Database</a></li>
+<li><a href="../modules/scripts.html">Scripts</a></li>
+<li><a href="../modules/deployment-bunching.html">Bunching predictor</a></li>
+<li><a href="../modules/legacy.html">Legacy</a></li>
+</ul></div></nav>
+  <div class="sidebar-footer">Built 2026-04-24<br/>89 files · 178 symbols</div>
+</aside>
+<main class="content">
+  <div class="breadcrumb"><a href="../index.html">Overview</a> / <a href="../api.html">Modules</a> / apps/collector</div>
+  <article><h1>apps/collector</h1>
+<p class="lead">GTFS-Realtime acquisition: fetch, parse, normalize, persist.</p>
+<dl class="package-meta"><dt>Entry points</dt><dd><ul><li><code>python -m apps.collector.main --once</code></li><li><code>python -m apps.collector.main --loop</code></li></ul></dd><dt>Owns tables</dt><dd><code>feed_fetch_logs</code>, <code>raw_gtfsrt_snapshots</code>, <code>vehicle_positions</code></dd><dt>Files</dt><dd>7</dd><dt>Public symbols</dt><dd>14</dd></dl>
+<h2 id="files">Files</h2>
+<ul class="file-index">
+<li><a href="#apps-collector-init-py"><code>apps/collector/__init__.py</code></a> — —</li>
+<li><a href="#apps-collector-feed-specs-py"><code>apps/collector/feed_specs.py</code></a> — Feed registry.</li>
+<li><a href="#apps-collector-fetcher-py"><code>apps/collector/fetcher.py</code></a> — HTTP fetcher for GTFS-RT endpoints.</li>
+<li><a href="#apps-collector-main-py"><code>apps/collector/main.py</code></a> — Collector CLI.</li>
+<li><a href="#apps-collector-normalize-vehicles-py"><code>apps/collector/normalize_vehicles.py</code></a> — Pure translation from a parsed ``FeedMessage`` to ``VehiclePosition`` rows.</li>
+<li><a href="#apps-collector-parser-py"><code>apps/collector/parser.py</code></a> — Parse raw protobuf bytes into a ``FeedMessage``.</li>
+<li><a href="#apps-collector-runner-py"><code>apps/collector/runner.py</code></a> — One fetch→persist cycle.</li>
+</ul>
+<section class="file" id="apps-collector-init-py">
+<h3 class="file-heading"><a class="anchor" href="#apps-collector-init-py" aria-hidden="true">#</a><code>apps/collector/__init__.py</code></h3>
+<p class="file-no-symbols">No public symbols.</p>
+</section>
+<section class="file" id="apps-collector-feed-specs-py">
+<h3 class="file-heading"><a class="anchor" href="#apps-collector-feed-specs-py" aria-hidden="true">#</a><code>apps/collector/feed_specs.py</code></h3>
+<p class="file-summary">Feed registry.</p>
+<div class="file-doc"><p>Feed registry.</p>
+<p>One <code>FeedSpec</code> per GTFS-RT feed the collector knows how to ingest. Adding a new feed (e.g. trip-updates, alerts) is: write a normalizer, register a spec here. The runner is feed-agnostic.</p></div>
+<div class="symbol-list"><strong>Public:</strong> <a href="#apps-collector-feed-specs-py-feedspec"><code>FeedSpec</code></a>, <a href="#apps-collector-feed-specs-py-build-registry"><code>build_registry</code></a>, <a href="#apps-collector-feed-specs-py-get-spec"><code>get_spec</code></a></div>
+<div class="symbol symbol-class" id="apps-collector-feed-specs-py-feedspec">
+<div class="symbol-head">
+<span class="symbol-kind">class</span>
+<a class="symbol-name" href="#apps-collector-feed-specs-py-feedspec">FeedSpec</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">@dataclass(frozen=True)
+class FeedSpec</code></pre>
+<div class="symbol-doc"><p>Declarative wiring for one feed: how to name it, where to get it, how to normalize it.</p></div>
+</div>
+<div class="symbol symbol-function" id="apps-collector-feed-specs-py-build-registry">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-collector-feed-specs-py-build-registry">build_registry</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def build_registry() -&gt; dict[str, FeedSpec]</code></pre>
+<div class="symbol-doc"><p>Build the spec registry from current settings.</p>
+<p>Re-reading settings on each call keeps tests and env-override flows simple without having to invalidate module-level state.</p></div>
+</div>
+<div class="symbol symbol-function" id="apps-collector-feed-specs-py-get-spec">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-collector-feed-specs-py-get-spec">get_spec</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def get_spec(feed_name: str) -&gt; FeedSpec</code></pre>
+<div class="symbol-doc"><p>Look up a spec or raise <code>KeyError</code> with the known-feed list.</p></div>
+</div>
+<div class="used-by"><strong>Used by</strong><ul><li><code>apps/collector/main.py</code></li><li><code>apps/collector/runner.py</code></li></ul></div>
+</section>
+<section class="file" id="apps-collector-fetcher-py">
+<h3 class="file-heading"><a class="anchor" href="#apps-collector-fetcher-py" aria-hidden="true">#</a><code>apps/collector/fetcher.py</code></h3>
+<p class="file-summary">HTTP fetcher for GTFS-RT endpoints.</p>
+<div class="file-doc"><p>HTTP fetcher for GTFS-RT endpoints.</p>
+<p>Thin wrapper around <code>httpx</code> that encapsulates timeout, retry on transient errors, and User-Agent headers. Returns a <code>FetchResult</code> that carries the raw bytes, timing, and status — enough for the runner to build a <code>FeedFetchLog</code> regardless of success or failure.</p></div>
+<div class="symbol-list"><strong>Public:</strong> <a href="#apps-collector-fetcher-py-fetcherror"><code>FetchError</code></a>, <a href="#apps-collector-fetcher-py-fetchresult"><code>FetchResult</code></a>, <a href="#apps-collector-fetcher-py-fetch-bytes"><code>fetch_bytes</code></a></div>
+<div class="symbol symbol-class" id="apps-collector-fetcher-py-fetcherror">
+<div class="symbol-head">
+<span class="symbol-kind">class</span>
+<a class="symbol-name" href="#apps-collector-fetcher-py-fetcherror">FetchError</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">class FetchError(Exception)</code></pre>
+<div class="symbol-doc"><p>Raised when a fetch ultimately fails after all retries.</p></div>
+<details class="methods"><summary>Methods</summary>
+<div class="method" id="apps-collector-fetcher-py-fetcherror-init">
+<pre><code class="language-python">def __init__(self, message: str, *, error_type: str, http_status: int | None = None)</code></pre>
+</div>
+</details>
+</div>
+<div class="symbol symbol-class" id="apps-collector-fetcher-py-fetchresult">
+<div class="symbol-head">
+<span class="symbol-kind">class</span>
+<a class="symbol-name" href="#apps-collector-fetcher-py-fetchresult">FetchResult</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">@dataclass
+class FetchResult</code></pre>
+</div>
+<div class="symbol symbol-function" id="apps-collector-fetcher-py-fetch-bytes">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-collector-fetcher-py-fetch-bytes">fetch_bytes</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def fetch_bytes(url: str) -&gt; FetchResult</code></pre>
+<div class="symbol-doc"><p>GET <code>url</code> and return the raw body.</p>
+<p>Retries <code>COLLECTOR_HTTP_RETRIES</code> times on connect/timeout errors and on 5xx responses (with linear backoff). 4xx is treated as terminal.</p></div>
+</div>
+<div class="used-by"><strong>Used by</strong><ul><li><code>apps/collector/runner.py</code></li><li><code>scripts/capture_sample.py</code></li></ul></div>
+</section>
+<section class="file" id="apps-collector-main-py">
+<h3 class="file-heading"><a class="anchor" href="#apps-collector-main-py" aria-hidden="true">#</a><code>apps/collector/main.py</code></h3>
+<p class="file-summary">Collector CLI.</p>
+<div class="file-doc"><p>Collector CLI.</p>
+<p>Usage::</p>
+<pre><code>python -m apps.collector.main --once
+python -m apps.collector.main --loop
+python -m apps.collector.main --loop --interval 15
+python -m apps.collector.main --once --feed vehicle-positions   # default</code></pre></div>
+<div class="symbol-list"><strong>Public:</strong> <a href="#apps-collector-main-py-main"><code>main</code></a></div>
+<div class="symbol symbol-function" id="apps-collector-main-py-main">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-collector-main-py-main">main</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def main(argv: list[str] | None = None) -&gt; int</code></pre>
+</div>
+</section>
+<section class="file" id="apps-collector-normalize-vehicles-py">
+<h3 class="file-heading"><a class="anchor" href="#apps-collector-normalize-vehicles-py" aria-hidden="true">#</a><code>apps/collector/normalize_vehicles.py</code></h3>
+<p class="file-summary">Pure translation from a parsed ``FeedMessage`` to ``VehiclePosition`` rows.</p>
+<div class="file-doc"><p>Pure translation from a parsed <code>FeedMessage</code> to <code>VehiclePosition</code> rows.</p>
+<p>No DB access happens here. The runner is responsible for attaching a <code>snapshot_id</code> and committing.</p></div>
+<div class="symbol-list"><strong>Public:</strong> <a href="#apps-collector-normalize-vehicles-py-headerinfo"><code>HeaderInfo</code></a>, <a href="#apps-collector-normalize-vehicles-py-extract-header"><code>extract_header</code></a>, <a href="#apps-collector-normalize-vehicles-py-normalize-vehicle-positions"><code>normalize_vehicle_positions</code></a></div>
+<div class="symbol symbol-class" id="apps-collector-normalize-vehicles-py-headerinfo">
+<div class="symbol-head">
+<span class="symbol-kind">class</span>
+<a class="symbol-name" href="#apps-collector-normalize-vehicles-py-headerinfo">HeaderInfo</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">@dataclass
+class HeaderInfo</code></pre>
+<div class="symbol-doc"><p>Header-level fields extracted from a FeedMessage.</p></div>
+</div>
+<div class="symbol symbol-function" id="apps-collector-normalize-vehicles-py-extract-header">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-collector-normalize-vehicles-py-extract-header">extract_header</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def extract_header(message: gtfs_realtime_pb2.FeedMessage) -&gt; HeaderInfo</code></pre>
+<div class="symbol-doc"><p>Extract header fields for the fetch log and snapshot row.</p></div>
+</div>
+<div class="symbol symbol-function" id="apps-collector-normalize-vehicles-py-normalize-vehicle-positions">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-collector-normalize-vehicles-py-normalize-vehicle-positions">normalize_vehicle_positions</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def normalize_vehicle_positions(message: gtfs_realtime_pb2.FeedMessage, *, fetched_at: datetime, feed_header_timestamp: datetime | None, route_allowlist: Iterable[str] | None = None) -&gt; list[VehiclePosition]</code></pre>
+<div class="symbol-doc"><p>Convert every <code>FeedEntity</code> carrying a <code>vehicle</code> into a row.</p>
+<p>Returns detached <code>VehiclePosition</code> instances; the caller attaches <code>snapshot_id</code> before adding them to the session.</p>
+<p>When <code>route_allowlist</code> is non-empty, entities whose <code>trip.route_id</code> is not in the set are dropped — including entities that have no <code>route_id</code> at all, since they cannot be attributed to an allowed route. Passing <code>None</code> or an empty iterable disables filtering (every vehicle entity is kept, as before).</p></div>
+</div>
+<div class="used-by"><strong>Used by</strong><ul><li><code>apps/collector/feed_specs.py</code></li><li><code>apps/collector/runner.py</code></li></ul></div>
+</section>
+<section class="file" id="apps-collector-parser-py">
+<h3 class="file-heading"><a class="anchor" href="#apps-collector-parser-py" aria-hidden="true">#</a><code>apps/collector/parser.py</code></h3>
+<p class="file-summary">Parse raw protobuf bytes into a ``FeedMessage``.</p>
+<div class="file-doc"><p>Parse raw protobuf bytes into a <code>FeedMessage</code>.</p>
+<p>Kept separate from the fetcher and normalizer so each layer is independently testable against a recorded fixture.</p>
+<p>The TTC endpoint can serve either the binary wire format (<code>?format=binary</code>) or protobuf text format by default. We try binary first and transparently fall back to text if the wire decode fails — this makes the collector robust to either endpoint configuration.</p></div>
+<div class="symbol-list"><strong>Public:</strong> <a href="#apps-collector-parser-py-parseerror"><code>ParseError</code></a>, <a href="#apps-collector-parser-py-parse-feed-message"><code>parse_feed_message</code></a></div>
+<div class="symbol symbol-class" id="apps-collector-parser-py-parseerror">
+<div class="symbol-head">
+<span class="symbol-kind">class</span>
+<a class="symbol-name" href="#apps-collector-parser-py-parseerror">ParseError</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">class ParseError(Exception)</code></pre>
+<div class="symbol-doc"><p>Raised when payload cannot be decoded as a FeedMessage.</p></div>
+</div>
+<div class="symbol symbol-function" id="apps-collector-parser-py-parse-feed-message">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-collector-parser-py-parse-feed-message">parse_feed_message</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def parse_feed_message(payload: bytes) -&gt; gtfs_realtime_pb2.FeedMessage</code></pre>
+<div class="symbol-doc"><p>Decode <code>payload</code> into a <code>FeedMessage</code> (binary first, text fallback).</p>
+<p>Raises <code>ParseError</code> if neither format decodes cleanly. The caller is responsible for recording the failure in <code>feed_fetch_logs</code>.</p></div>
+</div>
+<div class="used-by"><strong>Used by</strong><ul><li><code>apps/collector/runner.py</code></li><li><code>scripts/capture_sample.py</code></li></ul></div>
+</section>
+<section class="file" id="apps-collector-runner-py">
+<h3 class="file-heading"><a class="anchor" href="#apps-collector-runner-py" aria-hidden="true">#</a><code>apps/collector/runner.py</code></h3>
+<p class="file-summary">One fetch→persist cycle.</p>
+<div class="file-doc"><p>One fetch→persist cycle.</p>
+<p>The runner is <strong>feed-agnostic</strong>: it takes a <code>FeedSpec</code> and does:</p>
+<p>1. Fetch bytes (fetcher). 2. On HTTP/timeout failure → write a failure <code>FeedFetchLog</code> row and return. 3. On success → parse bytes. On parse failure → write a failure log row. 4. Success → single transaction: feed_fetch_logs → raw_gtfsrt_snapshots → normalized rows (via spec.normalize).</p>
+<p>Sync SQLAlchemy: polling rate doesn&#x27;t need async, and a sync session makes transaction boundaries explicit.</p></div>
+<div class="symbol-list"><strong>Public:</strong> <a href="#apps-collector-runner-py-runoutcome"><code>RunOutcome</code></a>, <a href="#apps-collector-runner-py-run-once"><code>run_once</code></a></div>
+<div class="symbol symbol-class" id="apps-collector-runner-py-runoutcome">
+<div class="symbol-head">
+<span class="symbol-kind">class</span>
+<a class="symbol-name" href="#apps-collector-runner-py-runoutcome">RunOutcome</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">@dataclass
+class RunOutcome</code></pre>
+</div>
+<div class="symbol symbol-function" id="apps-collector-runner-py-run-once">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-collector-runner-py-run-once">run_once</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def run_once(session: Session, spec: FeedSpec) -&gt; RunOutcome</code></pre>
+<div class="symbol-doc"><p>Execute one fetch+persist cycle for a given feed.</p>
+<p>Commits exactly one transaction on return — success or failure.</p></div>
+</div>
+<div class="used-by"><strong>Used by</strong><ul><li><code>apps/collector/main.py</code></li></ul></div>
+</section></article>
+  <div class="content-toc"><h4>On this page</h4><ul><li class="toc-h2"><a href="#files">Files</a></li><li class="toc-h3 sub"><a href="#apps-collector-init-py">apps/collector/__init__.py</a></li><li class="toc-h3 sub"><a href="#apps-collector-feed-specs-py">apps/collector/feed_specs.py</a></li><li class="toc-h3 sub"><a href="#apps-collector-fetcher-py">apps/collector/fetcher.py</a></li><li class="toc-h3 sub"><a href="#apps-collector-main-py">apps/collector/main.py</a></li><li class="toc-h3 sub"><a href="#apps-collector-normalize-vehicles-py">apps/collector/normalize_vehicles.py</a></li><li class="toc-h3 sub"><a href="#apps-collector-parser-py">apps/collector/parser.py</a></li><li class="toc-h3 sub"><a href="#apps-collector-runner-py">apps/collector/runner.py</a></li></ul></div>
+</main>
+<script src="../assets/lunr.min.js"></script>
+<script src="../assets/highlight.min.js"></script>
+<script>hljs.highlightAll();</script>
+<script src="../assets/mermaid.min.js"></script>
+<script>mermaid.initialize({startOnLoad:true, theme:'neutral', securityLevel:'loose', flowchart:{curve:'basis'}});</script>
+<script>window.SEARCH_INDEX_URL = "../search-index.json";</script>
+<script src="../assets/app.js"></script>
+</body>
+</html>

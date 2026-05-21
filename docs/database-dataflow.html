@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Database dataflow — iROAM docs</title>
+<link rel="stylesheet" href="assets/styles.css" />
+<link rel="stylesheet" href="assets/highlight-github.css" />
+</head>
+<body>
+<button class="nav-toggle" aria-label="Toggle navigation">☰</button>
+<aside class="sidebar">
+  <div class="sidebar-header">
+    <a class="brand" href="index.html">iROAM <span>docs</span></a>
+  </div>
+  <div class="search-box">
+    <input id="search-input" type="search" placeholder="Search docs…" autocomplete="off" />
+    <div id="search-results" class="search-results" hidden></div>
+  </div>
+  <nav class="nav"><div class="nav-section"><h4>Start here</h4><ul>
+<li><a href="index.html">Overview</a></li>
+<li><a href="architecture.html">Architecture</a></li>
+<li><a href="data-model.html">Data model</a></li>
+<li class="active"><a href="database-dataflow.html">Database dataflow</a></li>
+<li><a href="frontend.html">Frontend</a></li>
+<li><a href="operations.html">Operations</a></li>
+<li><a href="examples.html">Examples</a></li>
+</ul></div>
+<div class="nav-section"><h4>Reference</h4><ul>
+<li><a href="api.html">API reference</a></li>
+</ul></div>
+<div class="nav-section"><h4>Modules</h4><ul>
+<li><a href="modules/apps-collector.html">Collector</a></li>
+<li><a href="modules/apps-analytics.html">Analytics</a></li>
+<li><a href="modules/apps-api.html">API</a></li>
+<li><a href="modules/apps-dashboard.html">Dashboard</a></li>
+<li><a href="modules/core.html">Core</a></li>
+<li><a href="modules/db.html">Database</a></li>
+<li><a href="modules/scripts.html">Scripts</a></li>
+<li><a href="modules/deployment-bunching.html">Bunching predictor</a></li>
+<li><a href="modules/legacy.html">Legacy</a></li>
+</ul></div></nav>
+  <div class="sidebar-footer">Built 2026-04-24<br/>89 files · 178 symbols</div>
+</aside>
+<main class="content">
+  <div class="breadcrumb"><a href="index.html">Overview</a> / Database dataflow</div>
+  <article><h1 id="database-dataflow"><a class="anchor" href="#database-dataflow" aria-hidden="true">#</a>Database dataflow</h1>
+<p>Postgres is the <strong>only persistent store</strong> in iROAM. Every piece of state — normalized telemetry, derived trajectories, every fetch attempt — lives in one of five tables. This page traces <em>every</em> read and write: which process owns it, what triggers it, what SQL it runs, which index serves it, and how concurrent writers stay out of each other&#x27;s way.</p>
+<p>For the schema itself see <a href="data-model.html">Data model</a>. For the architecture context see <a href="architecture.html">Architecture</a>.</p>
+<h2 id="tldr-all-paths-in-one-diagram"><a class="anchor" href="#tldr-all-paths-in-one-diagram" aria-hidden="true">#</a>TL;DR — all paths in one diagram</h2>
+<div class="mermaid">flowchart LR
+    subgraph TRIG[Triggers]
+        T1[wall clock: 20s tick]
+        T2[wall clock: 120s tick]
+        T3[HTTP request]
+        T4[CLI: analytics batch]
+        T5[CLI: db_reset / migrate]
+        T6[container start: migrator]
+    end
+
+    subgraph PROC[Long-running processes]
+        COL[collector container&lt;br/&gt;apps.collector.main --loop]
+        AW[analytics-worker container&lt;br/&gt;apps.analytics.worker]
+        API[api container&lt;br/&gt;uvicorn]
+    end
+
+    subgraph ONE_SHOT[One-shot processes]
+        MIG[migrator container&lt;br/&gt;alembic upgrade head]
+        BATCH[apps.analytics.main]
+        RESET[scripts.db_reset]
+    end
+
+    subgraph DB[Postgres 16 + PostGIS]
+        T_FETCH[feed_fetch_logs]
+        T_RAW[raw_gtfsrt_snapshots]
+        T_VP[vehicle_positions]
+        T_RUNS[analytics_runs]
+        T_TT[trip_trajectories]
+    end
+
+    T1 --&gt; COL
+    T2 --&gt; AW
+    T3 --&gt; API
+    T4 --&gt; BATCH
+    T5 --&gt; RESET
+    T6 --&gt; MIG
+
+    COL --&gt;|INSERT| T_FETCH
+    COL --&gt;|INSERT| T_RAW
+    COL --&gt;|INSERT N| T_VP
+
+    AW --&gt;|SELECT changed| T_VP
+    AW --&gt;|INSERT/UPDATE| T_RUNS
+    AW --&gt;|DELETE + INSERT N| T_TT
+
+    BATCH --&gt;|SELECT all| T_VP
+    BATCH --&gt;|INSERT/UPDATE| T_RUNS
+    BATCH --&gt;|DELETE + INSERT N| T_TT
+
+    MIG --&gt;|DDL| DB
+    RESET --&gt;|TRUNCATE| DB
+
+    API --&gt;|SELECT| T_FETCH
+    API --&gt;|SELECT DISTINCT ON| T_VP
+    API --&gt;|SELECT range| T_VP
+    API --&gt;|SELECT slice| T_TT</div>
+<h2 id="the-cast"><a class="anchor" href="#the-cast" aria-hidden="true">#</a>The cast</h2>
+<table><thead><tr><th>Where</th><th>What it touches</th><th>Role</th><th>Lives in</th></tr></thead><tbody><tr><td><code>apps/collector/main.py</code> (<code>--loop</code>)</td><td>writer</td><td>persists every fetch attempt + a snapshot metadata row + normalized rows</td><td><code>collector</code> container</td></tr><tr><td><code>apps/analytics/worker.py</code></td><td>reader + writer</td><td>reads <code>vehicle_positions</code>, refreshes <code>trip_trajectories</code> for changed trip instances</td><td><code>analytics-worker</code> container</td></tr><tr><td><code>apps/analytics/main.py</code></td><td>reader + writer</td><td>one-shot batch — same writes as worker, scoped to a date</td><td><code>make analytics-run</code></td></tr><tr><td><code>apps/api/main.py</code> (FastAPI)</td><td>reader only</td><td>every endpoint goes through <code>db/queries/*.py</code></td><td><code>api</code> container</td></tr><tr><td><code>db/migrations/versions/*.py</code> (Alembic)</td><td>DDL</td><td>schema-only; never writes data rows</td><td><code>migrator</code> container, one-shot</td></tr><tr><td><code>scripts/db_reset.py</code></td><td>TRUNCATE</td><td>wipes data, preserves schema</td><td><code>make db-reset-confirm</code></td></tr><tr><td><code>scripts/run_migrations.py</code></td><td>DDL</td><td>programmatic alternative to the CLI</td><td><code>make migrate</code></td></tr><tr><td><code>notebooks/database_access.ipynb</code></td><td>reader</td><td>ad-hoc SQL from the host</td><td>host Python kernel</td></tr><tr><td><code>tests/</code></td><td>both</td><td>fixture-driven; uses <code>TEST_DATABASE_URL</code></td><td><code>make test</code></td></tr></tbody></table>
+<p><strong>Streamlit dashboard and iROAM SPA do not touch the database</strong> — both go through the API. This is a deliberate architectural seam (see <a href="architecture.html#key-engineering-decisions">Architecture &gt; Key engineering decisions</a>).</p>
+<h2 id="connection-topology"><a class="anchor" href="#connection-topology" aria-hidden="true">#</a>Connection topology</h2>
+<p>One engine per process, configured in <code>db/session.py</code>:</p>
+<div class="mermaid">flowchart LR
+    subgraph PROCESS[Each long-running process]
+        ENG[Engine&lt;br/&gt;pool_size=5&lt;br/&gt;max_overflow=10&lt;br/&gt;pool_pre_ping=True]
+        FAC[sessionmaker&lt;br/&gt;autoflush=False&lt;br/&gt;autocommit=False&lt;br/&gt;expire_on_commit=False]
+        ENG --&gt; FAC
+    end
+
+    subgraph UNITS[Units of work]
+        SESS1[Session&lt;br/&gt;API request]
+        SESS2[Session&lt;br/&gt;collector cycle]
+        SESS3[Session&lt;br/&gt;analytics tick]
+    end
+
+    FAC --&gt; SESS1
+    FAC --&gt; SESS2
+    FAC --&gt; SESS3
+
+    SESS1 --&gt;|borrow| CONN[(connection&lt;br/&gt;from pool)]
+    SESS2 --&gt;|borrow| CONN
+    SESS3 --&gt;|borrow| CONN</div>
+<p>Key knobs (<code>db/session.py:25-31</code>):</p>
+<ul><li><strong><code>pool_size=5, max_overflow=10</code></strong> — up to 15 connections per process. With 3 long-running services (api, collector, analytics-worker) the upper bound is 45 connections, well under Postgres&#x27;s default <code>max_connections=100</code>.</li><li><strong><code>pool_pre_ping=True</code></strong> — sends a cheap <code>SELECT 1</code> before handing a connection to a session. Costs ~1 ms but auto-recovers stale connections after a Postgres restart, so the API doesn&#x27;t have to be restarted alongside the DB.</li><li><strong><code>expire_on_commit=False</code></strong> — committed ORM objects keep their attributes accessible without a follow-up <code>SELECT</code>. This is what lets <code>runner.run_once</code> return <code>RunOutcome(fetch_log_id=log.id, ...)</code> immediately after <code>session.commit()</code> without an extra round-trip. (One small caveat in the failure paths — see <a href="architecture.html">the bug list</a> if curious.)</li><li><strong><code>autoflush=False, autocommit=False</code></strong> — transaction boundaries are explicit, never implicit. The collector and analytics runners are the <em>only</em> code that calls <code>session.commit()</code>.</li></ul>
+<p>Session lifecycle:</p>
+<ul><li><strong>API</strong>: a fresh session per HTTP request via the <code>get_db</code> dependency in <code>apps/api/deps.py:15-20</code>. Closed when the response is sent.</li><li><strong>Collector</strong>: a fresh session per polling cycle via <code>with SessionLocal() as session</code> in <code>apps/collector/main.py:49-54</code>. One transaction per session.</li><li><strong>Analytics worker</strong>: a fresh session per tick via <code>with SessionLocal() as session</code> in <code>apps/analytics/worker.py:46-56</code>. Multiple commits <em>within</em> the tick — one per trip instance refresh.</li><li><strong>Batch analytics</strong>: same as worker.</li></ul>
+<h2 id="trigger-taxonomy"><a class="anchor" href="#trigger-taxonomy" aria-hidden="true">#</a>Trigger taxonomy</h2>
+<p>Every DB interaction is triggered by exactly one of these:</p>
+<table><thead><tr><th>Trigger</th><th>Cadence</th><th>Process</th><th>Reads / writes</th></tr></thead><tbody><tr><td>Wall-clock 20 s tick</td><td>continuous</td><td><code>collector</code></td><td>writes <code>feed_fetch_logs</code> (+raw +VP on success)</td></tr><tr><td>Wall-clock 120 s tick</td><td>continuous</td><td><code>analytics-worker</code></td><td>reads <code>vehicle_positions</code>, writes <code>analytics_runs</code> + <code>trip_trajectories</code></td></tr><tr><td>HTTP request</td><td>per request</td><td><code>api</code></td><td>reads only — <code>feed_fetch_logs</code>, <code>vehicle_positions</code>, <code>trip_trajectories</code></td></tr><tr><td><code>make up</code> / <code>make migrate</code></td><td>manual</td><td><code>migrator</code></td><td>DDL (Alembic)</td></tr><tr><td><code>make analytics-run DATE=…</code></td><td>manual</td><td><code>apps.analytics.main</code></td><td>same writes as worker, full date refresh</td></tr><tr><td><code>make db-reset-confirm</code></td><td>manual</td><td><code>scripts.db_reset</code></td><td>TRUNCATEs data tables</td></tr><tr><td>Jupyter cell / <code>psql</code></td><td>manual</td><td>host process</td><td>ad-hoc reads</td></tr></tbody></table>
+<p>Two intervals — <code>COLLECTOR_INTERVAL_SECONDS</code> and <code>ANALYTICS_WORKER_INTERVAL_SECONDS</code> — are the entire automated trigger surface. Everything else needs a human or an HTTP client.</p>
+<h2 id="write-paths"><a class="anchor" href="#write-paths" aria-hidden="true">#</a>Write paths</h2>
+<h3 id="1-collector-cycle"><a class="anchor" href="#1-collector-cycle" aria-hidden="true">#</a>1. Collector cycle</h3>
+<p>Source: <code>apps/collector/main.py</code> + <code>apps/collector/runner.py</code>.</p>
+<div class="mermaid">sequenceDiagram
+    autonumber
+    participant Loop as main.py loop
+    participant Sess as SessionLocal()
+    participant Fetch as fetcher
+    participant Parse as parser
+    participant Norm as normalize_vehicles
+    participant DB as Postgres
+
+    Loop-&gt;&gt;Loop: time.sleep until next 20s boundary
+    Loop-&gt;&gt;Sess: open session
+    Loop-&gt;&gt;Fetch: fetch_bytes(url)
+    alt HTTP / timeout failure
+        Fetch--xLoop: raise FetchError
+        Loop-&gt;&gt;DB: BEGIN
+        Loop-&gt;&gt;DB: INSERT feed_fetch_logs (success=false)
+        Loop-&gt;&gt;DB: COMMIT
+    else success
+        Fetch--&gt;&gt;Loop: bytes
+        Loop-&gt;&gt;Parse: parse_feed_message(bytes)
+        alt parse failure
+            Parse--xLoop: raise ParseError
+            Loop-&gt;&gt;DB: BEGIN
+            Loop-&gt;&gt;DB: INSERT feed_fetch_logs (success=false)
+            Loop-&gt;&gt;DB: COMMIT
+        else parsed
+            Parse--&gt;&gt;Loop: FeedMessage
+            Loop-&gt;&gt;Norm: normalize_vehicle_positions(msg)
+            Norm--&gt;&gt;Loop: list[VehiclePosition]
+            Loop-&gt;&gt;DB: BEGIN
+            Loop-&gt;&gt;DB: INSERT feed_fetch_logs
+            Loop-&gt;&gt;DB: flush (assign log.id)
+            Loop-&gt;&gt;DB: INSERT raw_gtfsrt_snapshots (fetch_log_id=log.id)
+            Loop-&gt;&gt;DB: flush (assign snapshot.id)
+            Loop-&gt;&gt;DB: INSERT N rows into vehicle_positions (snapshot_id=snapshot.id)
+            Loop-&gt;&gt;DB: COMMIT
+        end
+    end
+    Loop-&gt;&gt;Sess: close session</div>
+<p><strong>Tables written:</strong> <code>feed_fetch_logs</code>, <code>raw_gtfsrt_snapshots</code>, <code>vehicle_positions</code>.</p>
+<p><strong>Transaction boundary:</strong> exactly one <code>COMMIT</code> per cycle. Failures still commit a row (so the failure is observable on the <code>/feed-status</code> endpoint) — they just commit just the log row, not the snapshot or vehicle rows.</p>
+<p><strong>Volume:</strong> with <code>COLLECTOR_INTERVAL_SECONDS=20</code> and ~1500 active TTC vehicles, the steady state is <strong>3 polls/min × 1500 rows ≈ 4500 vehicle_positions rows/min</strong> (≈ 6.5M/day after the route allowlist drops most of the network). Since migration <code>0005</code> dropped the raw payload, <code>raw_gtfsrt_snapshots</code> rows are tiny metadata records (&lt;300 B each), as are fetch-log rows (&lt;200 B each) — <code>vehicle_positions</code> is now the dominant on-disk cost.</p>
+<p><strong>Idempotency:</strong> none. Every cycle is a new observation. There is no <code>ON CONFLICT</code> clause — duplicate snapshots are explicitly allowed because two byte-identical polls are still distinct observations (the &quot;feed reachable but stuck&quot; signal lives here).</p>
+<h3 id="2-analytics-worker-tick"><a class="anchor" href="#2-analytics-worker-tick" aria-hidden="true">#</a>2. Analytics worker tick</h3>
+<p>Source: <code>apps/analytics/worker.py</code> + <code>apps/analytics/runner.py</code> + <code>apps/analytics/pipeline.py</code>.</p>
+<div class="mermaid">sequenceDiagram
+    autonumber
+    participant W as worker.main
+    participant Sess as SessionLocal()
+    participant DB as Postgres
+    participant Pipe as pipeline
+    participant Run as runner.run_for_date
+
+    W-&gt;&gt;W: tick_started_at = utc_now()
+    W-&gt;&gt;Sess: open session
+    W-&gt;&gt;Run: run_for_date(today, only_changed_since=last_tick_started)
+    Run-&gt;&gt;DB: BEGIN
+    Run-&gt;&gt;DB: INSERT analytics_runs (status=&#x27;running&#x27;)
+    Run-&gt;&gt;DB: COMMIT
+    Note over Run: separate txn for the run row so an in-progress&lt;br/&gt;worker is visible from psql
+    Run-&gt;&gt;Pipe: list_changed_trip_instances(session, today, since)
+    Pipe-&gt;&gt;DB: SELECT DISTINCT trip_id, eff_start_date&lt;br/&gt;FROM vehicle_positions&lt;br/&gt;WHERE eff_start_date = today AND fetched_at &gt; since
+    DB--&gt;&gt;Pipe: [(trip_id, start_date), ...]
+    Pipe--&gt;&gt;Run: instances
+    loop per trip instance
+        Run-&gt;&gt;Pipe: process_trip_instance(trip_id, start_date)
+        Pipe-&gt;&gt;DB: SELECT * FROM vehicle_positions WHERE trip_id=? AND eff_start_date=?
+        DB--&gt;&gt;Pipe: raw GPS points
+        Note over Pipe: project to shape + compute speed +&lt;br/&gt;upsample to 10s grid (pure, in-memory)
+        Pipe--&gt;&gt;Run: upsampled DataFrame
+        Run-&gt;&gt;DB: BEGIN
+        Run-&gt;&gt;DB: DELETE FROM trip_trajectories WHERE trip_id=? AND start_date=?
+        Run-&gt;&gt;DB: INSERT N rows into trip_trajectories
+        Run-&gt;&gt;DB: COMMIT
+        Note over Run: one COMMIT per trip instance —&lt;br/&gt;partial progress survives a crash
+    end
+    Run-&gt;&gt;DB: BEGIN
+    Run-&gt;&gt;DB: UPDATE analytics_runs SET status=&#x27;ok&#x27;, finished_at=now(), rows_written=N WHERE id=?
+    Run-&gt;&gt;DB: COMMIT
+    Run--&gt;&gt;W: RunOutcome
+    W-&gt;&gt;Sess: close session
+    W-&gt;&gt;W: last_tick_started_at = tick_started_at
+    W-&gt;&gt;W: sleep until next 120s boundary</div>
+<p><strong>Tables read:</strong> <code>vehicle_positions</code> (twice — once for the changed-instance list, once per trip for the points).</p>
+<p><strong>Tables written:</strong> <code>analytics_runs</code> (once at start, once at end), <code>trip_trajectories</code> (one DELETE + N INSERTs per changed trip instance).</p>
+<p><strong>Transaction boundary:</strong> explicit per-trip-instance commit. A worker crash mid-tick leaves earlier trips&#x27; trajectories committed; the next tick will reprocess them only if <code>vehicle_positions</code> got new rows in between.</p>
+<p><strong>Idempotency:</strong> strong. The schema-level unique index <code>(trip_id, start_date, datetime)</code> on <code>trip_trajectories</code> enforces the delete-then-insert contract. A manual <code>make analytics-run</code> overlapping with the worker is safe — last writer wins per trip instance, no duplicates possible.</p>
+<p><strong>Cold-start window:</strong> on first tick after a restart, <code>last_tick_started_at = now - 2*interval</code> (worker.py:88). So a restart catches up trips active just before boot without reprocessing the whole day.</p>
+<h3 id="3-batch-analytics-apps-analytics-main"><a class="anchor" href="#3-batch-analytics-apps-analytics-main" aria-hidden="true">#</a>3. Batch analytics — <code>apps.analytics.main</code></h3>
+<p>Same writes as the worker, but called manually and processes <strong>every</strong> trip instance for the date (no <code>only_changed_since</code>). Used for full refresh or CSV export. Coexists safely with the worker via the same unique-index contract.</p>
+<pre><code class="language-bash">make analytics-run DATE=2026-04-20 ROUTE=29
+# →
+docker compose run --rm api python -m apps.analytics.main --date 2026-04-20 --route 29</code></pre>
+<h3 id="4-migrator-ddl-only"><a class="anchor" href="#4-migrator-ddl-only" aria-hidden="true">#</a>4. Migrator — DDL only</h3>
+<p><code>migrator</code> container runs <code>alembic upgrade head</code> once and exits. Five migrations under <code>db/migrations/versions/</code>:</p>
+<ul><li><code>0001_initial_schema</code> — <code>feed_fetch_logs</code>, <code>raw_gtfsrt_snapshots</code></li><li><code>0002_pivot_to_vehicle_positions</code> — replaces the legacy <code>trip_updates</code> design</li><li><code>0003_trip_trajectories</code> — <code>analytics_runs</code> + <code>trip_trajectories</code></li><li><code>0004_trip_trajectory_unique</code> — the unique index that anchors the delete-then-insert contract</li><li><code>0005_drop_snapshot_payload</code> — drops <code>raw_gtfsrt_snapshots.payload</code>; raw protobuf bytes are no longer persisted</li></ul>
+<p><code>make migrate</code> reruns it; <code>0004</code> guards against pre-existing duplicates and refuses to apply if found — <code>make db-reset-confirm</code> clears that up.</p>
+<h3 id="5-destructive-reset-scripts-db-reset"><a class="anchor" href="#5-destructive-reset-scripts-db-reset" aria-hidden="true">#</a>5. Destructive reset — <code>scripts.db_reset</code></h3>
+<p><code>scripts/db_reset.py</code> issues <code>TRUNCATE feed_fetch_logs, raw_gtfsrt_snapshots, vehicle_positions, analytics_runs, trip_trajectories CASCADE</code> inside a single transaction. Dry-run mode prints row counts only; <code>--yes-i-am-sure</code> actually executes. The Alembic version table is untouched, so the schema stays migrated.</p>
+<h2 id="read-paths"><a class="anchor" href="#read-paths" aria-hidden="true">#</a>Read paths</h2>
+<p>Every read is a SELECT through one of the query helpers in <code>db/queries/</code>. The API never builds SQL inline.</p>
+<h3 id="feed-fetch-logs"><a class="anchor" href="#feed-fetch-logs" aria-hidden="true">#</a><code>feed_fetch_logs</code></h3>
+<table><thead><tr><th>Endpoint</th><th>Query function</th><th>SQL pattern</th><th>Index</th></tr></thead><tbody><tr><td><code>GET /feed-status/vehicle-positions</code></td><td><code>db/queries/feed_stats.feed_status</code></td><td>aggregate over <code>WHERE fetched_at &gt;= now() - 1h</code></td><td><code>(feed_name, fetched_at)</code></td></tr><tr><td><code>GET /feed-status/vehicle-positions</code></td><td><code>db/queries/feed_stats.recent_fetches</code></td><td><code>ORDER BY fetched_at DESC LIMIT N</code></td><td>same</td></tr></tbody></table>
+<h3 id="vehicle-positions-the-hottest-table"><a class="anchor" href="#vehicle-positions-the-hottest-table" aria-hidden="true">#</a><code>vehicle_positions</code> (the hottest table)</h3>
+<table><thead><tr><th>Endpoint</th><th>Query function</th><th>SQL pattern</th><th>Index that serves it</th></tr></thead><tbody><tr><td><code>GET /vehicles/latest</code></td><td><code>latest_vehicle_positions</code></td><td><code>SELECT DISTINCT ON (vehicle_id) ... ORDER BY vehicle_id, fetched_at DESC</code> bounded by <code>fetched_at &gt;= now() - 24h</code></td><td><code>(vehicle_id, fetched_at DESC)</code></td></tr><tr><td><code>GET /vehicles/{id}/latest</code></td><td><code>latest_vehicle_position</code></td><td><code>... WHERE vehicle_id=? ORDER BY fetched_at DESC LIMIT 1</code></td><td><code>(vehicle_id, fetched_at DESC)</code></td></tr><tr><td><code>GET /vehicles/{id}/history</code></td><td><code>vehicle_history</code></td><td>range scan on <code>fetched_at</code>, <code>WHERE vehicle_id=?</code></td><td><code>(vehicle_id, fetched_at DESC)</code></td></tr><tr><td><code>GET /routes</code></td><td><code>active_route_ids</code></td><td><code>GROUP BY route_id WHERE fetched_at &gt;= now() - 15min</code></td><td><code>(route_id, fetched_at DESC)</code></td></tr><tr><td><code>GET /routes/{id}/vehicles/latest</code></td><td><code>latest_vehicle_positions(route_id=...)</code></td><td>same as above, scoped</td><td><code>(route_id, fetched_at DESC)</code></td></tr><tr><td><code>GET /routes/{id}/metrics</code></td><td><code>route_metrics</code></td><td><code>DISTINCT ON (vehicle_id)</code> + aggregate over the result</td><td><code>(route_id, fetched_at DESC)</code></td></tr><tr><td><code>GET /replay/vehicles?start=&amp;end=</code></td><td><code>replay_vehicles</code></td><td>range scan over <code>(fetched_at)</code>, ASC order</td><td><code>(fetched_at)</code> via composite</td></tr><tr><td>analytics: <code>list_changed_trip_instances</code></td><td>(called by worker)</td><td><code>SELECT DISTINCT trip_id WHERE eff_start_date=? AND fetched_at &gt; since</code></td><td><code>(trip_id, fetched_at DESC)</code></td></tr><tr><td>analytics: <code>fetch_by_trip_instance</code></td><td>(called by worker/batch)</td><td><code>SELECT * WHERE trip_id=? AND eff_start_date=?</code> ORDER BY ts</td><td><code>(trip_id, fetched_at DESC)</code></td></tr></tbody></table>
+<p>The whole &quot;latest is a query, not a mutation&quot; doctrine rests on these composite indexes. <code>DISTINCT ON</code> in Postgres uses the leading index without a sort, so the latency stays bounded as the table grows.</p>
+<h3 id="trip-trajectories"><a class="anchor" href="#trip-trajectories" aria-hidden="true">#</a><code>trip_trajectories</code></h3>
+<table><thead><tr><th>Endpoint</th><th>Query function</th><th>SQL pattern</th><th>Index</th></tr></thead><tbody><tr><td><code>GET /trajectories/service-dates</code></td><td><code>list_service_dates</code></td><td><code>SELECT DISTINCT service_date ORDER BY DESC</code></td><td><code>ix_tt_route_service_dt</code></td></tr><tr><td><code>GET /trajectories/trips</code></td><td><code>list_trip_instances</code></td><td>filter by <code>(service_date, route_id)</code>, group by <code>trip_id</code></td><td><code>ix_tt_route_service_dt</code></td></tr><tr><td><code>GET /trajectories/trips/{id}</code></td><td><code>fetch_trip_trajectory</code></td><td><code>WHERE trip_id=? AND start_date=?</code> ORDER BY datetime</td><td><code>ux_trip_trajectories_instance_dt</code></td></tr><tr><td><code>GET /iroam/routes</code></td><td><code>list_route_catalog</code></td><td>DISTINCT (route_id, direction_id, service_date)</td><td><code>ix_tt_route_service_dt</code></td></tr><tr><td><code>GET /iroam/buses</code>, <code>/iroam/analytics</code>, <code>/iroam/forecast</code></td><td><code>fetch_trajectories_for_slice</code></td><td><code>WHERE route_id=? AND service_date=? AND direction_id=?</code> ORDER BY trip_id, start_date, vehicle_id, datetime</td><td><code>ix_tt_route_service_dt</code></td></tr></tbody></table>
+<p>The iROAM SPA fires the last three on every slider change, so <code>(route_id, service_date, direction_id)</code> is the most-trafficked composite key in the system after <code>(vehicle_id, fetched_at DESC)</code>. The Streamlit dashboard&#x27;s Trajectories page reads the same data, but via the API.</p>
+<h3 id="raw-gtfsrt-snapshots-and-analytics-runs"><a class="anchor" href="#raw-gtfsrt-snapshots-and-analytics-runs" aria-hidden="true">#</a><code>raw_gtfsrt_snapshots</code> and <code>analytics_runs</code></h3>
+<p>These two are <strong>write-only</strong> in normal operation. Nothing in <code>db/queries/*.py</code> or the API reads them. They exist for:</p>
+<ul><li><code>raw_gtfsrt_snapshots</code> — the FK link target for <code>vehicle_positions.snapshot_id</code> and a record of each fetch&#x27;s content hash (<code>content_sha256</code>). Since migration <code>0005</code> it no longer stores raw bytes; re-normalization works from <code>vehicle_positions.raw_entity</code>.</li><li><code>analytics_runs</code> — observability. Look it up with <code>psql</code> to ask &quot;did today&#x27;s analytics ever finish, and how many rows did it write?&quot;.</li></ul>
+<h2 id="concurrency-model"><a class="anchor" href="#concurrency-model" aria-hidden="true">#</a>Concurrency model</h2>
+<p>Three long-running writers/readers run simultaneously inside docker-compose. They never block each other in any operationally meaningful way:</p>
+<div class="mermaid">flowchart LR
+    subgraph WRITES[Writes]
+        C[collector&lt;br/&gt;INSERT feed_fetch_logs&lt;br/&gt;INSERT raw_gtfsrt_snapshots&lt;br/&gt;INSERT vehicle_positions]
+        W[analytics-worker&lt;br/&gt;DELETE+INSERT trip_trajectories&lt;br/&gt;per trip instance]
+        B[manual analytics.main&lt;br/&gt;DELETE+INSERT trip_trajectories&lt;br/&gt;per trip instance]
+    end
+    subgraph READS[Reads]
+        A[api&lt;br/&gt;SELECT from any table]
+        N[notebook&lt;br/&gt;SELECT]
+    end
+
+    C -.append-only.-&gt; A
+    W -.atomic per trip.-&gt; A
+    B -.atomic per trip.-&gt; A
+    W &lt;--&gt;|same unique key:&lt;br/&gt;last writer wins| B</div>
+<p>The three guarantees that make this work:</p>
+<ol><li><strong>Collector inserts are append-only.</strong> <code>vehicle_positions</code> rows have monotonic <code>fetched_at</code> and a unique <code>id</code>; no UPDATE, no DELETE. The collector and the worker can interleave freely on this table: the worker&#x27;s <code>WHERE fetched_at &gt; since</code> scoping reads a snapshot of &quot;everything committed before my SELECT&quot; without ever conflicting with the collector&#x27;s next INSERT.</li><li><strong>Analytics writes are atomic per trip instance.</strong> <code>DELETE WHERE (trip_id, start_date) = ?</code> then <code>INSERT N</code> happen in one transaction, gated by the unique index <code>ux_trip_trajectories_instance_dt</code>. If two writers race on the same trip instance, one of them gets a unique-violation rollback and retries — and the other&#x27;s version is the surviving one. In practice the worker holds a row-range lock for the duration of the delete+insert (a few ms), so the manual batch usually just waits its turn.</li><li><strong>API is read-only.</strong> No locks needed, no blocking. PostgreSQL&#x27;s MVCC means readers see a consistent snapshot as of statement start, regardless of in-flight writers.</li></ol>
+<p>What this <strong>does not</strong> guarantee: that an analytics-worker tick sees every collector-committed row up to the moment the tick started. The cutoff for &quot;changed since&quot; is the <em>previous</em> tick&#x27;s <code>tick_started_at</code> (analytics-worker:88). A vehicle_positions row committed at <code>tick_started_at + 1ms</code> is seen by the <em>next</em> tick, not the current one. That&#x27;s fine — the next tick is 120 s away.</p>
+<h2 id="end-to-end-traces"><a class="anchor" href="#end-to-end-traces" aria-hidden="true">#</a>End-to-end traces</h2>
+<p>Three named scenarios, end to end.</p>
+<h3 id="a-user-opens-the-iroam-spa-at-1800-and-pulls-up-route-29-for-today"><a class="anchor" href="#a-user-opens-the-iroam-spa-at-1800-and-pulls-up-route-29-for-today" aria-hidden="true">#</a>A. &quot;User opens the iROAM SPA at 18:00 and pulls up Route 29 for today&quot;</h3>
+<div class="mermaid">sequenceDiagram
+    autonumber
+    participant U as User browser
+    participant SPA as iroam.html (React)
+    participant API as FastAPI
+    participant Q as db/queries
+    participant DB as Postgres
+
+    U-&gt;&gt;SPA: visit /ui
+    SPA-&gt;&gt;API: GET /iroam/routes
+    API-&gt;&gt;Q: list_route_catalog(session)
+    Q-&gt;&gt;DB: SELECT DISTINCT route_id, direction_id, service_date, trip_id, start_date&lt;br/&gt;FROM trip_trajectories
+    DB--&gt;&gt;Q: rows
+    Q--&gt;&gt;API: catalog
+    API--&gt;&gt;SPA: [{route_id:29, direction_id:0, dates:[...], ...}, ...]
+    U-&gt;&gt;SPA: pick route 29, direction NB, date today
+    SPA-&gt;&gt;API: GET /iroam/stops?route_id=29&amp;direction_id=0
+    Note over API: in-memory: compute_route_stops projects&lt;br/&gt;static GTFS onto canonical shape (no DB)
+    API--&gt;&gt;SPA: stops
+    SPA-&gt;&gt;API: GET /iroam/buses?route_id=29&amp;service_date=2026-04-20&amp;direction_id=0&amp;...
+    API-&gt;&gt;Q: fetch_trajectories_for_slice(session, ...)
+    Q-&gt;&gt;DB: SELECT * FROM trip_trajectories&lt;br/&gt;WHERE route_id=29 AND service_date=&#x27;2026-04-20&#x27; AND direction_id=0&lt;br/&gt;ORDER BY trip_id, start_date, vehicle_id, datetime
+    DB--&gt;&gt;Q: ~10-30k rows for a busy route
+    Q--&gt;&gt;API: list[TripTrajectory]
+    Note over API: group → BusTrajectory list; run detect_all&lt;br/&gt;(idle / bunch / crowd); no DB
+    API--&gt;&gt;SPA: { buses: [...], totals: {...} }
+    SPA-&gt;&gt;U: render time-distance diagram
+    U-&gt;&gt;SPA: click &quot;Run forecast&quot;
+    SPA-&gt;&gt;API: GET /iroam/forecast?...
+    API-&gt;&gt;Q: fetch_trajectories_for_slice(...) — same SQL again
+    Q-&gt;&gt;DB: same SELECT
+    DB--&gt;&gt;Q: same rows
+    Q--&gt;&gt;API: list[TripTrajectory]
+    Note over API: build feature windows,&lt;br/&gt;30 LightGBM boosters
+    API--&gt;&gt;SPA: { per_bus: [...], horizon_summary: {...} }</div>
+<p><strong>Tables hit:</strong> <code>trip_trajectories</code> only (three times for one rendered slice). Static GTFS is read from <code>Complete GTFS/*.txt</code> mounted at <code>/gtfs</code> — never the database. The bunching predictor loads from <code>deployment/bunching_lightgbm/model/</code> — never the database.</p>
+<h3 id="b-collector-polls-the-ttc-feed-and-a-network-error-occurs"><a class="anchor" href="#b-collector-polls-the-ttc-feed-and-a-network-error-occurs" aria-hidden="true">#</a>B. &quot;Collector polls the TTC feed and a network error occurs&quot;</h3>
+<div class="mermaid">sequenceDiagram
+    autonumber
+    participant L as collector loop
+    participant F as fetcher
+    participant TTC as gtfsrt.ttc.ca
+    participant DB as Postgres
+
+    L-&gt;&gt;F: fetch_bytes(&quot;https://gtfsrt.ttc.ca/vehicles/position?format=binary&quot;)
+    F-&gt;&gt;TTC: HTTP GET
+    TTC--xF: timeout (after 10s, retry 2x)
+    F--xL: raise FetchError(error_type=&quot;timeout&quot;)
+    L-&gt;&gt;DB: BEGIN
+    L-&gt;&gt;DB: INSERT INTO feed_fetch_logs (feed_name, fetched_at, success=false,&lt;br/&gt;error_type=&#x27;timeout&#x27;, duration_ms=null, ...)
+    L-&gt;&gt;DB: COMMIT
+    Note over L: no raw_gtfsrt_snapshots, no vehicle_positions row&lt;br/&gt;FK stays clean
+    L-&gt;&gt;L: log fetch_failed
+    L-&gt;&gt;L: time.sleep until next 20s boundary</div>
+<p><strong>Observable effect downstream:</strong> the next <code>GET /feed-status/vehicle-positions</code> returns a lower <code>success_rate_1h</code> and the most recent <code>recent_fetches</code> entry has <code>success=false, error_type=&#x27;timeout&#x27;</code>. The Streamlit &quot;Feed Health&quot; page picks this up; the iROAM SPA is unaffected (it doesn&#x27;t query feed health).</p>
+<h3 id="c-a-vehicle-reports-a-position-and-4-minutes-later-it-shows-up-on-the-spa"><a class="anchor" href="#c-a-vehicle-reports-a-position-and-4-minutes-later-it-shows-up-on-the-spa" aria-hidden="true">#</a>C. &quot;A vehicle reports a position, and 4 minutes later it shows up on the SPA&quot;</h3>
+<p>The full pipeline trace, condensed.</p>
+<div class="mermaid">sequenceDiagram
+    participant V as TTC vehicle
+    participant TTC as TTC feed
+    participant C as collector
+    participant DB as Postgres
+    participant AW as analytics-worker
+    participant SPA as iROAM SPA
+
+    Note over V,TTC: t=0: bus reports lat/lon to TTC
+    Note over TTC: t≤20s: payload appears in feed
+    Note over C: t≤40s: collector polls&lt;br/&gt;(next 20s boundary)
+    C-&gt;&gt;DB: INSERT vehicle_positions
+    Note over AW: t≤200s: worker&#x27;s next tick (every 120s)&lt;br/&gt;sees fetched_at &gt; last_tick
+    AW-&gt;&gt;DB: SELECT vehicle_positions for trip instance
+    AW-&gt;&gt;DB: DELETE + INSERT trip_trajectories
+    Note over SPA: t≤200s + render: SPA polls /iroam/buses&lt;br/&gt;(LIVE mode auto-refresh)
+    SPA-&gt;&gt;DB: SELECT trip_trajectories (via API)</div>
+<p><strong>End-to-end latency:</strong> worst case ≈ <code>COLLECTOR_INTERVAL_SECONDS + ANALYTICS_WORKER_INTERVAL_SECONDS + SPA refresh interval ≈ 20 + 120 + a few seconds</code>. So ~2.5 min from &quot;bus reports position&quot; to &quot;bus appears on the time-distance diagram.&quot; This is <em>the</em> latency knob: shorten either interval, fresher data, more DB load.</p>
+<h2 id="failure-modes-worth-knowing-about"><a class="anchor" href="#failure-modes-worth-knowing-about" aria-hidden="true">#</a>Failure modes worth knowing about</h2>
+<ul><li><strong>Postgres restart.</strong> <code>pool_pre_ping=True</code> papers over it — sessions get a fresh connection, no app restart needed. Any in-flight transaction at the moment of restart sees <code>OperationalError</code> once, then recovers.</li><li><strong>Migrator fails on <code>make up</code>.</strong> The <code>api</code>, <code>collector</code>, and <code>analytics-worker</code> containers all have <code>depends_on: migrator: condition: service_completed_successfully</code>, so they refuse to start. Fix the migration, <code>make up</code> again.</li><li><strong>Collector crashes mid-transaction.</strong> Sync SQLAlchemy + <code>with SessionLocal()</code> rolls back automatically. No half-written rows. Next cycle starts clean.</li><li><strong>Worker crashes mid-tick.</strong> Earlier trip instances&#x27; commits survive. On restart, the cold-start cutoff (<code>now - 2 * interval</code>) means missed trips get reprocessed on the very next tick.</li><li><strong>Disk fills up.</strong> Postgres throws <code>disk full</code>. Collector logs the error, fetches stop being persisted, feed-fetch-log entries also fail. The <code>/health</code> endpoint will still return <code>200</code> (DB ping succeeds against the metadata catalog), so the operator has to watch logs, not health. Mitigation lives in <a href="operations.html#reset-and-re-ingest">Operations &gt; Reset and re-ingest</a>.</li><li><strong>Unique-index conflict on <code>trip_trajectories</code>.</strong> Means the delete-then-insert contract was violated — almost certainly a bug. The runner re-raises and <code>analytics_runs.status=&#x27;failed&#x27;</code> records it for forensics. Concurrent worker+batch on the same trip cannot trigger this because the DELETE precedes the INSERT in the same transaction.</li></ul></article>
+  <div class="content-toc"><h4>On this page</h4><ul><li class="toc-h2"><a href="#tldr-all-paths-in-one-diagram">TL;DR — all paths in one diagram</a></li><li class="toc-h2"><a href="#the-cast">The cast</a></li><li class="toc-h2"><a href="#connection-topology">Connection topology</a></li><li class="toc-h2"><a href="#trigger-taxonomy">Trigger taxonomy</a></li><li class="toc-h2"><a href="#write-paths">Write paths</a></li><li class="toc-h3 sub"><a href="#1-collector-cycle">1. Collector cycle</a></li><li class="toc-h3 sub"><a href="#2-analytics-worker-tick">2. Analytics worker tick</a></li><li class="toc-h3 sub"><a href="#3-batch-analytics-apps-analytics-main">3. Batch analytics — `apps.analytics.main`</a></li><li class="toc-h3 sub"><a href="#4-migrator-ddl-only">4. Migrator — DDL only</a></li><li class="toc-h3 sub"><a href="#5-destructive-reset-scripts-db-reset">5. Destructive reset — `scripts.db_reset`</a></li><li class="toc-h2"><a href="#read-paths">Read paths</a></li><li class="toc-h3 sub"><a href="#feed-fetch-logs">`feed_fetch_logs`</a></li><li class="toc-h3 sub"><a href="#vehicle-positions-the-hottest-table">`vehicle_positions` (the hottest table)</a></li><li class="toc-h3 sub"><a href="#trip-trajectories">`trip_trajectories`</a></li><li class="toc-h3 sub"><a href="#raw-gtfsrt-snapshots-and-analytics-runs">`raw_gtfsrt_snapshots` and `analytics_runs`</a></li><li class="toc-h2"><a href="#concurrency-model">Concurrency model</a></li><li class="toc-h2"><a href="#end-to-end-traces">End-to-end traces</a></li><li class="toc-h3 sub"><a href="#a-user-opens-the-iroam-spa-at-1800-and-pulls-up-route-29-for-today">A. &quot;User opens the iROAM SPA at 18:00 and pulls up Route 29 for today&quot;</a></li><li class="toc-h3 sub"><a href="#b-collector-polls-the-ttc-feed-and-a-network-error-occurs">B. &quot;Collector polls the TTC feed and a network error occurs&quot;</a></li><li class="toc-h3 sub"><a href="#c-a-vehicle-reports-a-position-and-4-minutes-later-it-shows-up-on-the-spa">C. &quot;A vehicle reports a position, and 4 minutes later it shows up on the SPA&quot;</a></li><li class="toc-h2"><a href="#failure-modes-worth-knowing-about">Failure modes worth knowing about</a></li></ul></div>
+</main>
+<script src="assets/lunr.min.js"></script>
+<script src="assets/highlight.min.js"></script>
+<script>hljs.highlightAll();</script>
+<script src="assets/mermaid.min.js"></script>
+<script>mermaid.initialize({startOnLoad:true, theme:'neutral', securityLevel:'loose', flowchart:{curve:'basis'}});</script>
+<script>window.SEARCH_INDEX_URL = "search-index.json";</script>
+<script src="assets/app.js"></script>
+</body>
+</html>

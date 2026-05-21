@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Frontend — iROAM docs</title>
+<link rel="stylesheet" href="assets/styles.css" />
+<link rel="stylesheet" href="assets/highlight-github.css" />
+</head>
+<body>
+<button class="nav-toggle" aria-label="Toggle navigation">☰</button>
+<aside class="sidebar">
+  <div class="sidebar-header">
+    <a class="brand" href="index.html">iROAM <span>docs</span></a>
+  </div>
+  <div class="search-box">
+    <input id="search-input" type="search" placeholder="Search docs…" autocomplete="off" />
+    <div id="search-results" class="search-results" hidden></div>
+  </div>
+  <nav class="nav"><div class="nav-section"><h4>Start here</h4><ul>
+<li><a href="index.html">Overview</a></li>
+<li><a href="architecture.html">Architecture</a></li>
+<li><a href="data-model.html">Data model</a></li>
+<li><a href="database-dataflow.html">Database dataflow</a></li>
+<li class="active"><a href="frontend.html">Frontend</a></li>
+<li><a href="operations.html">Operations</a></li>
+<li><a href="examples.html">Examples</a></li>
+</ul></div>
+<div class="nav-section"><h4>Reference</h4><ul>
+<li><a href="api.html">API reference</a></li>
+</ul></div>
+<div class="nav-section"><h4>Modules</h4><ul>
+<li><a href="modules/apps-collector.html">Collector</a></li>
+<li><a href="modules/apps-analytics.html">Analytics</a></li>
+<li><a href="modules/apps-api.html">API</a></li>
+<li><a href="modules/apps-dashboard.html">Dashboard</a></li>
+<li><a href="modules/core.html">Core</a></li>
+<li><a href="modules/db.html">Database</a></li>
+<li><a href="modules/scripts.html">Scripts</a></li>
+<li><a href="modules/deployment-bunching.html">Bunching predictor</a></li>
+<li><a href="modules/legacy.html">Legacy</a></li>
+</ul></div></nav>
+  <div class="sidebar-footer">Built 2026-04-24<br/>89 files · 178 symbols</div>
+</aside>
+<main class="content">
+  <div class="breadcrumb"><a href="index.html">Overview</a> / Frontend</div>
+  <article><h1 id="frontend"><a class="anchor" href="#frontend" aria-hidden="true">#</a>Frontend</h1>
+<p>iROAM ships <strong>two</strong> user interfaces. They share the FastAPI backend and never read the database directly.</p>
+<table><thead><tr><th>Surface</th><th>Audience</th><th>Tech</th><th>Served at</th></tr></thead><tbody><tr><td><strong>iROAM SPA</strong></td><td>Operators / researchers analyzing route behaviour</td><td>Single-file React + Babel-standalone</td><td><code>GET /ui</code> (FastAPI static mount)</td></tr><tr><td><strong>Streamlit dashboard</strong></td><td>Engineers debugging feed and pipeline health</td><td>Streamlit multipage app</td><td>&lt;http://localhost:8501&gt;</td></tr></tbody></table>
+<h2 id="iroam-single-page-app-apps-api-static-iroam-html"><a class="anchor" href="#iroam-single-page-app-apps-api-static-iroam-html" aria-hidden="true">#</a>iROAM single-page app — <code>apps/api/static/iroam.html</code></h2>
+<p>The flagship UI. ~1950 lines of JSX in one file, transpiled in-browser by Babel-standalone, no build step. Mounted by <code>apps/api/main.create_app</code> and served at <code>/ui</code>.</p>
+<h3 id="three-pages"><a class="anchor" href="#three-pages" aria-hidden="true">#</a>Three pages</h3>
+<p>The top-level <code>&lt;App&gt;</code> component switches between three pages from a sidebar:</p>
+<div class="mermaid">flowchart LR
+    subgraph SPA[apps/api/static/iroam.html]
+        APP[App component]
+        P1[Parameters page&lt;br/&gt;ParameterPanel]
+        P2[Playback page&lt;br/&gt;PlaybackPage]
+        P3[Analytics page&lt;br/&gt;AnalyticsPage]
+        APP --&gt; P1
+        APP --&gt; P2
+        APP --&gt; P3
+    end
+
+    P1 --&gt;|on Apply| FETCH[fetchJSON]
+    P2 --&gt;|Run forecast| FETCH
+    P3 --&gt;|on slice change| FETCH
+
+    FETCH --&gt;|GET /iroam/routes| API_ROUTES[(routes catalog)]
+    FETCH --&gt;|GET /iroam/stops| API_STOPS[(canonical stops)]
+    FETCH --&gt;|GET /iroam/buses| API_BUSES[(trajectories + anomalies)]
+    FETCH --&gt;|GET /iroam/analytics| API_AGG[(hourly aggregates)]
+    FETCH --&gt;|GET /iroam/forecast| API_FCST[(bunching risk)]</div>
+<ul><li><strong>Parameters</strong>. Pick route, service date, direction, anomaly thresholds (<code>bunch_sec</code>, <code>idle_min</code>, <code>crowd_pct</code>, <code>bunch_dist</code>, <code>bunch_method</code>). Drives every subsequent fetch. <code>ParameterPanel</code> reads the route catalog from <code>GET /iroam/routes</code> and the stop list from <code>GET /iroam/stops</code>.</li><li><strong>Playback</strong>. Time-distance diagram with animated buses; LIVE mode auto-refreshes against the current time. Replay speed control (0.5×, 1×, 2×, 4×). A &quot;Run forecast&quot; button calls <code>GET /iroam/forecast</code> and overlays per-bus risk bars + a horizon probability curve. The chart drag-resizes; pulldown stop list highlights the chosen subset.</li><li><strong>Analytics</strong>. Hour-by-hour summaries from <code>GET /iroam/analytics</code>: bus count, anomaly counts (bunch / idle / crowd), occupancy mix, per-type breakdowns. Resizable grid.</li></ul>
+<h3 id="module-level-state"><a class="anchor" href="#module-level-state" aria-hidden="true">#</a>Module-level state</h3>
+<p>The file mutates a handful of module-scoped vars in addition to React state, deliberately, so JSX components re-render whenever a &quot;slice&quot; (route × date × direction) changes:</p>
+<table><thead><tr><th>Var</th><th>Set by</th><th>Read by</th></tr></thead><tbody><tr><td><code>ROUTE29_STOPS</code>, <code>STOPS</code>, <code>NUM_STOPS</code></td><td><code>applyStopsAndWindow</code> after <code>GET /iroam/stops</code></td><td><code>PlaybackPage</code>, <code>AnalyticsPage</code></td></tr><tr><td><code>LAT_MIN/MAX</code>, <code>LON_MIN/MAX</code></td><td><code>applyStopsAndWindow</code></td><td>schematic route map</td></tr><tr><td><code>START_T</code>, <code>END_T</code></td><td><code>applyStopsAndWindow</code> from <code>/iroam/buses</code> time-window</td><td>time-axis ticks</td></tr><tr><td><code>ROUTE_META</code></td><td>static (in source)</td><td>dropdowns, direction labels</td></tr></tbody></table>
+<h3 id="api-contract"><a class="anchor" href="#api-contract" aria-hidden="true">#</a>API contract</h3>
+<p>Every endpoint the SPA hits is in <code>apps/api/routers/iroam.py</code>. See <a href="api.html#apps-api">API reference</a> for signatures.</p>
+<ul><li><code>GET /iroam/routes</code> → <code>[{route_id, direction_id, available_dates}]</code></li><li><code>GET /iroam/stops?route_id&amp;direction_id</code> → <code>{stops: [{name, lat, lon, stop_index}]}</code></li><li><code>GET /iroam/buses?route_id&amp;service_date&amp;direction_id&amp;bunch_sec&amp;idle_min&amp;crowd_pct&amp;bunch_dist&amp;bunch_method</code> → <code>{buses: [{trip_id, points, anomalies}], time_window: [start_min, end_min], totals}</code></li><li><code>GET /iroam/analytics?route_id&amp;service_date&amp;direction_id&amp;...</code> → hourly aggregates</li><li><code>GET /iroam/forecast?route_id&amp;service_date&amp;direction_id&amp;t_ref</code> → <code>{per_bus, horizon_summary, ...}</code> (see <a href="architecture.html#layer-6-forecast-lightgbm-bunching-predictor">Architecture &gt; Forecast</a>)</li></ul>
+<h3 id="runtime-dependencies"><a class="anchor" href="#runtime-dependencies" aria-hidden="true">#</a>Runtime dependencies</h3>
+<p>The SPA loads three scripts from CDNs in <code>&lt;head&gt;</code>:</p>
+<ul><li><code>react@18.3.1/umd/react.development.js</code></li><li><code>react-dom@18.3.1/umd/react-dom.development.js</code></li><li><code>@babel/standalone@7.29.0/babel.min.js</code></li></ul>
+<p>This keeps the artifact a single static file with no build pipeline. The Babel-standalone bundle compiles the JSX at page-load. The tradeoff: viewing the SPA needs a network connection on first load (then the browser caches React + Babel). For a production deployment, swap to a pre-built bundle.</p>
+<p>Font: <code>IBM Plex Sans</code> + <code>IBM Plex Mono</code> from Google Fonts.</p>
+<h3 id="where-to-edit"><a class="anchor" href="#where-to-edit" aria-hidden="true">#</a>Where to edit</h3>
+<table><thead><tr><th>You want to…</th><th>Edit</th></tr></thead><tbody><tr><td>Add a route or change direction labels</td><td><code>ROUTE_META</code> literal near top of <code>iroam.html</code></td></tr><tr><td>Change a slider&#x27;s min/max/step</td><td><code>&lt;Slider&gt;</code> props inside <code>ParameterPanel</code></td></tr><tr><td>Wire a new endpoint</td><td>Add a <code>fetchJSON(&#x27;/iroam/whatever&#x27;)</code> call; new module-scope var; consumer in <code>&lt;App&gt;</code> or a page component</td></tr><tr><td>Change colours / theme</td><td>CSS custom properties in the <code>&lt;style&gt;</code> block near <code>:root</code></td></tr><tr><td>Adjust forecast adapter</td><td><code>adaptForecast()</code> function, around the AnalyticsPage section</td></tr></tbody></table>
+<p>The file uses ASCII section banners (<code>// ───</code>) between major components: data, helpers, icons, primitives, sidebar, top bar, parameter panel, playback page, forecast adapter, analytics page, toasts/utilities, App.</p>
+<h2 id="streamlit-dashboard-apps-dashboard"><a class="anchor" href="#streamlit-dashboard-apps-dashboard" aria-hidden="true">#</a>Streamlit dashboard — <code>apps/dashboard/</code></h2>
+<p>A more engineering-focused UI. Six pages, all backed by <code>apps/dashboard/api_client.py</code> (never the DB directly):</p>
+<ol><li><strong>Home</strong> — system health summary (active vehicles, success rate).</li><li><strong>Feed Health</strong> — fetch attempt log and per-minute success/failure chart.</li><li><strong>Live Fleet Map</strong> — real-time map of every active vehicle.</li><li><strong>Route Explorer</strong> — pick a route, see active trips and anomalies.</li><li><strong>Vehicle Detail</strong> — single-vehicle 24 h trail and charts.</li><li><strong>Replay</strong> — time-window replay on a map.</li><li><strong>Trajectories</strong> — drill into upsampled trajectories from the analytics worker.</li></ol>
+<p>The dashboard is at &lt;http://localhost:8501&gt; when docker-compose is running. See the <a href="modules/apps-dashboard.html"><code>apps/dashboard</code> module page</a> for per-file details.</p>
+<h2 id="when-to-use-which"><a class="anchor" href="#when-to-use-which" aria-hidden="true">#</a>When to use which</h2>
+<table><thead><tr><th>Task</th><th>Use</th></tr></thead><tbody><tr><td>Inspect anomalies on a specific route/date/direction</td><td>iROAM SPA → Playback</td></tr><tr><td>Forecast bunching for the running fleet</td><td>iROAM SPA → Playback → Run forecast</td></tr><tr><td>Hour-by-hour anomaly statistics</td><td>iROAM SPA → Analytics</td></tr><tr><td>Diagnose collector failure</td><td>Streamlit → Feed Health</td></tr><tr><td>See every vehicle currently reporting</td><td>Streamlit → Live Fleet Map</td></tr><tr><td>Stare at one bus&#x27;s last 24 hours</td><td>Streamlit → Vehicle Detail</td></tr><tr><td>Replay a historical time window on a map</td><td>Streamlit → Replay</td></tr></tbody></table></article>
+  <div class="content-toc"><h4>On this page</h4><ul><li class="toc-h2"><a href="#iroam-single-page-app-apps-api-static-iroam-html">iROAM single-page app — `apps/api/static/iroam.html`</a></li><li class="toc-h3 sub"><a href="#three-pages">Three pages</a></li><li class="toc-h3 sub"><a href="#module-level-state">Module-level state</a></li><li class="toc-h3 sub"><a href="#api-contract">API contract</a></li><li class="toc-h3 sub"><a href="#runtime-dependencies">Runtime dependencies</a></li><li class="toc-h3 sub"><a href="#where-to-edit">Where to edit</a></li><li class="toc-h2"><a href="#streamlit-dashboard-apps-dashboard">Streamlit dashboard — `apps/dashboard/`</a></li><li class="toc-h2"><a href="#when-to-use-which">When to use which</a></li></ul></div>
+</main>
+<script src="assets/lunr.min.js"></script>
+<script src="assets/highlight.min.js"></script>
+<script>hljs.highlightAll();</script>
+<script src="assets/mermaid.min.js"></script>
+<script>mermaid.initialize({startOnLoad:true, theme:'neutral', securityLevel:'loose', flowchart:{curve:'basis'}});</script>
+<script>window.SEARCH_INDEX_URL = "search-index.json";</script>
+<script src="assets/app.js"></script>
+</body>
+</html>

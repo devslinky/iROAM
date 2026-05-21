@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>apps/api — iROAM docs</title>
+<link rel="stylesheet" href="../assets/styles.css" />
+<link rel="stylesheet" href="../assets/highlight-github.css" />
+</head>
+<body>
+<button class="nav-toggle" aria-label="Toggle navigation">☰</button>
+<aside class="sidebar">
+  <div class="sidebar-header">
+    <a class="brand" href="../index.html">iROAM <span>docs</span></a>
+  </div>
+  <div class="search-box">
+    <input id="search-input" type="search" placeholder="Search docs…" autocomplete="off" />
+    <div id="search-results" class="search-results" hidden></div>
+  </div>
+  <nav class="nav"><div class="nav-section"><h4>Start here</h4><ul>
+<li><a href="../index.html">Overview</a></li>
+<li><a href="../architecture.html">Architecture</a></li>
+<li><a href="../data-model.html">Data model</a></li>
+<li><a href="../database-dataflow.html">Database dataflow</a></li>
+<li><a href="../frontend.html">Frontend</a></li>
+<li><a href="../operations.html">Operations</a></li>
+<li><a href="../examples.html">Examples</a></li>
+</ul></div>
+<div class="nav-section"><h4>Reference</h4><ul>
+<li><a href="../api.html">API reference</a></li>
+</ul></div>
+<div class="nav-section"><h4>Modules</h4><ul>
+<li><a href="../modules/apps-collector.html">Collector</a></li>
+<li><a href="../modules/apps-analytics.html">Analytics</a></li>
+<li class="active"><a href="../modules/apps-api.html">API</a></li>
+<li><a href="../modules/apps-dashboard.html">Dashboard</a></li>
+<li><a href="../modules/core.html">Core</a></li>
+<li><a href="../modules/db.html">Database</a></li>
+<li><a href="../modules/scripts.html">Scripts</a></li>
+<li><a href="../modules/deployment-bunching.html">Bunching predictor</a></li>
+<li><a href="../modules/legacy.html">Legacy</a></li>
+</ul></div></nav>
+  <div class="sidebar-footer">Built 2026-04-24<br/>89 files · 178 symbols</div>
+</aside>
+<main class="content">
+  <div class="breadcrumb"><a href="../index.html">Overview</a> / <a href="../api.html">Modules</a> / apps/api</div>
+  <article><h1>apps/api</h1>
+<p class="lead">FastAPI read-only REST surface; vehicle, route, trajectory, and forecast endpoints.</p>
+<dl class="package-meta"><dt>Entry points</dt><dd><ul><li><code>uvicorn apps.api.main:app --host 0.0.0.0 --port 8000</code></li></ul></dd><dt>Files</dt><dd>20</dd><dt>Public symbols</dt><dd>37</dd></dl>
+<h2 id="files">Files</h2>
+<ul class="file-index">
+<li><a href="#apps-api-init-py"><code>apps/api/__init__.py</code></a> — —</li>
+<li><a href="#apps-api-deps-py"><code>apps/api/deps.py</code></a> — FastAPI dependencies.</li>
+<li><a href="#apps-api-main-py"><code>apps/api/main.py</code></a> — FastAPI application factory.</li>
+<li><a href="#apps-api-routers-init-py"><code>apps/api/routers/__init__.py</code></a> — API routers. Each file owns one URL prefix / resource.</li>
+<li><a href="#apps-api-routers-feed-status-py"><code>apps/api/routers/feed_status.py</code></a> — Feed health endpoints.</li>
+<li><a href="#apps-api-routers-health-py"><code>apps/api/routers/health.py</code></a> — Health check.</li>
+<li><a href="#apps-api-routers-iroam-py"><code>apps/api/routers/iroam.py</code></a> — iROAM Dashboard data endpoints.</li>
+<li><a href="#apps-api-routers-replay-py"><code>apps/api/routers/replay.py</code></a> — Append-ordered replay over a time window.</li>
+<li><a href="#apps-api-routers-routes-py"><code>apps/api/routers/routes.py</code></a> — Route-centric endpoints.</li>
+<li><a href="#apps-api-routers-trajectories-py"><code>apps/api/routers/trajectories.py</code></a> — Trip trajectory endpoints — upsampled analytics output.</li>
+<li><a href="#apps-api-routers-vehicles-py"><code>apps/api/routers/vehicles.py</code></a> — Vehicle-centric endpoints.</li>
+<li><a href="#apps-api-schemas-init-py"><code>apps/api/schemas/__init__.py</code></a> — Pydantic response schemas for the API.</li>
+<li><a href="#apps-api-schemas-feed-py"><code>apps/api/schemas/feed.py</code></a> — Health and feed-status schemas.</li>
+<li><a href="#apps-api-schemas-route-metrics-py"><code>apps/api/schemas/route_metrics.py</code></a> — RouteMetrics response schema.</li>
+<li><a href="#apps-api-schemas-trajectory-py"><code>apps/api/schemas/trajectory.py</code></a> — Trip-trajectory response schemas (analytics output).</li>
+<li><a href="#apps-api-schemas-vehicle-py"><code>apps/api/schemas/vehicle.py</code></a> — VehiclePosition response schemas.</li>
+<li><a href="#apps-api-services-init-py"><code>apps/api/services/__init__.py</code></a> — —</li>
+<li><a href="#apps-api-services-bunching-predictor-py"><code>apps/api/services/bunching_predictor.py</code></a> — Lazy singleton around the bundled ``BunchingPredictor``.</li>
+<li><a href="#apps-api-services-forecast-py"><code>apps/api/services/forecast.py</code></a> — Top-level forecast orchestration.</li>
+<li><a href="#apps-api-services-forecast-features-py"><code>apps/api/services/forecast_features.py</code></a> — Build raw-unit (60, 9) feature windows for the bunching predictor.</li>
+</ul>
+<section class="file" id="apps-api-init-py">
+<h3 class="file-heading"><a class="anchor" href="#apps-api-init-py" aria-hidden="true">#</a><code>apps/api/__init__.py</code></h3>
+<p class="file-no-symbols">No public symbols.</p>
+</section>
+<section class="file" id="apps-api-deps-py">
+<h3 class="file-heading"><a class="anchor" href="#apps-api-deps-py" aria-hidden="true">#</a><code>apps/api/deps.py</code></h3>
+<p class="file-summary">FastAPI dependencies.</p>
+<div class="file-doc"><p>FastAPI dependencies.</p>
+<p><code>get_db</code> yields a Session that is closed on request completion.</p></div>
+<div class="symbol-list"><strong>Public:</strong> <a href="#apps-api-deps-py-get-db"><code>get_db</code></a></div>
+<div class="symbol symbol-function" id="apps-api-deps-py-get-db">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-api-deps-py-get-db">get_db</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def get_db() -&gt; Iterator[Session]</code></pre>
+</div>
+<div class="used-by"><strong>Used by</strong><ul><li><code>apps/api/routers/feed_status.py</code></li><li><code>apps/api/routers/health.py</code></li><li><code>apps/api/routers/iroam.py</code></li><li><code>apps/api/routers/replay.py</code></li><li><code>apps/api/routers/routes.py</code></li><li><code>apps/api/routers/trajectories.py</code></li><li><code>apps/api/routers/vehicles.py</code></li></ul></div>
+</section>
+<section class="file" id="apps-api-main-py">
+<h3 class="file-heading"><a class="anchor" href="#apps-api-main-py" aria-hidden="true">#</a><code>apps/api/main.py</code></h3>
+<p class="file-summary">FastAPI application factory.</p>
+<div class="file-doc"><p>FastAPI application factory.</p>
+<p><code>app</code> is the module-level ASGI callable expected by <code>uvicorn</code> in both docker-compose and <code>make api</code>.</p></div>
+<div class="symbol-list"><strong>Public:</strong> <a href="#apps-api-main-py-create-app"><code>create_app</code></a></div>
+<div class="symbol symbol-function" id="apps-api-main-py-create-app">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-api-main-py-create-app">create_app</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def create_app() -&gt; FastAPI</code></pre>
+</div>
+</section>
+<section class="file" id="apps-api-routers-init-py">
+<h3 class="file-heading"><a class="anchor" href="#apps-api-routers-init-py" aria-hidden="true">#</a><code>apps/api/routers/__init__.py</code></h3>
+<p class="file-summary">API routers. Each file owns one URL prefix / resource.</p>
+<p class="file-no-symbols">No public symbols.</p>
+</section>
+<section class="file" id="apps-api-routers-feed-status-py">
+<h3 class="file-heading"><a class="anchor" href="#apps-api-routers-feed-status-py" aria-hidden="true">#</a><code>apps/api/routers/feed_status.py</code></h3>
+<p class="file-summary">Feed health endpoints.</p>
+<div class="symbol-list"><strong>Public:</strong> <a href="#apps-api-routers-feed-status-py-vehicle-positions-status"><code>vehicle_positions_status</code></a></div>
+<div class="symbol symbol-function" id="apps-api-routers-feed-status-py-vehicle-positions-status">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-api-routers-feed-status-py-vehicle-positions-status">vehicle_positions_status</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def vehicle_positions_status(db: Session = Depends(get_db)) -&gt; FeedStatusResponse</code></pre>
+<div class="symbol-doc"><p>Summary + recent fetches for the VehiclePositions feed.</p></div>
+</div>
+</section>
+<section class="file" id="apps-api-routers-health-py">
+<h3 class="file-heading"><a class="anchor" href="#apps-api-routers-health-py" aria-hidden="true">#</a><code>apps/api/routers/health.py</code></h3>
+<p class="file-summary">Health check.</p>
+<div class="symbol-list"><strong>Public:</strong> <a href="#apps-api-routers-health-py-health"><code>health</code></a></div>
+<div class="symbol symbol-function" id="apps-api-routers-health-py-health">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-api-routers-health-py-health">health</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def health(db: Session = Depends(get_db)) -&gt; HealthResponse</code></pre>
+</div>
+</section>
+<section class="file" id="apps-api-routers-iroam-py">
+<h3 class="file-heading"><a class="anchor" href="#apps-api-routers-iroam-py" aria-hidden="true">#</a><code>apps/api/routers/iroam.py</code></h3>
+<p class="file-summary">iROAM Dashboard data endpoints.</p>
+<div class="file-doc"><p>iROAM Dashboard data endpoints.</p>
+<p>The front-end (<code>apps/api/static/iroam.html</code>) calls four JSON endpoints:</p>
+<p>GET /iroam/routes → catalog of routes + service dates + direction IDs with trajectories</p>
+<p>GET /iroam/stops?route_id=&amp;direction_id= → ordered stops along the canonical shape with distance-along-route</p>
+<p>GET /iroam/buses?route_id=&amp;service_date=&amp;direction_id=&amp;bunch_sec=&amp;idle_min=&amp;crowd_pct= → one entry per trip instance with <code>points=[{t,d}]</code> and <code>anomalies=[{t,d,type}]</code> in the exact shape the dashboard renders. <code>t</code> = minutes-of-day (local TZ), <code>d</code> = fractional stop index.</p>
+<p>GET /iroam/analytics?route_id=&amp;service_date=&amp;direction_id=&amp;bunch_sec=&amp;idle_min=&amp;crowd_pct= → hour-by-hour aggregates for the Analytics page (anomaly counts per hour, per stop; operating speed per hour; running-time allocation).</p>
+<p>All endpoints are read-only and safe to hit on every slider tweak — the slice is already bounded by (route, date, direction).</p></div>
+<div class="symbol-list"><strong>Public:</strong> <a href="#apps-api-routers-iroam-py-iroam-routes"><code>iroam_routes</code></a>, <a href="#apps-api-routers-iroam-py-iroam-stops"><code>iroam_stops</code></a>, <a href="#apps-api-routers-iroam-py-iroam-buses"><code>iroam_buses</code></a>, <a href="#apps-api-routers-iroam-py-iroam-analytics"><code>iroam_analytics</code></a>, <a href="#apps-api-routers-iroam-py-iroam-forecast"><code>iroam_forecast</code></a></div>
+<div class="symbol symbol-function" id="apps-api-routers-iroam-py-iroam-routes">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-api-routers-iroam-py-iroam-routes">iroam_routes</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def iroam_routes(db: Session = Depends(get_db)) -&gt; list[dict[str, Any]]</code></pre>
+<div class="symbol-doc"><p>Catalog of routes with trajectory data and their available service dates.</p></div>
+</div>
+<div class="symbol symbol-function" id="apps-api-routers-iroam-py-iroam-stops">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-api-routers-iroam-py-iroam-stops">iroam_stops</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def iroam_stops(route_id: str = Query(...), direction_id: int = Query(..., ge=0, le=1)) -&gt; dict[str, Any]</code></pre>
+<div class="symbol-doc"><p>Ordered stops along the canonical shape for (route, direction).</p></div>
+</div>
+<div class="symbol symbol-function" id="apps-api-routers-iroam-py-iroam-buses">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-api-routers-iroam-py-iroam-buses">iroam_buses</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def iroam_buses(route_id: str = Query(...), service_date: date = Query(...), direction_id: int = Query(..., ge=0, le=1), bunch_sec: float = Query(default=120, ge=10, le=600), idle_min: float = Query(default=5, ge=0.5, le=60), crowd_pct: float = Query(default=100, ge=0, le=150), bunch_dist: float = Query(default=150, ge=10, le=1000), bunch_method: Literal[&#x27;time&#x27;, &#x27;distance&#x27;, &#x27;both&#x27;] = Query(default=&#x27;time&#x27;), db: Session = Depends(get_db)) -&gt; dict[str, Any]</code></pre>
+<div class="symbol-doc"><p>Dashboard-shaped bus data for one (route, date, direction) slice.</p></div>
+</div>
+<div class="symbol symbol-function" id="apps-api-routers-iroam-py-iroam-analytics">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-api-routers-iroam-py-iroam-analytics">iroam_analytics</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def iroam_analytics(route_id: str = Query(...), service_date: date = Query(...), direction_id: int = Query(..., ge=0, le=1), bunch_sec: float = Query(default=120, ge=10, le=600), idle_min: float = Query(default=5, ge=0.5, le=60), crowd_pct: float = Query(default=100, ge=0, le=150), bunch_dist: float = Query(default=150, ge=10, le=1000), bunch_method: Literal[&#x27;time&#x27;, &#x27;distance&#x27;, &#x27;both&#x27;] = Query(default=&#x27;time&#x27;), db: Session = Depends(get_db)) -&gt; dict[str, Any]</code></pre>
+<div class="symbol-doc"><p>Aggregate metrics for the Analytics page.</p></div>
+</div>
+<div class="symbol symbol-function" id="apps-api-routers-iroam-py-iroam-forecast">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-api-routers-iroam-py-iroam-forecast">iroam_forecast</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def iroam_forecast(route_id: str = Query(...), service_date: date = Query(...), direction_id: int = Query(..., ge=0, le=1), t_ref_min: float = Query(..., ge=0.0, le=1440.0, description=&#x27;Reference time as minute-of-day (America/Toronto). Live mode: use latest /iroam/buses time_window.end. Historical mode: use current playhead.&#x27;), freshness_s: float = Query(default=90.0, ge=10.0, le=600.0), edge_exclude: int = Query(default=2, ge=0, le=25), db: Session = Depends(get_db)) -&gt; dict[str, Any]</code></pre>
+<div class="symbol-doc"><p>Per-bus + aggregate bunching-risk forecast for one (route, date, direction).</p>
+<p>Runs the bundled LightGBM predictor (see <code>deployment/bunching_lightgbm</code>) over every &quot;running&quot; bus in the slice: fresh sample, inside the active-stop band, enough history to fill a 60-tick × 9-channel window. Returns per-bus probability horizons + two aggregate series (<code>any_alert_rate</code> and <code>mean_prob</code>) sized to the model&#x27;s 30-step horizon.</p>
+<p>Shape is stable across modes; the frontend passes the same payload shape into its Forecast panel whether this is live or historical.</p></div>
+</div>
+</section>
+<section class="file" id="apps-api-routers-replay-py">
+<h3 class="file-heading"><a class="anchor" href="#apps-api-routers-replay-py" aria-hidden="true">#</a><code>apps/api/routers/replay.py</code></h3>
+<p class="file-summary">Append-ordered replay over a time window.</p>
+<div class="symbol-list"><strong>Public:</strong> <a href="#apps-api-routers-replay-py-replay-vehicles-endpoint"><code>replay_vehicles_endpoint</code></a></div>
+<div class="symbol symbol-function" id="apps-api-routers-replay-py-replay-vehicles-endpoint">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-api-routers-replay-py-replay-vehicles-endpoint">replay_vehicles_endpoint</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def replay_vehicles_endpoint(start: datetime = Query(..., description=&#x27;Inclusive UTC start.&#x27;), end: datetime = Query(..., description=&#x27;Exclusive UTC end.&#x27;), route_id: str | None = Query(default=None), limit: int | None = Query(default=None, ge=1), include: Literal[&#x27;raw&#x27;] | None = Query(default=None), db: Session = Depends(get_db))</code></pre>
+<div class="symbol-doc"><p>Append-ordered vehicle positions for map replay.</p></div>
+</div>
+</section>
+<section class="file" id="apps-api-routers-routes-py">
+<h3 class="file-heading"><a class="anchor" href="#apps-api-routers-routes-py" aria-hidden="true">#</a><code>apps/api/routers/routes.py</code></h3>
+<p class="file-summary">Route-centric endpoints.</p>
+<div class="file-doc"><p>Route-centric endpoints.</p>
+<p>GET /routes                            — list routes observed recently GET /routes/{route_id}/vehicles/latest — latest vehicle per vehicle_id on route GET /routes/{route_id}/metrics         — fleet-health aggregates</p></div>
+<div class="symbol-list"><strong>Public:</strong> <a href="#apps-api-routers-routes-py-routes-index"><code>routes_index</code></a>, <a href="#apps-api-routers-routes-py-route-vehicles-latest"><code>route_vehicles_latest</code></a>, <a href="#apps-api-routers-routes-py-route-metrics-endpoint"><code>route_metrics_endpoint</code></a></div>
+<div class="symbol symbol-function" id="apps-api-routers-routes-py-routes-index">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-api-routers-routes-py-routes-index">routes_index</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def routes_index(minutes: int = Query(default=15, ge=1, le=180), db: Session = Depends(get_db)) -&gt; list[str]</code></pre>
+<div class="symbol-doc"><p>Routes with at least one observation in the last <code>minutes</code> minutes.</p></div>
+</div>
+<div class="symbol symbol-function" id="apps-api-routers-routes-py-route-vehicles-latest">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-api-routers-routes-py-route-vehicles-latest">route_vehicles_latest</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def route_vehicles_latest(route_id: str, limit: int | None = Query(default=None, ge=1), minutes: int = Query(default=5, ge=1, le=180), include: Literal[&#x27;raw&#x27;] | None = Query(default=None), db: Session = Depends(get_db))</code></pre>
+<div class="symbol-doc"><p>Latest observation per vehicle currently on <code>route_id</code>.</p></div>
+</div>
+<div class="symbol symbol-function" id="apps-api-routers-routes-py-route-metrics-endpoint">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-api-routers-routes-py-route-metrics-endpoint">route_metrics_endpoint</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def route_metrics_endpoint(route_id: str, window_minutes: int = Query(default=15, ge=1, le=180), db: Session = Depends(get_db)) -&gt; RouteMetricsResponse</code></pre>
+<div class="symbol-doc"><p>Fleet-level metrics over the latest observation per vehicle on a route.</p></div>
+</div>
+</section>
+<section class="file" id="apps-api-routers-trajectories-py">
+<h3 class="file-heading"><a class="anchor" href="#apps-api-routers-trajectories-py" aria-hidden="true">#</a><code>apps/api/routers/trajectories.py</code></h3>
+<p class="file-summary">Trip trajectory endpoints — upsampled analytics output.</p>
+<div class="file-doc"><p>Trip trajectory endpoints — upsampled analytics output.</p>
+<p>GET /trajectories/service-dates                        — dates with data GET /trajectories/routes?service_date=                 — routes on a date GET /trajectories/trips?service_date=[&amp;route_id=]      — picker list GET /trajectories/trips/{trip_id}?start_date=[&amp;include=shape] — full points, optionally enriched with shape-interpolated lon/lat</p>
+<p>The <code>include=shape</code> option loads the GTFS static bundle (cached per-process via <code>apps.analytics.gtfs_static.load_all</code>) and interpolates lon/lat for every upsampled point. It is opt-in so clients that only need a chart don&#x27;t pay the shapes-load cost.</p></div>
+<div class="symbol-list"><strong>Public:</strong> <a href="#apps-api-routers-trajectories-py-trajectory-service-dates"><code>trajectory_service_dates</code></a>, <a href="#apps-api-routers-trajectories-py-trajectory-routes"><code>trajectory_routes</code></a>, <a href="#apps-api-routers-trajectories-py-trajectory-trips"><code>trajectory_trips</code></a>, <a href="#apps-api-routers-trajectories-py-trajectory-detail"><code>trajectory_detail</code></a></div>
+<div class="symbol symbol-function" id="apps-api-routers-trajectories-py-trajectory-service-dates">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-api-routers-trajectories-py-trajectory-service-dates">trajectory_service_dates</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def trajectory_service_dates(limit: int = Query(default=30, ge=1, le=365), db: Session = Depends(get_db)) -&gt; list[date]</code></pre>
+<div class="symbol-doc"><p>Distinct service dates with any trajectory rows, newest first.</p></div>
+</div>
+<div class="symbol symbol-function" id="apps-api-routers-trajectories-py-trajectory-routes">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-api-routers-trajectories-py-trajectory-routes">trajectory_routes</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def trajectory_routes(service_date: date = Query(...), db: Session = Depends(get_db)) -&gt; list[str]</code></pre>
+<div class="symbol-doc"><p>Routes that have at least one trip trajectory on <code>service_date</code>.</p></div>
+</div>
+<div class="symbol symbol-function" id="apps-api-routers-trajectories-py-trajectory-trips">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-api-routers-trajectories-py-trajectory-trips">trajectory_trips</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def trajectory_trips(service_date: date = Query(...), route_id: str | None = Query(default=None), limit: int = Query(default=500, ge=1, le=5000), db: Session = Depends(get_db)) -&gt; list[TripInstanceSummary]</code></pre>
+<div class="symbol-doc"><p>Picker list: one summary per trip instance on a given service date.</p></div>
+</div>
+<div class="symbol symbol-function" id="apps-api-routers-trajectories-py-trajectory-detail">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-api-routers-trajectories-py-trajectory-detail">trajectory_detail</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def trajectory_detail(trip_id: str, start_date: str = Query(..., min_length=8, max_length=8, pattern=&#x27;^\\d{8}$&#x27;), include: Literal[&#x27;shape&#x27;] | None = Query(default=None, description=&quot;Set to &#x27;shape&#x27; to enrich each point with interpolated lon/lat.&quot;), db: Session = Depends(get_db)) -&gt; TripTrajectoryResponse</code></pre>
+<div class="symbol-doc"><p>Full trajectory for <code>(trip_id, start_date)</code> in time order.</p></div>
+</div>
+</section>
+<section class="file" id="apps-api-routers-vehicles-py">
+<h3 class="file-heading"><a class="anchor" href="#apps-api-routers-vehicles-py" aria-hidden="true">#</a><code>apps/api/routers/vehicles.py</code></h3>
+<p class="file-summary">Vehicle-centric endpoints.</p>
+<div class="file-doc"><p>Vehicle-centric endpoints.</p>
+<p>GET /vehicles/latest[?route_id=&amp;limit=]     — latest row per vehicle GET /vehicles/{vehicle_id}/latest           — single latest row (404 if none) GET /vehicles/{vehicle_id}/history          — append-ordered history window</p></div>
+<div class="symbol-list"><strong>Public:</strong> <a href="#apps-api-routers-vehicles-py-vehicles-latest"><code>vehicles_latest</code></a>, <a href="#apps-api-routers-vehicles-py-vehicle-latest"><code>vehicle_latest</code></a>, <a href="#apps-api-routers-vehicles-py-vehicle-history-endpoint"><code>vehicle_history_endpoint</code></a></div>
+<div class="symbol symbol-function" id="apps-api-routers-vehicles-py-vehicles-latest">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-api-routers-vehicles-py-vehicles-latest">vehicles_latest</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def vehicles_latest(route_id: str | None = Query(default=None), limit: int | None = Query(default=None, ge=1), minutes: int = Query(default=5, ge=1, le=180, description=&#x27;Only vehicles seen within this window&#x27;), include: Literal[&#x27;raw&#x27;] | None = Query(default=None), db: Session = Depends(get_db))</code></pre>
+<div class="symbol-doc"><p>Latest observation per <code>vehicle_id</code>, optionally filtered to a route.</p>
+<p><code>minutes</code> bounds staleness — default 5 min keeps the map clean; set higher for sparse debugging or to see recently-parked vehicles.</p></div>
+</div>
+<div class="symbol symbol-function" id="apps-api-routers-vehicles-py-vehicle-latest">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-api-routers-vehicles-py-vehicle-latest">vehicle_latest</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def vehicle_latest(vehicle_id: str, include: Literal[&#x27;raw&#x27;] | None = Query(default=None), db: Session = Depends(get_db))</code></pre>
+<div class="symbol-doc"><p>Single most-recent observation for a vehicle (404 if never seen).</p></div>
+</div>
+<div class="symbol symbol-function" id="apps-api-routers-vehicles-py-vehicle-history-endpoint">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-api-routers-vehicles-py-vehicle-history-endpoint">vehicle_history_endpoint</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def vehicle_history_endpoint(vehicle_id: str, start: datetime = Query(...), end: datetime = Query(...), limit: int | None = Query(default=None, ge=1), include: Literal[&#x27;raw&#x27;] | None = Query(default=None), db: Session = Depends(get_db))</code></pre>
+<div class="symbol-doc"><p>Append-ordered observations in [start, end) for one vehicle.</p></div>
+</div>
+</section>
+<section class="file" id="apps-api-schemas-init-py">
+<h3 class="file-heading"><a class="anchor" href="#apps-api-schemas-init-py" aria-hidden="true">#</a><code>apps/api/schemas/__init__.py</code></h3>
+<p class="file-summary">Pydantic response schemas for the API.</p>
+<p class="file-no-symbols">No public symbols.</p>
+</section>
+<section class="file" id="apps-api-schemas-feed-py">
+<h3 class="file-heading"><a class="anchor" href="#apps-api-schemas-feed-py" aria-hidden="true">#</a><code>apps/api/schemas/feed.py</code></h3>
+<p class="file-summary">Health and feed-status schemas.</p>
+<div class="symbol-list"><strong>Public:</strong> <a href="#apps-api-schemas-feed-py-healthresponse"><code>HealthResponse</code></a>, <a href="#apps-api-schemas-feed-py-fetchlogentry"><code>FetchLogEntry</code></a>, <a href="#apps-api-schemas-feed-py-feedstatusresponse"><code>FeedStatusResponse</code></a></div>
+<div class="symbol symbol-class" id="apps-api-schemas-feed-py-healthresponse">
+<div class="symbol-head">
+<span class="symbol-kind">class</span>
+<a class="symbol-name" href="#apps-api-schemas-feed-py-healthresponse">HealthResponse</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">class HealthResponse(BaseModel)</code></pre>
+</div>
+<div class="symbol symbol-class" id="apps-api-schemas-feed-py-fetchlogentry">
+<div class="symbol-head">
+<span class="symbol-kind">class</span>
+<a class="symbol-name" href="#apps-api-schemas-feed-py-fetchlogentry">FetchLogEntry</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">class FetchLogEntry(BaseModel)</code></pre>
+</div>
+<div class="symbol symbol-class" id="apps-api-schemas-feed-py-feedstatusresponse">
+<div class="symbol-head">
+<span class="symbol-kind">class</span>
+<a class="symbol-name" href="#apps-api-schemas-feed-py-feedstatusresponse">FeedStatusResponse</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">class FeedStatusResponse(BaseModel)</code></pre>
+</div>
+<div class="used-by"><strong>Used by</strong><ul><li><code>apps/api/schemas/__init__.py</code></li></ul></div>
+</section>
+<section class="file" id="apps-api-schemas-route-metrics-py">
+<h3 class="file-heading"><a class="anchor" href="#apps-api-schemas-route-metrics-py" aria-hidden="true">#</a><code>apps/api/schemas/route_metrics.py</code></h3>
+<p class="file-summary">RouteMetrics response schema.</p>
+<div class="symbol-list"><strong>Public:</strong> <a href="#apps-api-schemas-route-metrics-py-boundingbox"><code>BoundingBox</code></a>, <a href="#apps-api-schemas-route-metrics-py-routemetricsresponse"><code>RouteMetricsResponse</code></a></div>
+<div class="symbol symbol-class" id="apps-api-schemas-route-metrics-py-boundingbox">
+<div class="symbol-head">
+<span class="symbol-kind">class</span>
+<a class="symbol-name" href="#apps-api-schemas-route-metrics-py-boundingbox">BoundingBox</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">class BoundingBox(BaseModel)</code></pre>
+</div>
+<div class="symbol symbol-class" id="apps-api-schemas-route-metrics-py-routemetricsresponse">
+<div class="symbol-head">
+<span class="symbol-kind">class</span>
+<a class="symbol-name" href="#apps-api-schemas-route-metrics-py-routemetricsresponse">RouteMetricsResponse</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">class RouteMetricsResponse(BaseModel)</code></pre>
+</div>
+<div class="used-by"><strong>Used by</strong><ul><li><code>apps/api/schemas/__init__.py</code></li></ul></div>
+</section>
+<section class="file" id="apps-api-schemas-trajectory-py">
+<h3 class="file-heading"><a class="anchor" href="#apps-api-schemas-trajectory-py" aria-hidden="true">#</a><code>apps/api/schemas/trajectory.py</code></h3>
+<p class="file-summary">Trip-trajectory response schemas (analytics output).</p>
+<div class="file-doc"><p>Trip-trajectory response schemas (analytics output).</p>
+<p>Distinct from <code>vehicle.py</code> — those expose raw observations; these expose the upsampled, shape-projected trajectory produced by <code>apps/analytics</code>.</p></div>
+<div class="symbol-list"><strong>Public:</strong> <a href="#apps-api-schemas-trajectory-py-tripinstancesummary"><code>TripInstanceSummary</code></a>, <a href="#apps-api-schemas-trajectory-py-trajectorypoint"><code>TrajectoryPoint</code></a>, <a href="#apps-api-schemas-trajectory-py-triptrajectoryresponse"><code>TripTrajectoryResponse</code></a></div>
+<div class="symbol symbol-class" id="apps-api-schemas-trajectory-py-tripinstancesummary">
+<div class="symbol-head">
+<span class="symbol-kind">class</span>
+<a class="symbol-name" href="#apps-api-schemas-trajectory-py-tripinstancesummary">TripInstanceSummary</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">class TripInstanceSummary(BaseModel)</code></pre>
+<div class="symbol-doc"><p>One <code>(trip_id, start_date)</code> pair with coarse metadata for the picker.</p></div>
+</div>
+<div class="symbol symbol-class" id="apps-api-schemas-trajectory-py-trajectorypoint">
+<div class="symbol-head">
+<span class="symbol-kind">class</span>
+<a class="symbol-name" href="#apps-api-schemas-trajectory-py-trajectorypoint">TrajectoryPoint</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">class TrajectoryPoint(BaseModel)</code></pre>
+<div class="symbol-doc"><p>One upsampled row, optionally enriched with interpolated lon/lat.</p></div>
+</div>
+<div class="symbol symbol-class" id="apps-api-schemas-trajectory-py-triptrajectoryresponse">
+<div class="symbol-head">
+<span class="symbol-kind">class</span>
+<a class="symbol-name" href="#apps-api-schemas-trajectory-py-triptrajectoryresponse">TripTrajectoryResponse</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">class TripTrajectoryResponse(BaseModel)</code></pre>
+<div class="symbol-doc"><p>Envelope for a single trip instance&#x27;s full trajectory.</p></div>
+</div>
+<div class="used-by"><strong>Used by</strong><ul><li><code>apps/api/schemas/__init__.py</code></li></ul></div>
+</section>
+<section class="file" id="apps-api-schemas-vehicle-py">
+<h3 class="file-heading"><a class="anchor" href="#apps-api-schemas-vehicle-py" aria-hidden="true">#</a><code>apps/api/schemas/vehicle.py</code></h3>
+<p class="file-summary">VehiclePosition response schemas.</p>
+<div class="symbol-list"><strong>Public:</strong> <a href="#apps-api-schemas-vehicle-py-vehiclepositionresponse"><code>VehiclePositionResponse</code></a>, <a href="#apps-api-schemas-vehicle-py-vehiclepositionwithraw"><code>VehiclePositionWithRaw</code></a></div>
+<div class="symbol symbol-class" id="apps-api-schemas-vehicle-py-vehiclepositionresponse">
+<div class="symbol-head">
+<span class="symbol-kind">class</span>
+<a class="symbol-name" href="#apps-api-schemas-vehicle-py-vehiclepositionresponse">VehiclePositionResponse</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">class VehiclePositionResponse(BaseModel)</code></pre>
+<div class="symbol-doc"><p>Flat view of a <code>vehicle_positions</code> row.</p>
+<p><code>raw_entity</code> is excluded by default to keep map payloads small — callers that need it can opt in via <code>?include=raw</code>.</p></div>
+</div>
+<div class="symbol symbol-class" id="apps-api-schemas-vehicle-py-vehiclepositionwithraw">
+<div class="symbol-head">
+<span class="symbol-kind">class</span>
+<a class="symbol-name" href="#apps-api-schemas-vehicle-py-vehiclepositionwithraw">VehiclePositionWithRaw</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">class VehiclePositionWithRaw(VehiclePositionResponse)</code></pre>
+<div class="symbol-doc"><p>Full row including <code>raw_entity</code> JSON (per-entity protobuf dict).</p></div>
+</div>
+<div class="used-by"><strong>Used by</strong><ul><li><code>apps/api/schemas/__init__.py</code></li></ul></div>
+</section>
+<section class="file" id="apps-api-services-init-py">
+<h3 class="file-heading"><a class="anchor" href="#apps-api-services-init-py" aria-hidden="true">#</a><code>apps/api/services/__init__.py</code></h3>
+<p class="file-no-symbols">No public symbols.</p>
+</section>
+<section class="file" id="apps-api-services-bunching-predictor-py">
+<h3 class="file-heading"><a class="anchor" href="#apps-api-services-bunching-predictor-py" aria-hidden="true">#</a><code>apps/api/services/bunching_predictor.py</code></h3>
+<p class="file-summary">Lazy singleton around the bundled ``BunchingPredictor``.</p>
+<div class="file-doc"><p>Lazy singleton around the bundled <code>BunchingPredictor</code>.</p>
+<p>Loading the predictor means reading 30 LightGBM booster files + 3 JSON blobs and initialising a <code>lightgbm</code> runtime. ~100 ms on first touch, which is why we cache it per process. LightGBM inference itself is thread-safe for reads, so the cached instance is safe to share across FastAPI&#x27;s thread pool.</p>
+<p>Set <code>BUNCHING_MODEL_DIR</code> to point at an alternate bundle (e.g. for A/B tests or retrained variants); otherwise the bundled <code>deployment/bunching_lightgbm/model</code> is used.</p></div>
+<div class="symbol-list"><strong>Public:</strong> <a href="#apps-api-services-bunching-predictor-py-predictorunavailable"><code>PredictorUnavailable</code></a>, <a href="#apps-api-services-bunching-predictor-py-get-predictor"><code>get_predictor</code></a>, <a href="#apps-api-services-bunching-predictor-py-reset-cache"><code>reset_cache</code></a></div>
+<div class="symbol symbol-class" id="apps-api-services-bunching-predictor-py-predictorunavailable">
+<div class="symbol-head">
+<span class="symbol-kind">class</span>
+<a class="symbol-name" href="#apps-api-services-bunching-predictor-py-predictorunavailable">PredictorUnavailable</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">class PredictorUnavailable(RuntimeError)</code></pre>
+<div class="symbol-doc"><p>Raised when the model bundle is present but cannot be loaded (bad files, missing <code>lightgbm</code> runtime, etc.). Kept distinct from the stdlib errors so the API layer can translate it to a 503.</p></div>
+</div>
+<div class="symbol symbol-function" id="apps-api-services-bunching-predictor-py-get-predictor">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-api-services-bunching-predictor-py-get-predictor">get_predictor</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def get_predictor()</code></pre>
+<div class="symbol-doc"><p>Return the process-local <code>BunchingPredictor</code> instance.</p></div>
+</div>
+<div class="symbol symbol-function" id="apps-api-services-bunching-predictor-py-reset-cache">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-api-services-bunching-predictor-py-reset-cache">reset_cache</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def reset_cache() -&gt; None</code></pre>
+<div class="symbol-doc"><p>Test hook: drop the cached predictor so <code>get_predictor</code> rebuilds it.</p></div>
+</div>
+<div class="used-by"><strong>Used by</strong><ul><li><code>apps/api/routers/iroam.py</code></li></ul></div>
+</section>
+<section class="file" id="apps-api-services-forecast-py">
+<h3 class="file-heading"><a class="anchor" href="#apps-api-services-forecast-py" aria-hidden="true">#</a><code>apps/api/services/forecast.py</code></h3>
+<p class="file-summary">Top-level forecast orchestration.</p>
+<div class="file-doc"><p>Top-level forecast orchestration.</p>
+<p>Given a materialised slice of the iROAM dataset (same object list the <code>/buses</code> endpoint assembles), pick the eligible &quot;running&quot; buses at <code>t_ref</code>, build their feature windows, batch them through the shipped LightGBM predictor, and emit per-bus + aggregate output.</p>
+<p>The payload shape is tuned for what the dashboard&#x27;s ForecastPanel needs: each per-bus entry carries enough to show a bar in the at-risk list, and the aggregate <code>horizon_summary</code> drives the 5-minute probability curve.</p></div>
+<div class="symbol-list"><strong>Public:</strong> <a href="#apps-api-services-forecast-py-forecastresult"><code>ForecastResult</code></a>, <a href="#apps-api-services-forecast-py-run-forecast"><code>run_forecast</code></a></div>
+<div class="symbol symbol-class" id="apps-api-services-forecast-py-forecastresult">
+<div class="symbol-head">
+<span class="symbol-kind">class</span>
+<a class="symbol-name" href="#apps-api-services-forecast-py-forecastresult">ForecastResult</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">@dataclass(frozen=True)
+class ForecastResult</code></pre>
+</div>
+<div class="symbol symbol-function" id="apps-api-services-forecast-py-run-forecast">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-api-services-forecast-py-run-forecast">run_forecast</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def run_forecast(buses: list[BusTrajectory], *, num_stops: int, t_ref_min: float, freshness_s: float = 90.0, edge_exclude: int = 2, predictor: Any | None = None) -&gt; ForecastResult</code></pre>
+<div class="symbol-doc"><p>Run the bunching predictor for every &quot;running&quot; bus in <code>buses</code>.</p>
+<p><code>predictor</code> override exists for tests; production path calls <code>get_predictor</code>.</p></div>
+</div>
+<div class="used-by"><strong>Used by</strong><ul><li><code>apps/api/routers/iroam.py</code></li></ul></div>
+</section>
+<section class="file" id="apps-api-services-forecast-features-py">
+<h3 class="file-heading"><a class="anchor" href="#apps-api-services-forecast-features-py" aria-hidden="true">#</a><code>apps/api/services/forecast_features.py</code></h3>
+<p class="file-summary">Build raw-unit (60, 9) feature windows for the bunching predictor.</p>
+<div class="file-doc"><p>Build raw-unit (60, 9) feature windows for the bunching predictor.</p>
+<p>The vendor model expects a rolling 60-step × 9-channel window per bus in the order <code>(target_speed, target_gap, target_aux, u1_speed, u1_gap, u1_aux, u2_speed, u2_gap, u2_aux)</code> in <em>raw</em> units (m/s for speed, metres for gap). The <code>aux</code> channel is a passthrough route-position / categorical feature in the training pipeline; the vendor README recommends filling it with the training-time mean (0.0 in scaled space) when the live feed does not include it. We use 0.0 and document this as an assumption — see the top-level plan for rationale.</p>
+<p>This module is pure: no DB access, no I/O. It takes the same <code>list[BusTrajectory]</code> objects that <code>/iroam/buses</code> assembles and a <code>t_ref_minute</code> (minute-of-day in America/Toronto, matching the minute-of-day axis used throughout the dashboard), and emits per-bus windows + eligibility verdicts.</p>
+<p>&quot;Running&quot; bus definition (what makes a bus predictable at <code>t_ref</code>):</p>
+<p><em> Has a sample within <code>freshness_s</code> of <code>t_ref</code> (default 90 s). </em> Rounded stop index at <code>t_ref</code> satisfies <code>edge_exclude ≤ si &lt; N - edge_exclude</code> (default excludes first-2 and last-2 stops). <em> Has ≥ <code>seq_len</code> consecutive samples ending at <code>t_ref</code> with per-sample gaps ≤ <code>2 </em> step_seconds</code>. <em> Window values are finite. </em> At least one upstream bus exists on at least one of the 60 ticks.</p></div>
+<div class="symbol-list"><strong>Public:</strong> <a href="#apps-api-services-forecast-features-py-buswindowresult"><code>BusWindowResult</code></a>, <a href="#apps-api-services-forecast-features-py-build-bus-window"><code>build_bus_window</code></a></div>
+<div class="symbol symbol-class" id="apps-api-services-forecast-features-py-buswindowresult">
+<div class="symbol-head">
+<span class="symbol-kind">class</span>
+<a class="symbol-name" href="#apps-api-services-forecast-features-py-buswindowresult">BusWindowResult</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">@dataclass(frozen=True)
+class BusWindowResult</code></pre>
+</div>
+<div class="symbol symbol-function" id="apps-api-services-forecast-features-py-build-bus-window">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#apps-api-services-forecast-features-py-build-bus-window">build_bus_window</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def build_bus_window(target: BusTrajectory, peers: Sequence[BusTrajectory], *, t_ref_min: float, num_stops: int, freshness_s: float = 90.0, edge_exclude: int = 2) -&gt; BusWindowResult</code></pre>
+<div class="symbol-doc"><p>Build a single (60, 9) raw-unit window for <code>target</code> ending at <code>t_ref_min</code>.</p>
+<p><code>peers</code> must be the full list of buses on the same slice; <code>target</code> itself may be included and is filtered out internally.</p></div>
+</div>
+</section></article>
+  <div class="content-toc"><h4>On this page</h4><ul><li class="toc-h2"><a href="#files">Files</a></li><li class="toc-h3 sub"><a href="#apps-api-init-py">apps/api/__init__.py</a></li><li class="toc-h3 sub"><a href="#apps-api-deps-py">apps/api/deps.py</a></li><li class="toc-h3 sub"><a href="#apps-api-main-py">apps/api/main.py</a></li><li class="toc-h3 sub"><a href="#apps-api-routers-init-py">apps/api/routers/__init__.py</a></li><li class="toc-h3 sub"><a href="#apps-api-routers-feed-status-py">apps/api/routers/feed_status.py</a></li><li class="toc-h3 sub"><a href="#apps-api-routers-health-py">apps/api/routers/health.py</a></li><li class="toc-h3 sub"><a href="#apps-api-routers-iroam-py">apps/api/routers/iroam.py</a></li><li class="toc-h3 sub"><a href="#apps-api-routers-replay-py">apps/api/routers/replay.py</a></li><li class="toc-h3 sub"><a href="#apps-api-routers-routes-py">apps/api/routers/routes.py</a></li><li class="toc-h3 sub"><a href="#apps-api-routers-trajectories-py">apps/api/routers/trajectories.py</a></li><li class="toc-h3 sub"><a href="#apps-api-routers-vehicles-py">apps/api/routers/vehicles.py</a></li><li class="toc-h3 sub"><a href="#apps-api-schemas-init-py">apps/api/schemas/__init__.py</a></li><li class="toc-h3 sub"><a href="#apps-api-schemas-feed-py">apps/api/schemas/feed.py</a></li><li class="toc-h3 sub"><a href="#apps-api-schemas-route-metrics-py">apps/api/schemas/route_metrics.py</a></li><li class="toc-h3 sub"><a href="#apps-api-schemas-trajectory-py">apps/api/schemas/trajectory.py</a></li><li class="toc-h3 sub"><a href="#apps-api-schemas-vehicle-py">apps/api/schemas/vehicle.py</a></li><li class="toc-h3 sub"><a href="#apps-api-services-init-py">apps/api/services/__init__.py</a></li><li class="toc-h3 sub"><a href="#apps-api-services-bunching-predictor-py">apps/api/services/bunching_predictor.py</a></li><li class="toc-h3 sub"><a href="#apps-api-services-forecast-py">apps/api/services/forecast.py</a></li><li class="toc-h3 sub"><a href="#apps-api-services-forecast-features-py">apps/api/services/forecast_features.py</a></li></ul></div>
+</main>
+<script src="../assets/lunr.min.js"></script>
+<script src="../assets/highlight.min.js"></script>
+<script>hljs.highlightAll();</script>
+<script src="../assets/mermaid.min.js"></script>
+<script>mermaid.initialize({startOnLoad:true, theme:'neutral', securityLevel:'loose', flowchart:{curve:'basis'}});</script>
+<script>window.SEARCH_INDEX_URL = "../search-index.json";</script>
+<script src="../assets/app.js"></script>
+</body>
+</html>

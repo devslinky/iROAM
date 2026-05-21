@@ -1,7 +1,10 @@
-"""Raw GTFS-RT protobuf snapshot, one row per successful fetch.
+"""GTFS-RT snapshot metadata, one row per successful fetch.
 
-Keeping the bytes lets us re-normalize if the parser changes and lets the
-future /replay endpoint serve byte-identical historical payloads.
+A lightweight link target for ``vehicle_positions.snapshot_id``. The raw
+protobuf bytes are no longer stored (migration 0005) — re-normalization
+relies on the decoded per-entity JSON in ``vehicle_positions.raw_entity``.
+``content_sha256`` is retained so an unchanged feed (identical hash across
+consecutive polls) stays observable without keeping the payload.
 """
 
 from __future__ import annotations
@@ -9,7 +12,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import ForeignKey, Index, LargeBinary, String, UniqueConstraint
+from sqlalchemy import ForeignKey, Index, String, UniqueConstraint
 from sqlalchemy.dialects.postgresql import TIMESTAMP
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -35,7 +38,6 @@ class RawGtfsrtSnapshot(Base):
     gtfs_realtime_version: Mapped[str | None] = mapped_column(String(16), nullable=True)
     incrementality: Mapped[str | None] = mapped_column(String(16), nullable=True)
     content_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
-    payload: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
 
     fetch_log: Mapped["FeedFetchLog"] = relationship(back_populates="snapshot")
 
@@ -48,5 +50,5 @@ class RawGtfsrtSnapshot(Base):
     def __repr__(self) -> str:  # pragma: no cover - debug only
         return (
             f"<RawGtfsrtSnapshot id={self.id} feed={self.feed_name} "
-            f"bytes={len(self.payload) if self.payload else 0}>"
+            f"sha256={self.content_sha256[:12] if self.content_sha256 else None}>"
         )

@@ -105,7 +105,6 @@ def _seed_vehicle_positions(session: Session, n: int = 20) -> None:
         fetched_at=base_dt,
         feed_header_timestamp=base_dt,
         content_sha256="0" * 64,
-        payload=b"\x00",
     )
     session.add(snap)
     session.flush()

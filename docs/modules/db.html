@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>db — iROAM docs</title>
+<link rel="stylesheet" href="../assets/styles.css" />
+<link rel="stylesheet" href="../assets/highlight-github.css" />
+</head>
+<body>
+<button class="nav-toggle" aria-label="Toggle navigation">☰</button>
+<aside class="sidebar">
+  <div class="sidebar-header">
+    <a class="brand" href="../index.html">iROAM <span>docs</span></a>
+  </div>
+  <div class="search-box">
+    <input id="search-input" type="search" placeholder="Search docs…" autocomplete="off" />
+    <div id="search-results" class="search-results" hidden></div>
+  </div>
+  <nav class="nav"><div class="nav-section"><h4>Start here</h4><ul>
+<li><a href="../index.html">Overview</a></li>
+<li><a href="../architecture.html">Architecture</a></li>
+<li><a href="../data-model.html">Data model</a></li>
+<li><a href="../database-dataflow.html">Database dataflow</a></li>
+<li><a href="../frontend.html">Frontend</a></li>
+<li><a href="../operations.html">Operations</a></li>
+<li><a href="../examples.html">Examples</a></li>
+</ul></div>
+<div class="nav-section"><h4>Reference</h4><ul>
+<li><a href="../api.html">API reference</a></li>
+</ul></div>
+<div class="nav-section"><h4>Modules</h4><ul>
+<li><a href="../modules/apps-collector.html">Collector</a></li>
+<li><a href="../modules/apps-analytics.html">Analytics</a></li>
+<li><a href="../modules/apps-api.html">API</a></li>
+<li><a href="../modules/apps-dashboard.html">Dashboard</a></li>
+<li><a href="../modules/core.html">Core</a></li>
+<li class="active"><a href="../modules/db.html">Database</a></li>
+<li><a href="../modules/scripts.html">Scripts</a></li>
+<li><a href="../modules/deployment-bunching.html">Bunching predictor</a></li>
+<li><a href="../modules/legacy.html">Legacy</a></li>
+</ul></div></nav>
+  <div class="sidebar-footer">Built 2026-04-24<br/>89 files · 178 symbols</div>
+</aside>
+<main class="content">
+  <div class="breadcrumb"><a href="../index.html">Overview</a> / <a href="../api.html">Modules</a> / db</div>
+  <article><h1>db</h1>
+<p class="lead">SQLAlchemy 2.x ORM models, query helpers, and session factory.</p>
+<dl class="package-meta"><dt>Owns tables</dt><dd><code>feed_fetch_logs</code>, <code>raw_gtfsrt_snapshots</code>, <code>vehicle_positions</code>, <code>analytics_runs</code>, <code>trip_trajectories</code></dd><dt>Files</dt><dd>15</dd><dt>Public symbols</dt><dd>33</dd></dl>
+<h2 id="files">Files</h2>
+<ul class="file-index">
+<li><a href="#db-init-py"><code>db/__init__.py</code></a> — Database layer: engine, session factory, ORM models, and reusable queries.</li>
+<li><a href="#db-base-py"><code>db/base.py</code></a> — Declarative base for all ORM models.</li>
+<li><a href="#db-migrations-env-py"><code>db/migrations/env.py</code></a> — Alembic environment.</li>
+<li><a href="#db-models-init-py"><code>db/models/__init__.py</code></a> — ORM model package.</li>
+<li><a href="#db-models-feed-fetch-log-py"><code>db/models/feed_fetch_log.py</code></a> — Log of every fetch attempt against a GTFS-RT feed.</li>
+<li><a href="#db-models-raw-snapshot-py"><code>db/models/raw_snapshot.py</code></a> — Raw GTFS-RT protobuf snapshot, one row per successful fetch.</li>
+<li><a href="#db-models-trip-trajectory-py"><code>db/models/trip_trajectory.py</code></a> — Analytics output tables.</li>
+<li><a href="#db-models-vehicle-position-py"><code>db/models/vehicle_position.py</code></a> — VehiclePosition — one row per FeedEntity.vehicle per snapshot.</li>
+<li><a href="#db-queries-init-py"><code>db/queries/__init__.py</code></a> — Reusable complex read-side queries.</li>
+<li><a href="#db-queries-feed-stats-py"><code>db/queries/feed_stats.py</code></a> — Feed health aggregates derived from ``feed_fetch_logs``.</li>
+<li><a href="#db-queries-iroam-py"><code>db/queries/iroam.py</code></a> — Query helpers for the iROAM dashboard route-and-day view.</li>
+<li><a href="#db-queries-replay-py"><code>db/queries/replay.py</code></a> — Replay-oriented queries.</li>
+<li><a href="#db-queries-trajectories-py"><code>db/queries/trajectories.py</code></a> — Read-side helpers for the ``trip_trajectories`` analytics output.</li>
+<li><a href="#db-queries-vehicles-py"><code>db/queries/vehicles.py</code></a> — VehiclePosition query helpers.</li>
+<li><a href="#db-session-py"><code>db/session.py</code></a> — Engine + session factory.</li>
+</ul>
+<section class="file" id="db-init-py">
+<h3 class="file-heading"><a class="anchor" href="#db-init-py" aria-hidden="true">#</a><code>db/__init__.py</code></h3>
+<p class="file-summary">Database layer: engine, session factory, ORM models, and reusable queries.</p>
+<p class="file-no-symbols">No public symbols.</p>
+</section>
+<section class="file" id="db-base-py">
+<h3 class="file-heading"><a class="anchor" href="#db-base-py" aria-hidden="true">#</a><code>db/base.py</code></h3>
+<p class="file-summary">Declarative base for all ORM models.</p>
+<div class="file-doc"><p>Declarative base for all ORM models.</p>
+<p>Importing a model module (e.g. <code>db.models.trip_update</code>) registers it with <code>Base.metadata</code> and makes it visible to Alembic&#x27;s autogenerate.</p></div>
+<div class="symbol-list"><strong>Public:</strong> <a href="#db-base-py-base"><code>Base</code></a>, <a href="#db-base-py-register-all-models"><code>register_all_models</code></a></div>
+<div class="symbol symbol-class" id="db-base-py-base">
+<div class="symbol-head">
+<span class="symbol-kind">class</span>
+<a class="symbol-name" href="#db-base-py-base">Base</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">class Base(DeclarativeBase)</code></pre>
+<div class="symbol-doc"><p>Shared declarative base.</p></div>
+</div>
+<div class="symbol symbol-function" id="db-base-py-register-all-models">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#db-base-py-register-all-models">register_all_models</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def register_all_models() -&gt; None</code></pre>
+<div class="symbol-doc"><p>Force-import every model module so Base.metadata is fully populated.</p>
+<p>Called by Alembic&#x27;s env.py and anywhere we need an exhaustive metadata view (e.g. integration tests that use <code>Base.metadata.create_all</code>).</p></div>
+</div>
+<div class="used-by"><strong>Used by</strong><ul><li><code>apps/collector/feed_specs.py</code></li><li><code>db/migrations/env.py</code></li><li><code>db/models/feed_fetch_log.py</code></li><li><code>db/models/raw_snapshot.py</code></li><li><code>db/models/trip_trajectory.py</code></li><li><code>db/models/vehicle_position.py</code></li></ul></div>
+</section>
+<section class="file" id="db-migrations-env-py">
+<h3 class="file-heading"><a class="anchor" href="#db-migrations-env-py" aria-hidden="true">#</a><code>db/migrations/env.py</code></h3>
+<p class="file-summary">Alembic environment.</p>
+<div class="file-doc"><p>Alembic environment.</p>
+<p>Pulls the DSN from <code>core.config.get_settings()</code> (env var DATABASE_URL), and hands Alembic the fully-populated ORM metadata so <code>--autogenerate</code> has an accurate picture.</p></div>
+<div class="symbol-list"><strong>Public:</strong> <a href="#db-migrations-env-py-run-migrations-offline"><code>run_migrations_offline</code></a>, <a href="#db-migrations-env-py-run-migrations-online"><code>run_migrations_online</code></a></div>
+<div class="symbol symbol-function" id="db-migrations-env-py-run-migrations-offline">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#db-migrations-env-py-run-migrations-offline">run_migrations_offline</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def run_migrations_offline() -&gt; None</code></pre>
+</div>
+<div class="symbol symbol-function" id="db-migrations-env-py-run-migrations-online">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#db-migrations-env-py-run-migrations-online">run_migrations_online</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def run_migrations_online() -&gt; None</code></pre>
+</div>
+</section>
+<section class="file" id="db-models-init-py">
+<h3 class="file-heading"><a class="anchor" href="#db-models-init-py" aria-hidden="true">#</a><code>db/models/__init__.py</code></h3>
+<p class="file-summary">ORM model package.</p>
+<div class="file-doc"><p>ORM model package.</p>
+<p>Importing this package registers every table on <code>Base.metadata</code>.</p></div>
+<p class="file-no-symbols">No public symbols.</p>
+</section>
+<section class="file" id="db-models-feed-fetch-log-py">
+<h3 class="file-heading"><a class="anchor" href="#db-models-feed-fetch-log-py" aria-hidden="true">#</a><code>db/models/feed_fetch_log.py</code></h3>
+<p class="file-summary">Log of every fetch attempt against a GTFS-RT feed.</p>
+<div class="file-doc"><p>Log of every fetch attempt against a GTFS-RT feed.</p>
+<p>Every poll — success or failure — creates exactly one row here. On success, exactly one child <code>RawGtfsrtSnapshot</code> row is also written.</p></div>
+<div class="symbol-list"><strong>Public:</strong> <a href="#db-models-feed-fetch-log-py-feedfetchlog"><code>FeedFetchLog</code></a></div>
+<div class="symbol symbol-class" id="db-models-feed-fetch-log-py-feedfetchlog">
+<div class="symbol-head">
+<span class="symbol-kind">class</span>
+<a class="symbol-name" href="#db-models-feed-fetch-log-py-feedfetchlog">FeedFetchLog</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">class FeedFetchLog(Base)</code></pre>
+</div>
+<div class="used-by"><strong>Used by</strong><ul><li><code>apps/collector/runner.py</code></li><li><code>db/models/__init__.py</code></li><li><code>db/queries/feed_stats.py</code></li></ul></div>
+</section>
+<section class="file" id="db-models-raw-snapshot-py">
+<h3 class="file-heading"><a class="anchor" href="#db-models-raw-snapshot-py" aria-hidden="true">#</a><code>db/models/raw_snapshot.py</code></h3>
+<p class="file-summary">Raw GTFS-RT protobuf snapshot, one row per successful fetch.</p>
+<div class="file-doc"><p>Raw GTFS-RT protobuf snapshot, one row per successful fetch.</p>
+<p>Keeping the bytes lets us re-normalize if the parser changes and lets the future /replay endpoint serve byte-identical historical payloads.</p></div>
+<div class="symbol-list"><strong>Public:</strong> <a href="#db-models-raw-snapshot-py-rawgtfsrtsnapshot"><code>RawGtfsrtSnapshot</code></a></div>
+<div class="symbol symbol-class" id="db-models-raw-snapshot-py-rawgtfsrtsnapshot">
+<div class="symbol-head">
+<span class="symbol-kind">class</span>
+<a class="symbol-name" href="#db-models-raw-snapshot-py-rawgtfsrtsnapshot">RawGtfsrtSnapshot</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">class RawGtfsrtSnapshot(Base)</code></pre>
+</div>
+<div class="used-by"><strong>Used by</strong><ul><li><code>apps/collector/runner.py</code></li><li><code>db/models/__init__.py</code></li><li><code>db/queries/replay.py</code></li></ul></div>
+</section>
+<section class="file" id="db-models-trip-trajectory-py">
+<h3 class="file-heading"><a class="anchor" href="#db-models-trip-trajectory-py" aria-hidden="true">#</a><code>db/models/trip_trajectory.py</code></h3>
+<p class="file-summary">Analytics output tables.</p>
+<div class="file-doc"><p>Analytics output tables.</p>
+<p><code>AnalyticsRun</code> is one row per <code>apps/analytics</code> invocation (mirrors <code>FeedFetchLog</code> for the collector). <code>TripTrajectory</code> is one row per upsampled trajectory point; children cascade-delete with their run.</p>
+<p>Both are append-only: re-running for the same <code>service_date</code> inserts a new run and new rows. Latest-per-point is a <code>DISTINCT ON</code> query against the indexes, not a mutation.</p></div>
+<div class="symbol-list"><strong>Public:</strong> <a href="#db-models-trip-trajectory-py-analyticsrun"><code>AnalyticsRun</code></a>, <a href="#db-models-trip-trajectory-py-triptrajectory"><code>TripTrajectory</code></a></div>
+<div class="symbol symbol-class" id="db-models-trip-trajectory-py-analyticsrun">
+<div class="symbol-head">
+<span class="symbol-kind">class</span>
+<a class="symbol-name" href="#db-models-trip-trajectory-py-analyticsrun">AnalyticsRun</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">class AnalyticsRun(Base)</code></pre>
+</div>
+<div class="symbol symbol-class" id="db-models-trip-trajectory-py-triptrajectory">
+<div class="symbol-head">
+<span class="symbol-kind">class</span>
+<a class="symbol-name" href="#db-models-trip-trajectory-py-triptrajectory">TripTrajectory</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">class TripTrajectory(Base)</code></pre>
+</div>
+<div class="used-by"><strong>Used by</strong><ul><li><code>apps/analytics/runner.py</code></li><li><code>db/models/__init__.py</code></li><li><code>db/queries/iroam.py</code></li><li><code>db/queries/trajectories.py</code></li></ul></div>
+</section>
+<section class="file" id="db-models-vehicle-position-py">
+<h3 class="file-heading"><a class="anchor" href="#db-models-vehicle-position-py" aria-hidden="true">#</a><code>db/models/vehicle_position.py</code></h3>
+<p class="file-summary">VehiclePosition — one row per FeedEntity.vehicle per snapshot.</p>
+<div class="file-doc"><p>VehiclePosition — one row per FeedEntity.vehicle per snapshot.</p>
+<p>Append-only. The hottest read path is &quot;latest row per vehicle_id&quot; and &quot;latest row per route_id,&quot; both served by composite <code>(vehicle_id|route_id, fetched_at DESC)</code> indexes.</p>
+<p>The <code>geom</code> column is a PostgreSQL GENERATED column derived from <code>(longitude, latitude)</code> by the migration; it is not mapped as an attribute on this ORM class because Python code never writes to it. Queries that need spatial filtering access <code>geom</code> through raw SQL expressions.</p></div>
+<div class="symbol-list"><strong>Public:</strong> <a href="#db-models-vehicle-position-py-vehicleposition"><code>VehiclePosition</code></a></div>
+<div class="symbol symbol-class" id="db-models-vehicle-position-py-vehicleposition">
+<div class="symbol-head">
+<span class="symbol-kind">class</span>
+<a class="symbol-name" href="#db-models-vehicle-position-py-vehicleposition">VehiclePosition</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">class VehiclePosition(Base)</code></pre>
+</div>
+<div class="used-by"><strong>Used by</strong><ul><li><code>apps/analytics/pipeline.py</code></li><li><code>apps/analytics/trajectory_extract.py</code></li><li><code>apps/collector/normalize_vehicles.py</code></li><li><code>db/models/__init__.py</code></li><li><code>db/queries/vehicles.py</code></li></ul></div>
+</section>
+<section class="file" id="db-queries-init-py">
+<h3 class="file-heading"><a class="anchor" href="#db-queries-init-py" aria-hidden="true">#</a><code>db/queries/__init__.py</code></h3>
+<p class="file-summary">Reusable complex read-side queries.</p>
+<div class="file-doc"><p>Reusable complex read-side queries.</p>
+<p>Router code stays thin; complex SQL lives here and can be unit-tested directly.</p></div>
+<p class="file-no-symbols">No public symbols.</p>
+</section>
+<section class="file" id="db-queries-feed-stats-py">
+<h3 class="file-heading"><a class="anchor" href="#db-queries-feed-stats-py" aria-hidden="true">#</a><code>db/queries/feed_stats.py</code></h3>
+<p class="file-summary">Feed health aggregates derived from ``feed_fetch_logs``.</p>
+<div class="symbol-list"><strong>Public:</strong> <a href="#db-queries-feed-stats-py-feedstatus"><code>FeedStatus</code></a>, <a href="#db-queries-feed-stats-py-feed-status"><code>feed_status</code></a>, <a href="#db-queries-feed-stats-py-recent-fetches"><code>recent_fetches</code></a></div>
+<div class="symbol symbol-class" id="db-queries-feed-stats-py-feedstatus">
+<div class="symbol-head">
+<span class="symbol-kind">class</span>
+<a class="symbol-name" href="#db-queries-feed-stats-py-feedstatus">FeedStatus</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">@dataclass
+class FeedStatus</code></pre>
+</div>
+<div class="symbol symbol-function" id="db-queries-feed-stats-py-feed-status">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#db-queries-feed-stats-py-feed-status">feed_status</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def feed_status(session: Session, feed_name: str) -&gt; FeedStatus</code></pre>
+<div class="symbol-doc"><p>Return a summary of the last fetch and the last-hour success rate.</p></div>
+</div>
+<div class="symbol symbol-function" id="db-queries-feed-stats-py-recent-fetches">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#db-queries-feed-stats-py-recent-fetches">recent_fetches</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def recent_fetches(session: Session, feed_name: str, *, limit: int = 50) -&gt; list[FeedFetchLog]</code></pre>
+<div class="symbol-doc"><p>The last N fetch-log rows, newest-first.</p></div>
+</div>
+<div class="used-by"><strong>Used by</strong><ul><li><code>apps/api/routers/feed_status.py</code></li></ul></div>
+</section>
+<section class="file" id="db-queries-iroam-py">
+<h3 class="file-heading"><a class="anchor" href="#db-queries-iroam-py" aria-hidden="true">#</a><code>db/queries/iroam.py</code></h3>
+<p class="file-summary">Query helpers for the iROAM dashboard route-and-day view.</p>
+<div class="file-doc"><p>Query helpers for the iROAM dashboard route-and-day view.</p>
+<p>The dashboard picks a <code>(route_id, service_date, direction_id)</code> triple and needs:</p>
+<p><em> catalog — which routes have any trajectory data, and on which dates per route / direction combo, for the sidebar dropdowns; </em> bulk trajectories — every point of every trip instance in the picked slice, in one round-trip (per-instance fetching would hammer the DB when the dashboard refreshes every few seconds).</p>
+<p>We deliberately avoid joining to <code>vehicle_positions</code> etc.; trajectories already carry everything the UI renders. Sort order is <code>(trip_id, start_date, datetime)</code> so the caller can walk the list linearly and group on change-of-key.</p></div>
+<div class="symbol-list"><strong>Public:</strong> <a href="#db-queries-iroam-py-routedatedir"><code>RouteDateDir</code></a>, <a href="#db-queries-iroam-py-list-route-catalog"><code>list_route_catalog</code></a>, <a href="#db-queries-iroam-py-fetch-trajectories-for-slice"><code>fetch_trajectories_for_slice</code></a></div>
+<div class="symbol symbol-class" id="db-queries-iroam-py-routedatedir">
+<div class="symbol-head">
+<span class="symbol-kind">class</span>
+<a class="symbol-name" href="#db-queries-iroam-py-routedatedir">RouteDateDir</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">@dataclass(frozen=True)
+class RouteDateDir</code></pre>
+</div>
+<div class="symbol symbol-function" id="db-queries-iroam-py-list-route-catalog">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#db-queries-iroam-py-list-route-catalog">list_route_catalog</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def list_route_catalog(session: Session) -&gt; list[dict[str, Any]]</code></pre>
+<div class="symbol-doc"><p>One entry per distinct <code>(route_id, direction_id)</code> with the dates it ran on.</p></div>
+</div>
+<div class="symbol symbol-function" id="db-queries-iroam-py-fetch-trajectories-for-slice">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#db-queries-iroam-py-fetch-trajectories-for-slice">fetch_trajectories_for_slice</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def fetch_trajectories_for_slice(session: Session, *, service_date: date, route_id: str, direction_id: int) -&gt; list[TripTrajectory]</code></pre>
+<div class="symbol-doc"><p>Every trajectory point for the given slice, ordered for linear grouping.</p></div>
+</div>
+<div class="used-by"><strong>Used by</strong><ul><li><code>apps/api/routers/iroam.py</code></li></ul></div>
+</section>
+<section class="file" id="db-queries-replay-py">
+<h3 class="file-heading"><a class="anchor" href="#db-queries-replay-py" aria-hidden="true">#</a><code>db/queries/replay.py</code></h3>
+<p class="file-summary">Replay-oriented queries.</p>
+<div class="file-doc"><p>Replay-oriented queries.</p>
+<p>Thin wrappers that exist so future additions (replay of raw payloads, reconstruction from snapshots) have a natural home.</p></div>
+<div class="symbol-list"><strong>Public:</strong> <a href="#db-queries-replay-py-snapshots-in-window"><code>snapshots_in_window</code></a></div>
+<div class="symbol symbol-function" id="db-queries-replay-py-snapshots-in-window">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#db-queries-replay-py-snapshots-in-window">snapshots_in_window</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def snapshots_in_window(session: Session, *, feed_name: str, start: datetime, end: datetime, limit: int = 500) -&gt; Sequence[RawGtfsrtSnapshot]</code></pre>
+<div class="symbol-doc"><p>All snapshots for a feed in a time window, oldest-first.</p></div>
+</div>
+</section>
+<section class="file" id="db-queries-trajectories-py">
+<h3 class="file-heading"><a class="anchor" href="#db-queries-trajectories-py" aria-hidden="true">#</a><code>db/queries/trajectories.py</code></h3>
+<p class="file-summary">Read-side helpers for the ``trip_trajectories`` analytics output.</p>
+<div class="file-doc"><p>Read-side helpers for the <code>trip_trajectories</code> analytics output.</p>
+<p>All queries are bounded by <code>service_date</code> (+ optionally <code>route_id</code>) and sorted by <code>datetime</code>. The table is refreshed delete-then-insert per trip instance so callers don&#x27;t need to think about multiple analytics runs — the <code>(trip_id, start_date)</code> unique-on-datetime index guarantees one row per upsampled tick.</p></div>
+<div class="symbol-list"><strong>Public:</strong> <a href="#db-queries-trajectories-py-tripinstancesummary"><code>TripInstanceSummary</code></a>, <a href="#db-queries-trajectories-py-list-service-dates"><code>list_service_dates</code></a>, <a href="#db-queries-trajectories-py-list-trip-instances"><code>list_trip_instances</code></a>, <a href="#db-queries-trajectories-py-fetch-trip-trajectory"><code>fetch_trip_trajectory</code></a>, <a href="#db-queries-trajectories-py-list-active-routes-on-date"><code>list_active_routes_on_date</code></a></div>
+<div class="symbol symbol-class" id="db-queries-trajectories-py-tripinstancesummary">
+<div class="symbol-head">
+<span class="symbol-kind">class</span>
+<a class="symbol-name" href="#db-queries-trajectories-py-tripinstancesummary">TripInstanceSummary</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">@dataclass(frozen=True)
+class TripInstanceSummary</code></pre>
+</div>
+<div class="symbol symbol-function" id="db-queries-trajectories-py-list-service-dates">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#db-queries-trajectories-py-list-service-dates">list_service_dates</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def list_service_dates(session: Session, *, limit: int = 30) -&gt; list[date]</code></pre>
+<div class="symbol-doc"><p>Distinct service_dates present in <code>trip_trajectories</code>, newest first.</p></div>
+</div>
+<div class="symbol symbol-function" id="db-queries-trajectories-py-list-trip-instances">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#db-queries-trajectories-py-list-trip-instances">list_trip_instances</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def list_trip_instances(session: Session, service_date: date, *, route_id: str | None = None, limit: int = 500) -&gt; list[TripInstanceSummary]</code></pre>
+<div class="symbol-doc"><p>One summary row per <code>(trip_id, start_date)</code> for a service date.</p>
+<p><code>vehicle_id</code> and <code>route_id</code> are picked from the row with the largest travel_distance_m so a trip instance that changed vehicles mid-trip gets a stable representative; this is rare but non-zero in the feed.</p></div>
+</div>
+<div class="symbol symbol-function" id="db-queries-trajectories-py-fetch-trip-trajectory">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#db-queries-trajectories-py-fetch-trip-trajectory">fetch_trip_trajectory</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def fetch_trip_trajectory(session: Session, trip_id: str, start_date: str) -&gt; list[TripTrajectory]</code></pre>
+<div class="symbol-doc"><p>All upsampled points for one trip instance, time-ascending.</p>
+<p>Served by the <code>ux_trip_trajectories_instance_dt</code> unique index (<code>trip_id, start_date, datetime</code>).</p></div>
+</div>
+<div class="symbol symbol-function" id="db-queries-trajectories-py-list-active-routes-on-date">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#db-queries-trajectories-py-list-active-routes-on-date">list_active_routes_on_date</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def list_active_routes_on_date(session: Session, service_date: date, *, limit: int = 500) -&gt; list[str]</code></pre>
+<div class="symbol-doc"><p>Distinct <code>route_id</code> values present in trajectories for a service_date.</p></div>
+</div>
+<div class="used-by"><strong>Used by</strong><ul><li><code>apps/api/routers/trajectories.py</code></li></ul></div>
+</section>
+<section class="file" id="db-queries-vehicles-py">
+<h3 class="file-heading"><a class="anchor" href="#db-queries-vehicles-py" aria-hidden="true">#</a><code>db/queries/vehicles.py</code></h3>
+<p class="file-summary">VehiclePosition query helpers.</p>
+<div class="file-doc"><p>VehiclePosition query helpers.</p>
+<p>All &quot;latest&quot; lookups use Postgres <code>DISTINCT ON</code>: with the composite <code>(vehicle_id | route_id, fetched_at DESC)</code> indexes, the planner picks the first row per key without a sort.</p></div>
+<div class="symbol-list"><strong>Public:</strong> <a href="#db-queries-vehicles-py-latest-vehicle-positions"><code>latest_vehicle_positions</code></a>, <a href="#db-queries-vehicles-py-latest-vehicle-position"><code>latest_vehicle_position</code></a>, <a href="#db-queries-vehicles-py-vehicle-history"><code>vehicle_history</code></a>, <a href="#db-queries-vehicles-py-fetch-by-trip-instance"><code>fetch_by_trip_instance</code></a>, <a href="#db-queries-vehicles-py-active-route-ids"><code>active_route_ids</code></a>, <a href="#db-queries-vehicles-py-routemetrics"><code>RouteMetrics</code></a>, <a href="#db-queries-vehicles-py-route-metrics"><code>route_metrics</code></a>, <a href="#db-queries-vehicles-py-replay-vehicles"><code>replay_vehicles</code></a></div>
+<div class="symbol symbol-function" id="db-queries-vehicles-py-latest-vehicle-positions">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#db-queries-vehicles-py-latest-vehicle-positions">latest_vehicle_positions</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def latest_vehicle_positions(session: Session, *, route_id: str | None = None, since: datetime | None = None, limit: int = 5000) -&gt; list[VehiclePosition]</code></pre>
+<div class="symbol-doc"><p>Latest row per <code>vehicle_id</code> (optionally filtered by route).</p>
+<p><code>since</code> bounds the scan — defaults to now-24h so a stale DB doesn&#x27;t return ancient rows. Use a smaller window for the live map.</p></div>
+</div>
+<div class="symbol symbol-function" id="db-queries-vehicles-py-latest-vehicle-position">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#db-queries-vehicles-py-latest-vehicle-position">latest_vehicle_position</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def latest_vehicle_position(session: Session, vehicle_id: str) -&gt; VehiclePosition | None</code></pre>
+<div class="symbol-doc"><p>Single most-recent row for a specific vehicle, or None.</p></div>
+</div>
+<div class="symbol symbol-function" id="db-queries-vehicles-py-vehicle-history">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#db-queries-vehicles-py-vehicle-history">vehicle_history</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def vehicle_history(session: Session, vehicle_id: str, *, start: datetime, end: datetime, limit: int = 5000) -&gt; list[VehiclePosition]</code></pre>
+<div class="symbol-doc"><p>Append-ordered history for a vehicle within [start, end].</p></div>
+</div>
+<div class="symbol symbol-function" id="db-queries-vehicles-py-fetch-by-trip-instance">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#db-queries-vehicles-py-fetch-by-trip-instance">fetch_by_trip_instance</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def fetch_by_trip_instance(session: Session, trip_id: str, start_date: str) -&gt; list[VehiclePosition]</code></pre>
+<div class="symbol-doc"><p>All rows for one trip instance, chronological.</p>
+<p>Keyed on <code>(trip_id, start_date)</code> because the same <code>trip_id</code> repeats across service days. When the feed populates TripDescriptor.start_date the filter is exact; otherwise we fall back to the Toronto-local date derived from <code>vehicle_timestamp</code> / <code>fetched_at</code>. Sort is ASC by observation time so analytics can compute diffs directly.</p></div>
+</div>
+<div class="symbol symbol-function" id="db-queries-vehicles-py-active-route-ids">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#db-queries-vehicles-py-active-route-ids">active_route_ids</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def active_route_ids(session: Session, *, window: timedelta = timedelta(minutes=15), limit: int = 500) -&gt; list[str]</code></pre>
+<div class="symbol-doc"><p>Distinct route_ids observed within the last <code>window</code>, newest-activity-first.</p></div>
+</div>
+<div class="symbol symbol-class" id="db-queries-vehicles-py-routemetrics">
+<div class="symbol-head">
+<span class="symbol-kind">class</span>
+<a class="symbol-name" href="#db-queries-vehicles-py-routemetrics">RouteMetrics</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">@dataclass
+class RouteMetrics</code></pre>
+</div>
+<div class="symbol symbol-function" id="db-queries-vehicles-py-route-metrics">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#db-queries-vehicles-py-route-metrics">route_metrics</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def route_metrics(session: Session, route_id: str, *, window_minutes: int = 15) -&gt; RouteMetrics</code></pre>
+<div class="symbol-doc"><p>Aggregate metrics over the latest observation per vehicle on a route.</p></div>
+</div>
+<div class="symbol symbol-function" id="db-queries-vehicles-py-replay-vehicles">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#db-queries-vehicles-py-replay-vehicles">replay_vehicles</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def replay_vehicles(session: Session, *, start: datetime, end: datetime, route_id: str | None = None, limit: int = 5000) -&gt; list[VehiclePosition]</code></pre>
+<div class="symbol-doc"><p>Append-ordered rows for map replay in a time window.</p></div>
+</div>
+<div class="used-by"><strong>Used by</strong><ul><li><code>apps/analytics/pipeline.py</code></li><li><code>apps/api/routers/replay.py</code></li><li><code>apps/api/routers/routes.py</code></li><li><code>apps/api/routers/vehicles.py</code></li></ul></div>
+</section>
+<section class="file" id="db-session-py">
+<h3 class="file-heading"><a class="anchor" href="#db-session-py" aria-hidden="true">#</a><code>db/session.py</code></h3>
+<p class="file-summary">Engine + session factory.</p>
+<div class="file-doc"><p>Engine + session factory.</p>
+<p>Engine is lazily created the first time <code>get_engine()</code> or <code>SessionLocal()</code> is called, so importing this module is cheap and safe during tests.</p></div>
+<div class="symbol-list"><strong>Public:</strong> <a href="#db-session-py-get-engine"><code>get_engine</code></a>, <a href="#db-session-py-get-session-factory"><code>get_session_factory</code></a>, <a href="#db-session-py-session-scope"><code>session_scope</code></a>, <a href="#db-session-py-sessionlocal"><code>SessionLocal</code></a></div>
+<div class="symbol symbol-function" id="db-session-py-get-engine">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#db-session-py-get-engine">get_engine</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def get_engine() -&gt; Engine</code></pre>
+<div class="symbol-doc"><p>Return the process-wide SQLAlchemy Engine.</p></div>
+</div>
+<div class="symbol symbol-function" id="db-session-py-get-session-factory">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#db-session-py-get-session-factory">get_session_factory</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def get_session_factory() -&gt; sessionmaker[Session]</code></pre>
+<div class="symbol-doc"><p>Return the process-wide SessionLocal factory.</p></div>
+</div>
+<div class="symbol symbol-function" id="db-session-py-session-scope">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#db-session-py-session-scope">session_scope</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def session_scope() -&gt; Iterator[Session]</code></pre>
+<div class="symbol-doc"><p>Context-manager-style session yielder for scripts and the API.</p>
+<p>The caller is responsible for commit/rollback. Used as a FastAPI dependency via <code>Depends(get_db)</code>; for ad-hoc usage, prefer <code>with SessionLocal() as s</code>.</p></div>
+</div>
+<div class="symbol symbol-function" id="db-session-py-sessionlocal">
+<div class="symbol-head">
+<span class="symbol-kind">function</span>
+<a class="symbol-name" href="#db-session-py-sessionlocal">SessionLocal</a>
+</div>
+<pre class="symbol-sig"><code class="language-python">def SessionLocal() -&gt; Session</code></pre>
+</div>
+<div class="used-by"><strong>Used by</strong><ul><li><code>apps/analytics/main.py</code></li><li><code>apps/analytics/worker.py</code></li><li><code>apps/api/deps.py</code></li><li><code>apps/collector/main.py</code></li><li><code>scripts/db_reset.py</code></li></ul></div>
+</section></article>
+  <div class="content-toc"><h4>On this page</h4><ul><li class="toc-h2"><a href="#files">Files</a></li><li class="toc-h3 sub"><a href="#db-init-py">db/__init__.py</a></li><li class="toc-h3 sub"><a href="#db-base-py">db/base.py</a></li><li class="toc-h3 sub"><a href="#db-migrations-env-py">db/migrations/env.py</a></li><li class="toc-h3 sub"><a href="#db-models-init-py">db/models/__init__.py</a></li><li class="toc-h3 sub"><a href="#db-models-feed-fetch-log-py">db/models/feed_fetch_log.py</a></li><li class="toc-h3 sub"><a href="#db-models-raw-snapshot-py">db/models/raw_snapshot.py</a></li><li class="toc-h3 sub"><a href="#db-models-trip-trajectory-py">db/models/trip_trajectory.py</a></li><li class="toc-h3 sub"><a href="#db-models-vehicle-position-py">db/models/vehicle_position.py</a></li><li class="toc-h3 sub"><a href="#db-queries-init-py">db/queries/__init__.py</a></li><li class="toc-h3 sub"><a href="#db-queries-feed-stats-py">db/queries/feed_stats.py</a></li><li class="toc-h3 sub"><a href="#db-queries-iroam-py">db/queries/iroam.py</a></li><li class="toc-h3 sub"><a href="#db-queries-replay-py">db/queries/replay.py</a></li><li class="toc-h3 sub"><a href="#db-queries-trajectories-py">db/queries/trajectories.py</a></li><li class="toc-h3 sub"><a href="#db-queries-vehicles-py">db/queries/vehicles.py</a></li><li class="toc-h3 sub"><a href="#db-session-py">db/session.py</a></li></ul></div>
+</main>
+<script src="../assets/lunr.min.js"></script>
+<script src="../assets/highlight.min.js"></script>
+<script>hljs.highlightAll();</script>
+<script src="../assets/mermaid.min.js"></script>
+<script>mermaid.initialize({startOnLoad:true, theme:'neutral', securityLevel:'loose', flowchart:{curve:'basis'}});</script>
+<script>window.SEARCH_INDEX_URL = "../search-index.json";</script>
+<script src="../assets/app.js"></script>
+</body>
+</html>
