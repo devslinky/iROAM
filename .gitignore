@@ -20,9 +20,18 @@ htmlcov/
 
 # Local data / large static GTFS dump
 /Complete GTFS/
+/Complete GTFS*.bak/
 /data/
 # Analytics CSV exports (written by --export-csv)
 /out/
+
+# Local handoff bundles, feed archives, and scratch images
+/*.zip
+/*.png
+/.codex
+
+# Generated docs build intermediates (rendered HTML under docs/ is tracked)
+/docs/_build/
 
 # Captured test fixtures may contain raw feed payloads; keep one sample in git only
 # (uncomment the next line to ignore all .pb files)
