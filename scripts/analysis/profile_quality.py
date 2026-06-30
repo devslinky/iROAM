@@ -81,6 +81,10 @@ def _run(argv=None):
     all_ortho_before = []
     all_ortho_after = []
 
+    total_count_points_dropped_by_ortho = 0
+    total_count_points_dropped_by_teleport = 0
+    total_points = 0
+
     for trip_id in unique_trip_ids:
         rows = [vp for vp in vehicle_positions if vp.trip_id == trip_id]
         if not rows:
@@ -100,25 +104,47 @@ def _run(argv=None):
             print(f"No shape found for trip_id {trip_id}, skipping")
             continue
 
-        # unfiltered projection — for orthogonal distance distribution
-        df_unfiltered = project_trajectory(
-            df, shape_lines[shape_id], max_orthogonal_distance_m=999999.0
-        )
-        all_ortho_before.extend(df_unfiltered["orthogonal_distance_m"].tolist())
-
-        # filtered projection — for drop rate
-        df_filtered = project_trajectory(
-            df, shape_lines[shape_id], max_orthogonal_distance_m=200.0
-        )
-        all_ortho_after.extend(df_filtered["orthogonal_distance_m"].tolist())
-
-        # filter 2: orthogonal distance filter (200m)
-        print(
-            f"\ntrip {trip_id}: {len(df_unfiltered)} points before orthogonal distance filter, "
-            f"trip {trip_id}: {len(df_filtered)} points after orthogonal distance filter "
-            f"({len(df_unfiltered) - len(df_filtered)} dropped)"
+        # all filters off — baseline
+        df_raw = project_trajectory(
+            df, shape_lines[shape_id],
+            max_orthogonal_distance_m=999999.0,
+            max_implied_speed_m_s=9999999.0
         )
 
+        # orthogonal only — to isolate its drop rate
+        df_ortho_only = project_trajectory(
+            df, shape_lines[shape_id],
+            max_orthogonal_distance_m=200.0,
+            max_implied_speed_m_s=9999999.0
+        )
+
+        # both filters — what production runs
+        df_both = project_trajectory(
+            df, shape_lines[shape_id],
+            max_orthogonal_distance_m=200.0,
+            max_implied_speed_m_s= 35.0
+        )
+
+        # individual drop counts
+        dropped_by_ortho    = len(df_raw) - len(df_ortho_only)
+        dropped_by_teleport = len(df_ortho_only) - len(df_both)
+        total_dropped       = len(df_raw) - len(df_both)
+
+        print(f"\n  raw points:                {len(df_raw)}")
+        print(f"  dropped by ortho filter:   {dropped_by_ortho}")
+        print(f"  dropped by teleport filter:{dropped_by_teleport}")
+        print(f"  total dropped:             {total_dropped}")
+
+        total_count_points_dropped_by_ortho += dropped_by_ortho
+        total_count_points_dropped_by_teleport += dropped_by_teleport
+        total_points += len(df_raw)
+    
+    print(f"\nTotal points dropped by ortho filter: {total_count_points_dropped_by_ortho}")
+    print(f"Total points dropped by teleport filter: {total_count_points_dropped_by_teleport}")
+    print(f"Total points dropped by all filters: {total_count_points_dropped_by_ortho + total_count_points_dropped_by_teleport}")
+    print(f"Total percentage of points dropped by ortho filter: {(total_count_points_dropped_by_ortho / total_points * 100) if total_points > 0 else 0:.1f}%")
+    print(f"Total percentage of points dropped by teleport filter: {(total_count_points_dropped_by_teleport / total_points * 100) if total_points > 0 else 0:.1f}%")
+    
     # output 1: orthogonal distance distribution (before and after stage 1)
     if all_ortho_before and all_ortho_after:
         ortho_before = np.array(all_ortho_before)
