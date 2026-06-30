@@ -18,9 +18,9 @@ from __future__ import annotations
 
 import argparse
 import json
+from collections.abc import Iterable
 from datetime import date, datetime, timedelta
 from pathlib import Path
-from typing import Iterable
 
 import numpy as np
 import pandas as pd
@@ -28,13 +28,16 @@ import pandas as pd
 from db.session import SessionLocal
 
 from .labels import (
+    BUNCHING_THRESHOLD_M,
     DEFAULT_PRED_LEN,
     DEFAULT_SEQ_LEN,
     DEFAULT_STEP_SECONDS,
     EXTRA_FEATURES,
     EXTRAS_SCHEMA_V,
+    HEADWAY_RATIO_BUNCHED,
     N_CHANNELS,
     N_EXTRA,
+    PERSIST_TICKS_DEFAULT,
     VENDOR_SCHEMA_V,
     LabelledExample,
     extract_for_date,
@@ -42,7 +45,7 @@ from .labels import (
 
 
 def _row_from_example(ex: LabelledExample) -> dict:
-    return {
+    row = {
         "service_date": ex.service_date,
         "route_id": ex.route_id,
         "direction_id": ex.direction_id,
@@ -60,6 +63,18 @@ def _row_from_example(ex: LabelledExample) -> dict:
         "labels": ex.labels.astype(np.float32).tobytes(),
         "label_gaps": ex.label_gaps.astype(np.float32).tobytes(),
     }
+    # Labels schema v2 — debounced labels, realised time headways, schedule
+    # context. Continuous quantities are stored so trainers can re-threshold
+    # (e.g. headway ≤ HEADWAY_RATIO_BUNCHED × sched) without a rebuild.
+    if ex.labels_persist is not None:
+        row["labels_persist"] = ex.labels_persist.astype(np.float32).tobytes()
+    if ex.labels_headway_s is not None:
+        row["labels_headway_s"] = ex.labels_headway_s.astype(np.float32).tobytes()
+    row["sched_headway_s"] = float("nan") if ex.sched_headway_s is None else ex.sched_headway_s
+    row["headway_at_ref_s"] = (
+        float("nan") if ex.headway_at_ref_s is None else ex.headway_at_ref_s
+    )
+    return row
 
 
 def _date_range(since: date, until: date) -> Iterable[date]:
@@ -81,6 +96,8 @@ def build(
     pred_len: int = DEFAULT_PRED_LEN,
     train_frac: float = 0.70,
     val_frac: float = 0.15,
+    terminal_mask: bool = True,
+    persist_ticks: int = PERSIST_TICKS_DEFAULT,
 ) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
     all_dates = list(_date_range(since, until))
@@ -92,6 +109,7 @@ def build(
                 examples = extract_for_date(
                     session, route_id=route_id, direction_id=direction, service_date=d,
                     step_seconds=step_seconds, seq_len=seq_len, pred_len=pred_len,
+                    terminal_mask=terminal_mask, persist_ticks=persist_ticks,
                 )
                 if not examples:
                     continue
@@ -134,6 +152,21 @@ def build(
         "vendor_schema_v": VENDOR_SCHEMA_V,
         "extras_schema_v": EXTRAS_SCHEMA_V,
         "pred_len": pred_len,
+        # Label provenance — the units note matters: datasets built before
+        # 2026-06-11 carry Web-Mercator-inflated meters and must not be mixed
+        # with these (see apps/analytics/shapes.py).
+        "labels_meta": {
+            "labels_schema_v": 2,
+            "bunching_threshold_m": BUNCHING_THRESHOLD_M,
+            "distance_units": "m",
+            "terminal_mask": terminal_mask,
+            "persist_ticks": persist_ticks,
+            "headway_rule": (
+                f"continuous realised time headway stored per horizon; "
+                f"literature rule: bunched if headway <= {HEADWAY_RATIO_BUNCHED} "
+                f"x sched_headway_s (Moreira-Matias et al. 2012)"
+            ),
+        },
         "shards": shard_index,
         "split": {
             "train_dates": train_dates,
@@ -164,6 +197,10 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument("--step-seconds", type=int, default=DEFAULT_STEP_SECONDS)
     p.add_argument("--seq-len", type=int, default=DEFAULT_SEQ_LEN)
     p.add_argument("--pred-len", type=int, default=DEFAULT_PRED_LEN)
+    p.add_argument("--no-terminal-mask", action="store_true",
+                   help="reproduce legacy labels (terminal-queueing gaps count as bunching)")
+    p.add_argument("--persist-ticks", type=int, default=PERSIST_TICKS_DEFAULT,
+                   help="consecutive sub-threshold ticks required for labels_persist")
     return p.parse_args()
 
 
@@ -181,6 +218,8 @@ def main() -> None:
         pred_len=args.pred_len,
         train_frac=args.train_frac,
         val_frac=args.val_frac,
+        terminal_mask=not args.no_terminal_mask,
+        persist_ticks=args.persist_ticks,
     )
 
 

@@ -28,9 +28,9 @@ math.
 from __future__ import annotations
 
 import math
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
-from typing import Sequence
 from zoneinfo import ZoneInfo
 
 import numpy as np
@@ -75,6 +75,24 @@ N_CHANNELS = N_CHANNELS_V2 if VENDOR_SCHEMA_V == VENDOR_SCHEMA_V2 else N_CHANNEL
 BUNCHING_THRESHOLD_M = 100.0
 NO_LEADER_GAP_M = 20_000.0
 EDGE_EXCLUDE_DEFAULT = 2
+
+# Label-quality extensions (labels schema v2). The instantaneous spatial-gap
+# label (gap < BUNCHING_THRESHOLD_M) is kept bit-identical for compatibility;
+# v2 adds, per example:
+#   * labels_persist — debounced 0/1: requires the gap to stay under the
+#     threshold for PERSIST_TICKS_DEFAULT consecutive ticks, suppressing
+#     single-tick flicker around the threshold (label noise).
+#   * labels_headway_s — realised *time* headway at each future tick: how long
+#     ago the leader passed the target's current along-route position. This is
+#     the AVL-standard quantity bunching is defined on in the literature
+#     (headway ≤ 0.25 × scheduled headway, Moreira-Matias et al. 2012; TCQSM
+#     headway adherence), generalized off-stop. Stored continuous so trainers
+#     can threshold freely against sched_headway_s.
+#   * terminal masking — future ticks where the target sits inside the
+#     edge-exclusion band (layover zones) get NaN labels: gaps there reflect
+#     terminal queueing, not service bunching.
+PERSIST_TICKS_DEFAULT = 2
+HEADWAY_RATIO_BUNCHED = 0.25  # h ≤ 0.25 × scheduled ⇒ bunched (literature rule)
 
 
 def n_channels_for(schema_v: int) -> int:
@@ -195,6 +213,12 @@ class LabelledExample:
     labels: np.ndarray         # (pred_len,) float32 (0/1 or NaN)
     label_gaps: np.ndarray     # (pred_len,) float32 — realised gap; NaN if outside
 
+    # ── labels schema v2 (None on legacy paths) ────────────────────────────
+    labels_persist: np.ndarray | None = None     # (pred_len,) debounced 0/1/NaN
+    labels_headway_s: np.ndarray | None = None   # (pred_len,) realised time headway
+    sched_headway_s: float | None = None         # trip's scheduled headway
+    headway_at_ref_s: float | None = None        # realised time headway at t_ref
+
 
 # ───────────────────────── geometry helpers ──────────────────────────────────
 
@@ -254,6 +278,39 @@ def _bus_points_on_grid(
     return valid, dist, speed, stop
 
 
+def _passage_track(
+    grid_utc: np.ndarray, valid: np.ndarray, dist: np.ndarray
+) -> tuple[np.ndarray, np.ndarray]:
+    """(times, cummax distances) over a bus's valid ticks, for inverting
+    "when was this bus at distance d?". The cummax flattens projection wobble
+    so the search array is non-decreasing."""
+    ts = grid_utc[valid]
+    ds = dist[valid]
+    if ds.size:
+        ds = np.maximum.accumulate(ds)
+    return ts, ds
+
+
+def _time_at_distance(track_t: np.ndarray, track_d: np.ndarray, d: float) -> float | None:
+    """Time the tracked bus first reached along-route distance ``d``.
+
+    None when ``d`` is outside the recorded span (the bus was already past it
+    before its window, or never got there)."""
+    if track_t.size < 2 or not np.isfinite(d):
+        return None
+    if d < track_d[0] or d > track_d[-1]:
+        return None
+    i = int(np.searchsorted(track_d, d))
+    if i == 0:
+        return float(track_t[0])
+    d0, d1 = track_d[i - 1], track_d[i]
+    t0, t1 = track_t[i - 1], track_t[i]
+    if d1 <= d0:
+        return float(t0)
+    frac = (d - d0) / (d1 - d0)
+    return float(t0 + frac * (t1 - t0))
+
+
 def _forward_gap_row(target_dist: float, others_dist: np.ndarray) -> tuple[float, int | None]:
     """Smallest positive (other - target). Returns (gap_m, leader_local_idx)."""
     if not np.isfinite(target_dist):
@@ -309,6 +366,16 @@ def extract_labelled_examples(
     # terminus columns). Vendor block schema is selected separately via
     # the module-level ``VENDOR_SCHEMA_V``.
     extras_schema_v: int = EXTRAS_SCHEMA_V,
+    # ── labels schema v2 ─────────────────────────────────────────────────
+    # Mask future-tick labels while the target sits inside the edge-exclusion
+    # band: terminal-queueing gaps are not service bunching. Disable to
+    # reproduce legacy label populations exactly.
+    terminal_mask: bool = True,
+    # Consecutive sub-threshold ticks required for labels_persist.
+    persist_ticks: int = PERSIST_TICKS_DEFAULT,
+    # trip_id → scheduled headway seconds (see apps.analytics.schedule_headways);
+    # None disables the per-example sched_headway_s metadata.
+    sched_headway_by_trip: dict[str, float] | None = None,
 ) -> list[LabelledExample]:
     """Build labelled examples for every (bus, valid t_ref) pair on this slice.
 
@@ -340,6 +407,7 @@ def extract_labelled_examples(
 
     n_bus = len(interp)
     fwd_gap = np.full((n_bus, n_ticks), NO_LEADER_GAP_M, dtype=np.float32)
+    leader_idx_arr = np.full((n_bus, n_ticks), -1, dtype=np.int32)
     leader_speed = np.zeros((n_bus, n_ticks), dtype=np.float32)
     # Schema v1 (legacy): u1/u2 are the two buses *behind* target.
     up_speed = np.zeros((n_bus, 2, n_ticks), dtype=np.float32)
@@ -365,6 +433,8 @@ def extract_labelled_examples(
             others[b] = np.nan
             gap, leader_idx = _forward_gap_row(td, others)
             fwd_gap[b, k] = gap
+            if leader_idx is not None:
+                leader_idx_arr[b, k] = leader_idx
             if leader_idx is not None and np.isfinite(speed_k[leader_idx]):
                 leader_speed[b, k] = float(speed_k[leader_idx])
             # ── schema v1 helper arrays ──────────────────────────────────
@@ -395,6 +465,24 @@ def extract_labelled_examples(
                     others_d2[d2_idx] = np.nan
                     d2_gap, _ = _forward_gap_row(dist_k[d2_idx], others_d2)
                     down_fwd_gap[b, 1, k] = float(d2_gap)
+
+    # Per-bus (times, cummax distance) tracks for inverting "when was bus j at
+    # distance d" — the realised-time-headway computation below.
+    passage_tracks = [
+        _passage_track(grid_utc, interp[j]["valid"], interp[j]["dist"]) for j in range(n_bus)
+    ]
+
+    def _headway_at(b: int, k: int) -> float:
+        """Realised time headway of bus ``b`` at tick ``k`` (seconds), NaN if
+        the leader's passage of b's position isn't inside the data window."""
+        j = int(leader_idx_arr[b, k])
+        if j < 0:
+            return float("nan")
+        d_b = interp[b]["dist"][k]
+        t_pass = _time_at_distance(passage_tracks[j][0], passage_tracks[j][1], float(d_b))
+        if t_pass is None:
+            return float("nan")
+        return float(grid_utc[k] - t_pass)
 
     si_lo = float(edge_exclude)
     si_hi = float(num_stops - edge_exclude)
@@ -574,15 +662,44 @@ def extract_labelled_examples(
 
             labels = np.full(pred_len, np.nan, dtype=np.float32)
             label_gaps = np.full(pred_len, np.nan, dtype=np.float32)
+            labels_persist = np.full(pred_len, np.nan, dtype=np.float32)
+            labels_headway = np.full(pred_len, np.nan, dtype=np.float32)
             for h in range(pred_len):
                 k_fut = k_ref + (h + 1)
                 if k_fut >= n_ticks:
                     break
                 if not valid[k_fut]:
                     break
+                # Terminal masking: inside the edge-exclusion band the forward
+                # gap reflects layover queueing, not service bunching — leave
+                # this horizon NaN (excluded from training) but keep walking
+                # so post-terminal horizons of overlapping windows still label.
+                si_fut = stop[k_fut]
+                if terminal_mask and (
+                    not np.isfinite(si_fut) or si_fut < si_lo or si_fut >= si_hi
+                ):
+                    continue
                 g_fut = fwd_gap[b, k_fut]
                 label_gaps[h] = float(g_fut)
                 labels[h] = 1.0 if g_fut < BUNCHING_THRESHOLD_M else 0.0
+                labels_headway[h] = _headway_at(b, k_fut)
+                # Debounced label: bunched only when the gap held below the
+                # threshold for the trailing ``persist_ticks`` ticks.
+                if persist_ticks <= 1:
+                    labels_persist[h] = labels[h]
+                else:
+                    lo_k = k_fut - persist_ticks + 1
+                    if lo_k < 0 or not bool(np.all(valid[lo_k : k_fut + 1])):
+                        labels_persist[h] = labels[h]
+                    else:
+                        held = bool(
+                            np.all(fwd_gap[b, lo_k : k_fut + 1] < BUNCHING_THRESHOLD_M)
+                        )
+                        labels_persist[h] = 1.0 if held else 0.0
+
+            sched_hw: float | None = None
+            if sched_headway_by_trip is not None:
+                sched_hw = sched_headway_by_trip.get(str(bus.trip_id))
 
             local_ref = datetime.fromtimestamp(grid_utc[k_ref], tz=timezone.utc).astimezone(tz)
             t_ref_min = local_ref.hour * 60 + local_ref.minute + local_ref.second / 60.0
@@ -603,6 +720,10 @@ def extract_labelled_examples(
                     forward_gap_at_ref=float(fwd_gap[b, k_ref]),
                     labels=labels,
                     label_gaps=label_gaps,
+                    labels_persist=labels_persist,
+                    labels_headway_s=labels_headway,
+                    sched_headway_s=sched_hw,
+                    headway_at_ref_s=_headway_at(b, k_ref),
                 )
             )
 
@@ -620,11 +741,12 @@ def extract_for_date(
     pred_len: int = DEFAULT_PRED_LEN,
     edge_exclude: int = EDGE_EXCLUDE_DEFAULT,
     extras_schema_v: int = EXTRAS_SCHEMA_V,
+    terminal_mask: bool = True,
+    persist_ticks: int = PERSIST_TICKS_DEFAULT,
 ) -> list[LabelledExample]:
     """End-to-end: pull from DB, group into buses, extract labelled examples."""
-    # Lazy import to break the router → forecast → live_features → labels
-    # → router circular chain.
-    from apps.api.routers.iroam import _group_into_buses
+    from apps.analytics.schedule_headways import scheduled_headway_s
+    from apps.api.services.bus_grouping import group_into_buses
 
     route_stops = compute_route_stops(route_id, direction_id)
     if route_stops is None:
@@ -632,7 +754,16 @@ def extract_for_date(
     rows = fetch_trajectories_for_slice(
         session, service_date=service_date, route_id=route_id, direction_id=direction_id
     )
-    buses = _group_into_buses(rows, route_stops)
+    buses = group_into_buses(rows, route_stops)
+
+    sched_by_trip: dict[str, float] = {}
+    for bus in buses:
+        if bus.trip_id in sched_by_trip:
+            continue
+        hw = scheduled_headway_s(bus.trip_id, route_id, direction_id, service_date)
+        if hw is not None:
+            sched_by_trip[bus.trip_id] = hw
+
     return extract_labelled_examples(
         buses,
         route_id=route_id,
@@ -645,6 +776,9 @@ def extract_for_date(
         edge_exclude=edge_exclude,
         route_shape_length_m=float(route_stops.shape_length_m),
         extras_schema_v=extras_schema_v,
+        terminal_mask=terminal_mask,
+        persist_ticks=persist_ticks,
+        sched_headway_by_trip=sched_by_trip or None,
     )
 
 
@@ -658,6 +792,8 @@ __all__ = [
     "EDGE_EXCLUDE_DEFAULT",
     "EXTRA_FEATURES",
     "N_EXTRA",
+    "HEADWAY_RATIO_BUNCHED",
+    "PERSIST_TICKS_DEFAULT",
     "LabelledExample",
     "extract_labelled_examples",
     "extract_for_date",
