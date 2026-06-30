@@ -122,6 +122,19 @@ docstring calls this out as "load-bearing." If the two ever drift, every tree
 split fires on the wrong branch at serving time and predictions silently
 collapse.
 
+### 3.4 Distance units (June 2026 CRS fix)
+
+Until 2026-06-11 the trajectory pipeline projected GPS in EPSG:3857 (Web
+Mercator), whose "meters" at Toronto's latitude are inflated by
+1/cos(lat) ≈ 1.382. Every bundle trained on that data (v1–v6) therefore
+expects *Mercator meters* in its distance/speed channels. The pipeline now
+produces true meters (UTM 17N), and `apps/api/services/forecast.py` rescales
+serving inputs by the route's 1/cos(mean stop latitude) for any bundle whose
+manifest lacks `"distance_units": "m"`. Bundles trained on post-fix data are
+stamped with that key by `train_bag` and bypass the shim. Retraining on
+pre-fix CSV/DB extracts in Mercator units remains valid — just don't mix the
+two unit systems inside one dataset.
+
 ---
 
 ## 4. Offline: building the dataset

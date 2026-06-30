@@ -15,6 +15,8 @@ from pathlib import Path
 import pandas as pd
 import pytest
 from pyproj import Transformer
+
+from apps.analytics.shapes import METRIC_CRS
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -39,8 +41,9 @@ def _write_synthetic_gtfs(tmp: Path) -> Path:
     gtfs.mkdir(parents=True, exist_ok=True)
 
     # A straight north-south LineString of ~2km in Toronto.
-    transformer = Transformer.from_crs("EPSG:3857", "EPSG:4326", always_xy=True)
-    x0, y0 = -8_838_000.0, 5_416_000.0
+    # Anchor in the metric CRS near Toronto (UTM 17N easting/northing).
+    transformer = Transformer.from_crs(METRIC_CRS, "EPSG:4326", always_xy=True)
+    x0, y0 = 630_000.0, 4_833_000.0
     pts = [(x0, y0), (x0, y0 + 1000.0), (x0, y0 + 2000.0)]
     shape_rows = []
     for seq, (x, y) in enumerate(pts, start=1):
@@ -82,8 +85,9 @@ def _write_synthetic_gtfs(tmp: Path) -> Path:
 
 def _seed_vehicle_positions(session: Session, n: int = 20) -> None:
     """Insert ``n`` evenly-spaced GPS rows progressing along the synthetic shape."""
-    transformer = Transformer.from_crs("EPSG:3857", "EPSG:4326", always_xy=True)
-    x0, y0 = -8_838_000.0, 5_416_000.0
+    # Anchor in the metric CRS near Toronto (UTM 17N easting/northing).
+    transformer = Transformer.from_crs(METRIC_CRS, "EPSG:4326", always_xy=True)
+    x0, y0 = 630_000.0, 4_833_000.0
     base_dt = datetime(2026, 4, 20, 13, 0, 0, tzinfo=timezone.utc)
 
     log = FeedFetchLog(
@@ -142,12 +146,13 @@ def test_run_for_date_roundtrip(
     # Point settings + gtfs_static cache at the synthetic bundle.
     gtfs_dir = _write_synthetic_gtfs(tmp_path)
 
+    # Patching get_settings at the gtfs_static module redirects load_all,
+    # bundle_token, and load_shape_linestrings together — they must agree on
+    # the bundle or the runner drops every trip as "shape not found".
+    from types import SimpleNamespace
+
     import apps.analytics.gtfs_static as gs
-    monkeypatch.setattr(
-        gs, "load_all", lambda gtfs_dir=gtfs_dir: gs._load(str(gtfs_dir), gs._dir_mtime_key(gtfs_dir))
-    )
-    import apps.analytics.runner as rn
-    monkeypatch.setattr(rn, "load_all", gs.load_all)
+    monkeypatch.setattr(gs, "get_settings", lambda: SimpleNamespace(gtfs_static_dir=gtfs_dir))
 
     _seed_vehicle_positions(db_session, n=20)
 

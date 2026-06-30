@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from google.transit import gtfs_realtime_pb2
+from apps.collector import gtfs_realtime_pb2
 
 from apps.collector.normalize_vehicles import (
     extract_header,

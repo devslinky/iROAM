@@ -24,8 +24,7 @@ is already bounded by (route, date, direction).
 from __future__ import annotations
 
 from collections import Counter, defaultdict
-from dataclasses import asdict
-from datetime import date, datetime
+from datetime import date
 from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -33,17 +32,13 @@ from sqlalchemy.orm import Session
 
 from apps.analytics.anomalies import (
     OCCUPANCY_PCT,
-    BusTrajectory,
-    TrajectoryPoint,
-    _to_minute_of_day,
     detect_all,
+    to_minute_of_day,
 )
-from apps.analytics.stop_projection import (
-    compute_route_stops,
-    distance_to_stop_index,
-)
+from apps.analytics.stop_projection import compute_route_stops
 from apps.api.deps import get_db
 from apps.api.services.bunching_predictor import PredictorUnavailable
+from apps.api.services.bus_grouping import group_into_buses
 from apps.api.services.forecast import run_forecast
 from db.queries.iroam import fetch_trajectories_for_slice, list_route_catalog
 
@@ -97,6 +92,10 @@ def iroam_buses(
     crowd_pct: float = Query(default=100, ge=0, le=150),
     bunch_dist: float = Query(default=150, ge=10, le=1000),
     bunch_method: Literal["time", "distance", "both"] = Query(default="time"),
+    # Distance-detector hysteresis (exit threshold, m) and minimum run length
+    # (s). Defaults preserve the pre-hysteresis behaviour exactly.
+    bunch_dist_exit: float | None = Query(default=None, ge=10, le=2000),
+    bunch_min_dur: float = Query(default=0, ge=0, le=3600),
     db: Session = Depends(get_db),
 ) -> dict[str, Any]:
     """Dashboard-shaped bus data for one (route, date, direction) slice."""
@@ -110,7 +109,7 @@ def iroam_buses(
     rows = fetch_trajectories_for_slice(
         db, service_date=service_date, route_id=route_id, direction_id=direction_id
     )
-    buses = _group_into_buses(rows, route_stops)
+    buses = group_into_buses(rows, route_stops)
     events = detect_all(
         buses,
         bunch_seconds_threshold=bunch_sec,
@@ -118,6 +117,8 @@ def iroam_buses(
         crowd_pct_threshold=crowd_pct,
         bunch_distance_threshold_m=bunch_dist,
         bunch_method=bunch_method,
+        bunch_distance_exit_m=bunch_dist_exit,
+        bunch_min_duration_s=bunch_min_dur,
     )
 
     events_by_bus: dict[int, list[dict[str, Any]]] = defaultdict(list)
@@ -136,7 +137,7 @@ def iroam_buses(
     payload_buses = []
     for bus in buses:
         pts = [
-            {"t": round(_to_minute_of_day(p.datetime), 2), "d": round(p.stop_index, 3)}
+            {"t": round(to_minute_of_day(p.datetime), 2), "d": round(p.stop_index, 3)}
             for p in bus.points
         ]
         if pts:
@@ -153,10 +154,12 @@ def iroam_buses(
             }
         )
 
-    # Anomaly totals for the top-bar legend.
+    # Anomaly totals for the top-bar legend. (Distinct names from the
+    # ``bunch_dist`` threshold parameter — shadowing it here once caused a
+    # confusing read.)
     totals = Counter(ev.type for ev in events)
-    bunch_time = sum(1 for ev in events if ev.type == "bunch" and ev.method == "time")
-    bunch_dist = sum(1 for ev in events if ev.type == "bunch" and ev.method == "distance")
+    bunch_time_count = sum(1 for ev in events if ev.type == "bunch" and ev.method == "time")
+    bunch_dist_count = sum(1 for ev in events if ev.type == "bunch" and ev.method == "distance")
 
     return {
         "route_id": route_id,
@@ -171,8 +174,8 @@ def iroam_buses(
             "bunch": totals["bunch"],
             "idle": totals["idle"],
             "crowd": totals["crowd"],
-            "bunch_time": bunch_time,
-            "bunch_dist": bunch_dist,
+            "bunch_time": bunch_time_count,
+            "bunch_dist": bunch_dist_count,
         },
         "buses": payload_buses,
     }
@@ -198,7 +201,7 @@ def iroam_analytics(
     rows = fetch_trajectories_for_slice(
         db, service_date=service_date, route_id=route_id, direction_id=direction_id
     )
-    buses = _group_into_buses(rows, route_stops)
+    buses = group_into_buses(rows, route_stops)
     events = detect_all(
         buses,
         bunch_seconds_threshold=bunch_sec,
@@ -248,7 +251,7 @@ def iroam_analytics(
             speed = p.moving_speed_m_s or 0.0
             if speed < 0.5:
                 continue
-            h = int(_to_minute_of_day(p.datetime) // 60) % 24
+            h = int(to_minute_of_day(p.datetime) // 60) % 24
             hour_speed_sum[h] += speed * 3.6
             hour_speed_n[h] += 1
     speed_by_hour = [
@@ -274,7 +277,7 @@ def iroam_analytics(
     for bus in buses:
         b_times = sorted(bunch_times_by_bus.get(bus.bus_index, []))
         for p in bus.points:
-            t_min = _to_minute_of_day(p.datetime)
+            t_min = to_minute_of_day(p.datetime)
             h = int(t_min // 60) % 24
             hour_totals[h] += 1
             speed = p.moving_speed_m_s or 0.0
@@ -360,7 +363,7 @@ def iroam_forecast(
     rows = fetch_trajectories_for_slice(
         db, service_date=service_date, route_id=route_id, direction_id=direction_id
     )
-    buses = _group_into_buses(rows, route_stops)
+    buses = group_into_buses(rows, route_stops)
 
     try:
         result = run_forecast(
@@ -373,6 +376,13 @@ def iroam_forecast(
             # per-horizon prediction to its plausible remaining trip time —
             # see forecast.py docstring for why this matters.
             route_shape_length_m=float(route_stops.shape_length_m),
+            # Mean stop latitude sharpens the unit conversion for bundles
+            # trained on pre-fix EPSG:3857 distances (see forecast.py).
+            route_mean_lat_deg=(
+                sum(s.stop_lat for s in route_stops.stops) / len(route_stops.stops)
+                if route_stops.stops
+                else None
+            ),
             # Identity passthrough so shadow mode (when enabled) can log
             # which slice each prediction came from. No effect otherwise.
             route_id=route_id,
@@ -397,6 +407,7 @@ def iroam_forecast(
         "model_label": result.model_label,
         "shadow_mode": result.shadow_mode,
         "horizon_cap_min": result.horizon_cap_min,
+        "input_distance_scale": result.input_distance_scale,
         "thresholds": result.thresholds,
         "num_buses_total": result.num_buses_total,
         "num_running": result.num_running,
@@ -417,127 +428,3 @@ def _near_any(t: float, sorted_times: list[float], *, within: float) -> bool:
         if 0 <= j < len(sorted_times) and abs(sorted_times[j] - t) <= within:
             return True
     return False
-
-
-# Segmentation thresholds for ``_segment_vehicle_points``. A TTC vehicle
-# sometimes broadcasts the same ``trip_id`` long after its physical run has
-# ended — the feed keeps emitting stale positions (``|moving_speed_m_s| < 0.5``
-# for hours) while the projection slowly drifts ``travel_distance_m``.
-# Those points, if left in the trajectory, render as a long shallow diagonal
-# across the time axis. We treat any stale run longer than ``_STALE_MIN_SEC``
-# as a trip boundary and drop segments whose total distance moved doesn't
-# clear ``_MIN_SEGMENT_DISPLACEMENT_M`` — that cutoff is well below any real
-# TTC bus trip (minimum ~5 km) and well above GPS drift.
-_STALE_SPEED_THRESHOLD_M_S = 0.5
-_STALE_MIN_SEC = 20 * 60
-_MIN_SEGMENT_DISPLACEMENT_M = 500.0
-
-
-def _segment_vehicle_points(
-    points: list[TrajectoryPoint],
-) -> list[list[TrajectoryPoint]]:
-    """Split one vehicle's points at stale-speed runs; drop ghost segments."""
-    if len(points) < 2:
-        return [list(points)] if points else []
-
-    # Collect stale ranges — contiguous [i..j] where every sample's |speed|
-    # is below threshold AND the elapsed span is at least _STALE_MIN_SEC.
-    stale_ranges: list[tuple[int, int]] = []
-    n = len(points)
-    i = 0
-    while i < n:
-        if abs(points[i].moving_speed_m_s or 0.0) < _STALE_SPEED_THRESHOLD_M_S:
-            j = i
-            while (
-                j + 1 < n
-                and abs(points[j + 1].moving_speed_m_s or 0.0)
-                < _STALE_SPEED_THRESHOLD_M_S
-            ):
-                j += 1
-            span_s = (points[j].datetime - points[i].datetime).total_seconds()
-            if span_s >= _STALE_MIN_SEC:
-                stale_ranges.append((i, j))
-            i = j + 1
-        else:
-            i += 1
-
-    # Slice out the non-stale segments. The stale ranges themselves are
-    # discarded — their points would only add the problematic diagonal.
-    segments: list[list[TrajectoryPoint]] = []
-    prev = 0
-    for start, end in stale_ranges:
-        if start > prev:
-            segments.append(points[prev:start])
-        prev = end + 1
-    if prev < n:
-        segments.append(points[prev:])
-
-    # Drop segments with negligible total displacement (nothing real happened).
-    surviving: list[list[TrajectoryPoint]] = []
-    for seg in segments:
-        if len(seg) < 2:
-            continue
-        total = sum(
-            abs(b.travel_distance_m - a.travel_distance_m)
-            for a, b in zip(seg, seg[1:])
-        )
-        if total >= _MIN_SEGMENT_DISPLACEMENT_M:
-            surviving.append(seg)
-    return surviving
-
-
-def _group_into_buses(rows: list, route_stops) -> list[BusTrajectory]:
-    """Walk the DB rows → one BusTrajectory per (trip_id, start_date, vehicle_id).
-
-    ``vehicle_id`` is part of the key because TTC reuses the same scheduled
-    ``trip_id`` for different vehicles over the course of a day (block
-    rotation). Keying only on ``(trip_id, start_date)`` would merge two
-    physically separate trips into one, and the frontend would then render a
-    straight diagonal line connecting their endpoints. Rows are expected to
-    arrive sorted by ``(trip_id, start_date, vehicle_id, datetime)`` so each
-    key's points remain contiguous even when two vehicles' clock windows
-    overlap.
-
-    Within each key group the points are passed through
-    ``_segment_vehicle_points`` to handle the other diagonal-producing case:
-    a single vehicle that keeps broadcasting the same trip_id with stale GPS
-    after its physical run has finished.
-    """
-    buses: list[BusTrajectory] = []
-    current_key: tuple[str, str, str | None] | None = None
-    current_points: list[TrajectoryPoint] = []
-    current_vehicle: str | None = None
-
-    def flush(key: tuple[str, str, str | None] | None) -> None:
-        if key is None or not current_points:
-            return
-        for seg in _segment_vehicle_points(current_points):
-            buses.append(
-                BusTrajectory(
-                    bus_index=len(buses),
-                    trip_id=key[0],
-                    start_date=key[1],
-                    vehicle_id=current_vehicle,
-                    points=seg,
-                )
-            )
-
-    for r in rows:
-        key = (r.trip_id, r.start_date, r.vehicle_id)
-        if key != current_key:
-            flush(current_key)
-            current_points = []
-            current_vehicle = r.vehicle_id
-            current_key = key
-        stop_idx = distance_to_stop_index(r.travel_distance_m, route_stops)
-        current_points.append(
-            TrajectoryPoint(
-                datetime=r.datetime,
-                travel_distance_m=r.travel_distance_m,
-                moving_speed_m_s=r.moving_speed_m_s,
-                occupancy_status=r.occupancy_status,
-                stop_index=stop_idx,
-            )
-        )
-    flush(current_key)
-    return buses

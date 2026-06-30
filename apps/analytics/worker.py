@@ -21,9 +21,8 @@ trip instance, no duplicates.
 from __future__ import annotations
 
 import signal
-import sys
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from types import FrameType
 from zoneinfo import ZoneInfo
 
@@ -34,37 +33,52 @@ from db.session import SessionLocal
 
 _logger = get_logger(__name__)
 
+# How long after local midnight the worker keeps refreshing *yesterday* too.
+# Observations of trips that straddle midnight land with yesterday's
+# effective start_date; a worker that only ever processes "today" would
+# permanently miss the final pre-midnight observations that arrived after
+# its last tick of the old day.
+_MIDNIGHT_GRACE = timedelta(hours=1)
 
-def _service_date_today(tz_name: str) -> "datetime.date":
-    from datetime import date as _date
 
-    now_local = datetime.now(tz=ZoneInfo(tz_name))
-    return _date(now_local.year, now_local.month, now_local.day)
+def _service_dates_for_tick(
+    now_local: datetime, *, grace: timedelta = _MIDNIGHT_GRACE
+) -> list[date]:
+    """Service dates this tick must refresh, yesterday-first near midnight."""
+    today = now_local.date()
+    midnight = now_local.replace(hour=0, minute=0, second=0, microsecond=0)
+    if now_local - midnight < grace:
+        return [today - timedelta(days=1), today]
+    return [today]
 
 
 def _tick(since: datetime, tz_name: str) -> int:
     """Run one analytics cycle. Returns trip_instances_processed."""
-    service_date = _service_date_today(tz_name)
+    now_local = datetime.now(tz=ZoneInfo(tz_name))
     settings = get_settings()
-    with SessionLocal() as session:
-        outcome = run_for_date(
-            session,
-            service_date,
-            upsample_resolution_s=settings.analytics_upsample_resolution_s,
-            max_orthogonal_distance_m=settings.analytics_max_orthogonal_distance_m,
-            only_changed_since=since,
+    total_processed = 0
+    for service_date in _service_dates_for_tick(now_local):
+        with SessionLocal() as session:
+            outcome = run_for_date(
+                session,
+                service_date,
+                upsample_resolution_s=settings.analytics_upsample_resolution_s,
+                max_orthogonal_distance_m=settings.analytics_max_orthogonal_distance_m,
+                max_implied_speed_m_s=settings.analytics_max_implied_speed_m_s,
+                only_changed_since=since,
+            )
+        _logger.info(
+            "analytics_tick_done",
+            extra={
+                "service_date": service_date.isoformat(),
+                "since": since.isoformat(),
+                "status": outcome.status,
+                "trip_instances_processed": outcome.trip_instances_processed,
+                "rows_written": outcome.rows_written,
+            },
         )
-    _logger.info(
-        "analytics_tick_done",
-        extra={
-            "service_date": service_date.isoformat(),
-            "since": since.isoformat(),
-            "status": outcome.status,
-            "trip_instances_processed": outcome.trip_instances_processed,
-            "rows_written": outcome.rows_written,
-        },
-    )
-    return outcome.trip_instances_processed
+        total_processed += outcome.trip_instances_processed
+    return total_processed
 
 
 def main() -> int:

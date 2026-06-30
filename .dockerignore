@@ -22,3 +22,25 @@ Makefile
 docker-compose.yml
 Dockerfile
 .dockerignore
+
+# Local artifacts that must not enter the build context (~600 MB combined):
+# feed archives, scratch images, analytics exports, notebook outputs, and
+# the superseded bunching-model experiments (the predictor's fallback chain
+# tolerates their absence; only v6 + the legacy vendor bundle are served).
+*.zip
+*.png
+out
+notebooks
+docs/_build
+Complete GTFS.*.bak
+deployment/bunching_local_v1
+deployment/bunching_local_rich_v1
+deployment/bunching_local_rich_bag8
+deployment/bunching_local_rich_bag8_v2_p30
+deployment/bunching_local_rich_bag8_v2_p50
+deployment/bunching_local_rich_bag8_v3_10min_p30
+deployment/bunching_local_rich_bag8_v4_10min_p30
+deployment/bunching_local_rich_bag8_v5_10min_p30
+deployment/bunching_tcn_v1
+deployment/bunching_tx_v1
+deployment/bunching_xgb_rich_v1

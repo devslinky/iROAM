@@ -85,6 +85,8 @@ def fetch_by_trip_instance(
     session: Session,
     trip_id: str,
     start_date: str,
+    *,
+    fetched_at_window: tuple[datetime, datetime] | None = None,
 ) -> list[VehiclePosition]:
     """All rows for one trip instance, chronological.
 
@@ -93,6 +95,10 @@ def fetch_by_trip_instance(
     filter is exact; otherwise we fall back to the Toronto-local date derived
     from ``vehicle_timestamp`` / ``fetched_at``. Sort is ASC by observation
     time so analytics can compute diffs directly.
+
+    ``fetched_at_window`` (UTC ``[lo, hi)``) lets callers bound the scan with
+    the indexed column — the effective-start-date expression itself is not
+    indexable, and trip_ids recur every service day within a board period.
     """
     ts = func.coalesce(VehiclePosition.vehicle_timestamp, VehiclePosition.fetched_at)
     effective_start_date = func.coalesce(
@@ -106,6 +112,11 @@ def fetch_by_trip_instance(
         .where(effective_start_date == start_date)
         .order_by(ts.asc(), VehiclePosition.id.asc())
     )
+    if fetched_at_window is not None:
+        stmt = stmt.where(
+            VehiclePosition.fetched_at >= fetched_at_window[0],
+            VehiclePosition.fetched_at < fetched_at_window[1],
+        )
     return list(session.execute(stmt).scalars().all())
 
 

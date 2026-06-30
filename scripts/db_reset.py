@@ -37,6 +37,8 @@ DATA_TABLES: tuple[str, ...] = (
     "trip_trajectories",
     "analytics_runs",
     "vehicle_positions",
+    "trip_updates",
+    "trip_modifications",
     "raw_gtfsrt_snapshots",
     "feed_fetch_logs",
 )

@@ -111,6 +111,15 @@ const stopLonNorm = i => {
   if (NUM_STOPS < 2 || LON_MAX === LON_MIN) return NUM_STOPS < 2 ? 0 : i / (NUM_STOPS - 1);
   return (ROUTE29_STOPS[i].lon - LON_MIN) / (LON_MAX - LON_MIN);
 };
+// Progress along the route (0 at first stop, 1 at last), by cumulative
+// distance so trajectory slope still reflects speed. Falls back to stop
+// index when distance_m is missing.
+const stopProgressNorm = i => {
+  if (NUM_STOPS < 2) return 0;
+  const d0 = ROUTE29_STOPS[0].distance_m, dN = ROUTE29_STOPS[NUM_STOPS - 1].distance_m;
+  if (d0 == null || dN == null || dN === d0) return i / (NUM_STOPS - 1);
+  return (ROUTE29_STOPS[i].distance_m - d0) / (dN - d0);
+};
 
 function applyStopsAndWindow(stopsPayload, timeWindow) {
   // Pass `null` for stopsPayload to leave the current stop list untouched
@@ -1248,11 +1257,13 @@ const TDDiagram = ({ busData, currentT, vis, fmt, hoveredBusId, viewStart, viewE
   const W = dims.w, H = dims.h;
   const PAD = { top: 24, right: 28, bottom: 40, left: 86 };
   const xS = t => PAD.left + (t - VS) / (VE - VS) * (W - PAD.left - PAD.right);
+  // Route progress on the y-axis, first stop at the bottom, so trajectories
+  // climb as buses advance along the route regardless of compass direction.
   const yS = d => {
     const lo = Math.floor(Math.min(d, NUM_STOPS - 2));
     const t = d - lo;
-    const yLo = PAD.top + (1 - stopLatNorm(lo))     * (H - PAD.top - PAD.bottom);
-    const yHi = PAD.top + (1 - stopLatNorm(lo + 1)) * (H - PAD.top - PAD.bottom);
+    const yLo = PAD.top + (1 - stopProgressNorm(lo))     * (H - PAD.top - PAD.bottom);
+    const yHi = PAD.top + (1 - stopProgressNorm(lo + 1)) * (H - PAD.top - PAD.bottom);
     return yLo + t * (yHi - yLo);
   };
   const xTicks = (() => {

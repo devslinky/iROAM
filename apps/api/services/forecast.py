@@ -47,6 +47,17 @@ import numpy as np
 # ---------------------------------------------------------------------------
 HORIZON_CAP_ENV_VAR = "FORECAST_HORIZON_CAP_MIN"
 
+from apps.analytics.anomalies import BusTrajectory, TrajectoryPoint
+from apps.prediction.live_features import (
+    LiveWindow,
+    build_bus_window,
+    merge_for_predictor,
+)
+from data_process.bunching.labels import NO_LEADER_GAP_M
+
+from .bunching_predictor import PredictorUnavailable, get_predictor
+from . import forecast_shadow
+
 
 def _load_horizon_cap_min() -> int | None:
     raw = os.environ.get(HORIZON_CAP_ENV_VAR, "").strip()
@@ -58,15 +69,66 @@ def _load_horizon_cap_min() -> int | None:
         return None
     return v if v > 0 else None
 
-from apps.analytics.anomalies import BusTrajectory
-from apps.prediction.live_features import (
-    LiveWindow,
-    build_bus_window,
-    merge_for_predictor,
-)
 
-from .bunching_predictor import PredictorUnavailable, get_predictor
-from . import forecast_shadow
+# ---------------------------------------------------------------------------
+# Distance-units compatibility (June 2026 EPSG:3857 → UTM fix).
+#
+# The trajectory pipeline now produces true-meter distances/speeds, but every
+# bundle trained before the fix consumed EPSG:3857 "meters" — inflated by
+# 1/cos(latitude) ≈ 1.382 at Toronto. Feeding such a bundle true meters would
+# silently compress its whole feature distribution by that factor, so for
+# bundles whose metadata lacks ``distance_units == "m"`` we rescale the input
+# trajectories back into the units the model was trained on. The factor uses
+# the route's mean stop latitude when the caller provides it (reproduces the
+# training values to <0.1%); otherwise a Toronto-wide reference latitude.
+# ---------------------------------------------------------------------------
+TRUE_METER_UNITS = "m"
+_TORONTO_REF_LAT_DEG = 43.7
+
+
+def _model_input_scale(meta: dict[str, Any], route_mean_lat_deg: float | None) -> float:
+    """Multiplier from serving units (true m) to the bundle's training units."""
+    if str(meta.get("distance_units") or "") == TRUE_METER_UNITS:
+        return 1.0
+    lat = route_mean_lat_deg if route_mean_lat_deg is not None else _TORONTO_REF_LAT_DEG
+    return 1.0 / math.cos(math.radians(lat))
+
+
+def _scale_bus(bus: BusTrajectory, scale: float) -> BusTrajectory:
+    """Copy of ``bus`` with distance-like quantities multiplied by ``scale``.
+
+    ``stop_index`` is a ratio of distances, so it is scale-invariant and kept.
+    """
+    return BusTrajectory(
+        bus_index=bus.bus_index,
+        trip_id=bus.trip_id,
+        start_date=bus.start_date,
+        vehicle_id=bus.vehicle_id,
+        points=[
+            TrajectoryPoint(
+                datetime=p.datetime,
+                travel_distance_m=p.travel_distance_m * scale,
+                moving_speed_m_s=(
+                    p.moving_speed_m_s * scale if p.moving_speed_m_s is not None else None
+                ),
+                occupancy_status=p.occupancy_status,
+                stop_index=p.stop_index,
+            )
+            for p in bus.points
+        ],
+    )
+
+
+def _descale_gap(gap: float | None, scale: float) -> float | None:
+    """Convert a model-unit gap back to true meters for the UI rationale.
+
+    The no-leader sentinel is a fixed constant in model units, not a distance
+    measurement — pass it through unchanged so the frontend's "no leader"
+    handling keeps seeing the value it expects.
+    """
+    if gap is None or scale == 1.0 or gap >= NO_LEADER_GAP_M:
+        return gap
+    return gap / scale
 
 
 @dataclass(frozen=True)
@@ -83,6 +145,9 @@ class ForecastResult:
     # to draw a forecast curve only up to this many minutes and can show a
     # "10-min horizon" chip next to the bundle label.
     horizon_cap_min: int | None
+    # Serving→model unit conversion applied to the input trajectories
+    # (1.0 for bundles trained on true meters). Surfaced for diagnostics.
+    input_distance_scale: float
     thresholds: list[float]
     per_bus: list[dict[str, Any]]
     horizon_summary: dict[str, list[float]]
@@ -208,6 +273,9 @@ def run_forecast(
     edge_exclude: int = 2,
     predictor: Any | None = None,
     route_shape_length_m: float | None = None,
+    # Mean stop latitude of the route — sharpens the legacy-bundle unit
+    # conversion (see _model_input_scale). Optional; tests may omit it.
+    route_mean_lat_deg: float | None = None,
     # Identity passthrough for shadow logging — when shadow mode is off
     # these are ignored. The router fills them; tests don't have to.
     route_id: str = "",
@@ -245,11 +313,25 @@ def run_forecast(
     extras_schema_v = int(meta.get("extras_schema_v") or (
         4 if n_extra == 6 else (2 if n_extra == 10 else 1)
     ))
+
+    # Legacy-bundle unit shim: present the model with inputs in the units it
+    # was trained on. All downstream feature math (gaps, closure rates,
+    # terminus distances) inherits the scale from the points themselves.
+    input_scale = _model_input_scale(meta, route_mean_lat_deg)
+    if input_scale != 1.0:
+        model_buses = [_scale_bus(b, input_scale) for b in buses]
+        model_shape_length_m = (
+            route_shape_length_m * input_scale if route_shape_length_m is not None else None
+        )
+    else:
+        model_buses = list(buses)
+        model_shape_length_m = route_shape_length_m
+
     results: list[LiveWindow] = []
-    for bus in buses:
+    for bus in model_buses:
         results.append(
             build_bus_window(
-                bus, buses,
+                bus, model_buses,
                 t_ref_min=t_ref_min,
                 num_stops=num_stops,
                 seq_len=seq_len,
@@ -302,9 +384,12 @@ def run_forecast(
         )
 
         for i, r in enumerate(eligible):
+            # travel distance / shape length / speed are all in model units
+            # here; _useful_horizon_steps only consumes their ratio, so the
+            # scale cancels.
             useful = _useful_horizon_steps(
                 r.travel_distance_m_at_ref,
-                route_shape_length_m,
+                model_shape_length_m,
                 r.median_speed_m_s_recent,
                 step_seconds=step_seconds,
                 pred_len=pred.pred_len,
@@ -315,8 +400,15 @@ def run_forecast(
                 "eligible": True,
                 "ineligible_reason": None,
                 "stop_idx": _round_or_none(r.stop_idx_at_ref),
-                "forward_gap_m": _round_or_none(r.forward_gap_at_ref, 1),
-                "gap_closure_m_s": _round_or_none(r.gap_closure_m_per_s_at_ref, 2),
+                "forward_gap_m": _round_or_none(
+                    _descale_gap(r.forward_gap_at_ref, input_scale), 1
+                ),
+                "gap_closure_m_s": _round_or_none(
+                    r.gap_closure_m_per_s_at_ref / input_scale
+                    if r.gap_closure_m_per_s_at_ref is not None
+                    else None,
+                    2,
+                ),
                 "useful_horizon_steps": int(useful),
             })
             per_bus_out[r.bus_index] = row
@@ -350,8 +442,15 @@ def run_forecast(
                     "max_prob_step": None,
                     "per_horizon": None,
                     "useful_horizon_steps": None,
-                    "forward_gap_m": _round_or_none(r.forward_gap_at_ref, 1),
-                    "gap_closure_m_s": _round_or_none(r.gap_closure_m_per_s_at_ref, 2),
+                    "forward_gap_m": _round_or_none(
+                        _descale_gap(r.forward_gap_at_ref, input_scale), 1
+                    ),
+                    "gap_closure_m_s": _round_or_none(
+                        r.gap_closure_m_per_s_at_ref / input_scale
+                        if r.gap_closure_m_per_s_at_ref is not None
+                        else None,
+                        2,
+                    ),
                 },
             )
         )
@@ -400,6 +499,7 @@ def run_forecast(
         model_label=_bundle_label(meta),
         shadow_mode=shadow_cfg.enabled,
         horizon_cap_min=horizon_cap_min_env,
+        input_distance_scale=float(input_scale),
         thresholds=thresholds,
         per_bus=out_rows,
         horizon_summary={

@@ -16,8 +16,12 @@ from sqlalchemy import delete
 from sqlalchemy.orm import Session
 
 from apps.analytics import csv_export, pipeline
-from apps.analytics.gtfs_static import feed_covers, load_all
-from apps.analytics.shapes import build_linestrings
+from apps.analytics.gtfs_static import (
+    feed_covers,
+    load_all,
+    load_shape_linestrings,
+    validate_bundle,
+)
 from core.logging import get_logger
 from db.models.trip_trajectory import AnalyticsRun, TripTrajectory
 
@@ -75,6 +79,7 @@ def run_for_date(
     route_id: str | None = None,
     upsample_resolution_s: int = 10,
     max_orthogonal_distance_m: float = 200.0,
+    max_implied_speed_m_s: float | None = None,
     export_csv_dir: Path | None = None,
     only_changed_since: datetime | None = None,
 ) -> RunOutcome:
@@ -90,6 +95,7 @@ def run_for_date(
     config = {
         "upsample_resolution_s": upsample_resolution_s,
         "max_orthogonal_distance_m": max_orthogonal_distance_m,
+        "max_implied_speed_m_s": max_implied_speed_m_s,
         "route_id": route_id,
         "only_changed_since": only_changed_since.isoformat() if only_changed_since else None,
     }
@@ -109,6 +115,16 @@ def run_for_date(
 
     try:
         static = load_all()
+        bundle_problems = validate_bundle(static)
+        if bundle_problems:
+            _logger.warning(
+                "analytics_bundle_invalid",
+                extra={
+                    "run_id": run_id,
+                    "problems": bundle_problems,
+                    "feed_version": static.feed_version,
+                },
+            )
         if not feed_covers(static, service_date):
             _logger.warning(
                 "analytics_feed_coverage_gap",
@@ -125,7 +141,8 @@ def run_for_date(
                     ),
                 },
             )
-        shape_lines = build_linestrings(static.shapes)
+        # Cached per bundle token — rebuilding every worker tick costs seconds.
+        shape_lines = load_shape_linestrings()
 
         if only_changed_since is not None:
             instances = pipeline.list_changed_trip_instances(
@@ -157,6 +174,7 @@ def run_for_date(
                 start_date,
                 upsample_resolution_s=upsample_resolution_s,
                 max_orthogonal_distance_m=max_orthogonal_distance_m,
+                max_implied_speed_m_s=max_implied_speed_m_s,
             )
             if df.empty:
                 continue
@@ -215,11 +233,17 @@ def run_for_date(
         )
 
     except Exception as exc:  # noqa: BLE001 — finalize and re-raise
-        session.rollback()
-        run.status = "failed"
-        run.finished_at = datetime.now(tz=timezone.utc)
-        run.rows_written = total_rows
-        run.error_message = str(exc)[:8000]
-        session.commit()
         _logger.exception("analytics_failed", extra={"run_id": run_id})
+        # Best-effort finalization: if the failure was the DB connection
+        # itself, the status write will also fail — swallow that so the
+        # original exception (the one worth debugging) propagates.
+        try:
+            session.rollback()
+            run.status = "failed"
+            run.finished_at = datetime.now(tz=timezone.utc)
+            run.rows_written = total_rows
+            run.error_message = str(exc)[:8000]
+            session.commit()
+        except Exception:  # noqa: BLE001
+            _logger.exception("analytics_failed_finalize_error", extra={"run_id": run_id})
         raise

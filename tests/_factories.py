@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from google.transit import gtfs_realtime_pb2
+from apps.collector import gtfs_realtime_pb2
 
 
 def make_feed_message(

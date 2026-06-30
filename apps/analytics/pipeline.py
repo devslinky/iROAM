@@ -6,7 +6,7 @@ The runner owns the transaction + analytics_runs lifecycle.
 
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 import pandas as pd
 from sqlalchemy import func, select
@@ -16,8 +16,12 @@ from apps.analytics.gtfs_static import GtfsStatic, resolve_route_id, resolve_sha
 from apps.analytics.project_to_shape import project_trajectory
 from apps.analytics.trajectory_extract import build_trip_trajectory
 from apps.analytics.upsample import compute_moving_speed, last_step_clean_up, upsample_df
+from core.logging import get_logger
+from core.time import TORONTO_TZ
 from db.models.vehicle_position import VehiclePosition
 from db.queries.vehicles import fetch_by_trip_instance
+
+_logger = get_logger(__name__)
 
 # The TTC VehiclePositions feed does not populate TripDescriptor.start_date,
 # so analytics derives an "effective start_date" from the observation timestamp
@@ -33,6 +37,24 @@ _EFFECTIVE_START_DATE = func.coalesce(
         "YYYYMMDD",
     ),
 )
+
+# The effective-start-date expression above is not indexable, so every query
+# filtering on it also gets a plain ``fetched_at`` range (which IS indexed).
+# Slack covers vehicle clocks lagging the fetch and overnight trips; rows
+# whose vehicle_timestamp is further than this from their fetch time are the
+# "ghost broadcast" pathology the UI-side segmenter drops anyway.
+_FETCHED_AT_SLACK = timedelta(hours=6)
+
+
+def _fetched_at_window(service_date: date) -> tuple[datetime, datetime]:
+    """UTC ``fetched_at`` bounds that can contain any observation whose
+    Toronto-local date is ``service_date``."""
+    local_midnight = datetime(
+        service_date.year, service_date.month, service_date.day, tzinfo=TORONTO_TZ
+    )
+    start = local_midnight - _FETCHED_AT_SLACK
+    end = local_midnight + timedelta(days=1) + _FETCHED_AT_SLACK
+    return start, end
 
 
 def list_trip_instances(
@@ -50,9 +72,12 @@ def list_trip_instances(
     doesn't.
     """
     yyyymmdd = service_date.strftime("%Y%m%d")
+    lo, hi = _fetched_at_window(service_date)
     stmt = (
         select(VehiclePosition.trip_id, _EFFECTIVE_START_DATE.label("eff_start_date"))
         .where(VehiclePosition.trip_id.is_not(None))
+        .where(VehiclePosition.fetched_at >= lo)
+        .where(VehiclePosition.fetched_at < hi)
         .where(_EFFECTIVE_START_DATE == yyyymmdd)
         .distinct()
     )
@@ -76,11 +101,13 @@ def list_changed_trip_instances(
     delete-then-inserts per ``(trip_id, start_date)``.
     """
     yyyymmdd = service_date.strftime("%Y%m%d")
+    _, hi = _fetched_at_window(service_date)
     stmt = (
         select(VehiclePosition.trip_id, _EFFECTIVE_START_DATE.label("eff_start_date"))
         .where(VehiclePosition.trip_id.is_not(None))
         .where(_EFFECTIVE_START_DATE == yyyymmdd)
         .where(VehiclePosition.fetched_at > since)
+        .where(VehiclePosition.fetched_at < hi)
         .distinct()
     )
     if route_id is not None:
@@ -97,6 +124,7 @@ def process_trip_instance(
     *,
     upsample_resolution_s: int = 10,
     max_orthogonal_distance_m: float = 200.0,
+    max_implied_speed_m_s: float | None = None,
 ) -> pd.DataFrame:
     """Full per-trip transform: fetch -> extract -> project -> speed -> upsample.
 
@@ -104,7 +132,17 @@ def process_trip_instance(
     points or if its shape can't be resolved). Caller converts to ORM rows
     and commits.
     """
-    rows = fetch_by_trip_instance(session, trip_id, start_date)
+    # Bound the per-instance fetch: trip_ids repeat every service day within
+    # a board period, so an unbounded query rereads the trip's entire history
+    # across all stored days just to keep one date's rows.
+    window = None
+    try:
+        window = _fetched_at_window(
+            date(int(start_date[:4]), int(start_date[4:6]), int(start_date[6:8]))
+        )
+    except (ValueError, TypeError, IndexError):
+        pass  # malformed start_date is handled (dropped) further down
+    rows = fetch_by_trip_instance(session, trip_id, start_date, fetched_at_window=window)
     if not rows:
         return pd.DataFrame()
 
@@ -120,6 +158,15 @@ def process_trip_instance(
         and static_route is not None
         and static_route != realtime_route
     ):
+        _logger.debug(
+            "analytics_route_mismatch_drop",
+            extra={
+                "trip_id": trip_id,
+                "start_date": start_date,
+                "realtime_route": realtime_route,
+                "static_route": static_route,
+            },
+        )
         return pd.DataFrame()
 
     df = build_trip_trajectory(rows, static.trips)
@@ -132,16 +179,35 @@ def process_trip_instance(
 
     shape_id = resolve_shape_id(static, trip_id)
     df["shape_id"] = shape_id
-    service_date_val = None
-    if start_date and len(start_date) == 8:
-        from datetime import date as _date
-        service_date_val = _date(int(start_date[:4]), int(start_date[4:6]), int(start_date[6:8]))
+    # ``service_date`` is NOT NULL at the schema level, so a feed-provided
+    # start_date that isn't a parseable YYYYMMDD must drop this one instance
+    # rather than abort the entire run at insert time.
+    try:
+        service_date_val = date(int(start_date[:4]), int(start_date[4:6]), int(start_date[6:8]))
+    except (ValueError, TypeError, IndexError):
+        _logger.warning(
+            "analytics_bad_start_date",
+            extra={"trip_id": trip_id, "start_date": start_date},
+        )
+        return pd.DataFrame()
     df["service_date"] = service_date_val
 
     if shape_id is None or shape_id not in shape_lines:
         return pd.DataFrame()
 
-    df = project_trajectory(df, shape_lines[shape_id], max_orthogonal_distance_m=max_orthogonal_distance_m)
+    # ``None`` defers to project_trajectory's default; a non-positive setting
+    # disables the teleport filter explicitly.
+    if max_implied_speed_m_s is None:
+        df = project_trajectory(
+            df, shape_lines[shape_id], max_orthogonal_distance_m=max_orthogonal_distance_m
+        )
+    else:
+        df = project_trajectory(
+            df,
+            shape_lines[shape_id],
+            max_orthogonal_distance_m=max_orthogonal_distance_m,
+            max_implied_speed_m_s=max_implied_speed_m_s if max_implied_speed_m_s > 0 else None,
+        )
     if df.empty or len(df) < 2:
         return pd.DataFrame()
 

@@ -66,5 +66,7 @@ def test_build_linestrings_returns_one_per_shape(static) -> None:
     line = lines[first_key]
     assert line.length > 0
     xs, ys = zip(*line.coords)
-    # EPSG:3857 Toronto meters: x ≈ -8.8M, y ≈ 5.4M. Guard against unit drift.
-    assert min(xs) < -8_000_000 < max(xs) or min(ys) > 5_000_000
+    # UTM 17N Toronto meters: x ≈ 0.58–0.66M, y ≈ 4.79–4.89M. Guard against
+    # unit / CRS drift (EPSG:3857 would put y at ~5.4M and x at ~-8.8M).
+    assert 500_000 < min(xs) and max(xs) < 700_000
+    assert 4_700_000 < min(ys) and max(ys) < 4_950_000

@@ -15,11 +15,9 @@ pay the shapes-load cost.
 from __future__ import annotations
 
 from datetime import date
-from functools import lru_cache
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pyproj import Transformer
 from sqlalchemy.orm import Session
 
 from apps.api.deps import get_db
@@ -37,24 +35,20 @@ from db.queries.trajectories import (
 
 router = APIRouter(prefix="/trajectories", tags=["trajectories"])
 
-_FROM_3857 = Transformer.from_crs("EPSG:3857", "EPSG:4326", always_xy=True)
-
-
-@lru_cache(maxsize=1)
-def _shape_linestrings_cached():
-    # Deferred import so the router module can be collected even if pandas/
-    # shapely/pyproj aren't installed (e.g. in the parser-only test container).
-    from apps.analytics.gtfs_static import load_all
-    from apps.analytics.shapes import build_linestrings
-
-    static = load_all()
-    return build_linestrings(static.shapes)
-
 
 def _interpolate_lonlat(shape_id: str, travel_m: float) -> tuple[float, float] | None:
-    """Return (lon, lat) at ``travel_m`` along ``shape_id``, or None if unknown."""
+    """Return (lon, lat) at ``travel_m`` along ``shape_id``, or None if unknown.
+
+    The linestring cache lives in ``gtfs_static`` and is keyed on the bundle
+    token, so a refreshed ``Complete GTFS/`` is picked up without a restart.
+    Imports are deferred so the router module can be collected even if pandas/
+    shapely/pyproj aren't installed (e.g. in the parser-only test container).
+    """
     try:
-        shapes = _shape_linestrings_cached()
+        from apps.analytics.gtfs_static import load_shape_linestrings
+        from apps.analytics.shapes import transform_meters_to_lonlat
+
+        shapes = load_shape_linestrings()
     except Exception:
         return None
     line = shapes.get(shape_id)
@@ -62,8 +56,7 @@ def _interpolate_lonlat(shape_id: str, travel_m: float) -> tuple[float, float] |
         return None
     d = max(0.0, min(travel_m, line.length))
     point = line.interpolate(d)
-    lon, lat = _FROM_3857.transform(point.x, point.y)
-    return float(lon), float(lat)
+    return transform_meters_to_lonlat(point.x, point.y)
 
 
 @router.get("/service-dates")

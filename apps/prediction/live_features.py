@@ -7,12 +7,11 @@ varies per bundle:
   * local v1:             seq_len=20, step=60 s, vendor-only 9 channels
   * local rich:           seq_len=20, step=60 s, vendor (9) + extras (7) = 16
 
-Rather than maintain three forecast-feature builders, this module reads
+Rather than maintain several forecast-feature builders, this module reads
 ``metadata.json`` from the bundle and produces a matching per-bus window at
-serving time. Same eligibility logic as the existing
-``forecast_features.build_bus_window`` (freshness / edge-exclude / contiguous
-history / at-least-one-upstream-tick) so the production behaviour the
-dashboard relies on doesn't change.
+serving time. The eligibility rules (freshness / edge-exclude / contiguous
+history / at-least-one-neighbour-tick / finite values) are pinned by
+``tests/test_forecast_features.py``.
 
 The "extras" channels match the offline labelling pipeline exactly
 (``data_process/bunching/labels.py:EXTRA_FEATURES``) — same order, same units.
@@ -21,6 +20,7 @@ That's load-bearing: the trainer and live builder must agree column-by-column.
 
 from __future__ import annotations
 
+import bisect
 import math
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -29,7 +29,7 @@ from zoneinfo import ZoneInfo
 
 import numpy as np
 
-from apps.analytics.anomalies import BusTrajectory, TrajectoryPoint, _to_minute_of_day
+from apps.analytics.anomalies import BusTrajectory, TrajectoryPoint, to_minute_of_day as _to_minute_of_day
 from data_process.bunching.labels import (
     BUNCHING_THRESHOLD_M,
     EXTRA_FEATURES,
@@ -67,28 +67,46 @@ class LiveWindow:
 # ─────────────────────────── helpers ─────────────────────────────────────────
 
 
-def _points_sorted_by_mod(bus: BusTrajectory) -> list[tuple[float, TrajectoryPoint]]:
-    out = [(_to_minute_of_day(p.datetime), p) for p in bus.points]
-    out.sort(key=lambda r: r[0])
-    return out
+class _Track:
+    """A bus's samples sorted by minute-of-day, as parallel arrays for bisect.
+
+    ``_sample_at`` is called O(seq_len × peers) times per scored bus; a linear
+    scan over full-day point lists made each /iroam/forecast request cost tens
+    of millions of Python iterations. Bisect makes each lookup O(log n).
+    """
+
+    __slots__ = ("mods", "pts")
+
+    def __init__(self, bus: BusTrajectory) -> None:
+        pairs = sorted(
+            ((_to_minute_of_day(p.datetime), p) for p in bus.points),
+            key=lambda r: r[0],
+        )
+        self.mods = [m for m, _ in pairs]
+        self.pts = [p for _, p in pairs]
+
+
+def _points_sorted_by_mod(bus: BusTrajectory) -> _Track:
+    return _Track(bus)
 
 
 def _sample_at(
-    sorted_pts: Sequence[tuple[float, TrajectoryPoint]],
+    track: _Track,
     target_mod: float,
     tol_s: float,
 ) -> TrajectoryPoint | None:
+    """Nearest sample within ±tol of ``target_mod``; earlier sample wins ties."""
+    mods = track.mods
+    if not mods:
+        return None
     tol_min = tol_s / 60.0
-    lo, hi = target_mod - tol_min, target_mod + tol_min
+    i = bisect.bisect_left(mods, target_mod)
     best: tuple[float, TrajectoryPoint] | None = None
-    for mod, p in sorted_pts:
-        if mod < lo:
-            continue
-        if mod > hi:
-            break
-        dt = abs(mod - target_mod)
-        if best is None or dt < best[0]:
-            best = (dt, p)
+    for j in (i - 1, i):
+        if 0 <= j < len(mods):
+            dt = abs(mods[j] - target_mod)
+            if dt <= tol_min and (best is None or dt < best[0]):
+                best = (dt, track.pts[j])
     return best[1] if best else None
 
 
@@ -431,11 +449,18 @@ def build_bus_window(
                 extras[k, 6] = tod_cos_val
 
     if not any_neighbour_tick:
+        # Schema-accurate wording: v1 needs a bus *behind* (upstream), v2 a
+        # bus *ahead* (leader). forecast._is_running matches both prefixes.
+        no_neighbour_reason = (
+            "no leader on any tick of the history window"
+            if vendor_schema_v == VENDOR_SCHEMA_V2
+            else "no upstream bus on any tick of the history window"
+        )
         return LiveWindow(
             bus_index=bus_index, window=None, extras=extras,
             stop_idx_at_ref=stop_at_ref, forward_gap_at_ref=None, gap_closure_m_per_s_at_ref=None,
             travel_distance_m_at_ref=None, median_speed_m_s_recent=None,
-            reason="no leader on any tick of the history window",
+            reason=no_neighbour_reason,
         )
     if not np.all(np.isfinite(window)) or (extras is not None and not np.all(np.isfinite(extras))):
         return LiveWindow(

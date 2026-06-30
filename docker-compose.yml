@@ -66,6 +66,55 @@ services:
         condition: service_completed_successfully
     restart: unless-stopped
 
+  # Trip-side collectors reuse the collector image with per-feed intervals:
+  # the bus trip-update feed is ~600 KB / ~2k entities per poll so it runs at
+  # 60s; the subway feed is tiny (~30 entities) at 30s; detours change rarely
+  # so 300s is plenty.
+  collector-trip-updates:
+    build:
+      context: .
+      target: collector
+    command: ["python", "-m", "apps.collector.main", "--loop", "--feed", "trip-updates", "--interval", "60"]
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://ttc:ttc@postgres:5432/ttc_gtfsrt
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrator:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  collector-subway-trip-updates:
+    build:
+      context: .
+      target: collector
+    command: ["python", "-m", "apps.collector.main", "--loop", "--feed", "subway-trip-updates", "--interval", "30"]
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://ttc:ttc@postgres:5432/ttc_gtfsrt
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrator:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  collector-trip-modifications:
+    build:
+      context: .
+      target: collector
+    command: ["python", "-m", "apps.collector.main", "--loop", "--feed", "trip-modifications", "--interval", "300"]
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://ttc:ttc@postgres:5432/ttc_gtfsrt
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrator:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
   analytics-worker:
     build:
       context: .

@@ -7,12 +7,22 @@ The TTC endpoint can serve either the binary wire format (``?format=binary``)
 or protobuf text format by default. We try binary first and transparently
 fall back to text if the wire decode fails — this makes the collector robust
 to either endpoint configuration.
+
+Uses the vendored ``apps.collector.gtfs_realtime_pb2`` bindings, not the
+``gtfs-realtime-bindings`` package: no released version of that package knows
+the ``TripModifications`` / ``Shape`` entities the TTC detour feed carries.
+Never import both in one process — they declare the same proto symbols and
+protobuf's descriptor pool will reject the duplicate. Regenerate with::
+
+    curl -sO https://raw.githubusercontent.com/google/transit/master/gtfs-realtime/proto/gtfs-realtime.proto
+    python -m grpc_tools.protoc -I. --python_out=apps/collector gtfs-realtime.proto
 """
 
 from __future__ import annotations
 
 from google.protobuf import text_format
-from google.transit import gtfs_realtime_pb2
+
+from apps.collector import gtfs_realtime_pb2
 
 
 class ParseError(Exception):

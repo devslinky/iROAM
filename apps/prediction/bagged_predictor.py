@@ -89,6 +89,11 @@ class BaggedPredictor:
             "trained_at": man.get("trained_at"),
             "calibrated": self.calibrated,
             "threshold_strategy": man.get("threshold_strategy"),
+            # Unit system of the distances/speeds the model was trained on.
+            # Absent on bundles trained before the EPSG:3857→UTM fix; the
+            # forecast service treats absence as "epsg3857_m" and rescales
+            # serving inputs accordingly.
+            "distance_units": man.get("distance_units"),
         }
 
         from deployment.bunching_lightgbm import BunchingPredictor

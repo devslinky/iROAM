@@ -10,8 +10,11 @@ The canonical shape is picked as the most-common ``shape_id`` for the
 (route_id, direction_id) pair; ties broken by the trip with the most
 stop_times, so we don't pick a short-turn variant.
 
-Cached per (route_id, direction_id); safe because the static bundle is
-process-local and rarely changes.
+Cached per (bundle, route_id, direction_id). The bundle component of the key
+matters: ``Complete GTFS/`` is refreshed in place every board period, and a
+cache keyed only on route+direction would keep serving the previous period's
+shape after a swap (stop list subtly misaligned with newly written
+trajectories) until the process restarts.
 """
 
 from __future__ import annotations
@@ -19,10 +22,20 @@ from __future__ import annotations
 from dataclasses import dataclass
 from functools import lru_cache
 
-from shapely.geometry import Point
+from shapely.geometry import LineString, Point
+from shapely.ops import substring
 
-from apps.analytics.gtfs_static import GtfsStatic, load_all
-from apps.analytics.shapes import build_linestrings, transform_lonlat_to_3857
+from apps.analytics.gtfs_static import GtfsStatic, bundle_token, load_all, load_shape_linestrings
+from apps.analytics.shapes import transform_lonlat_to_meters
+from core.logging import get_logger
+
+_logger = get_logger(__name__)
+
+# A stop projecting more than this *behind* its predecessor is treated as a
+# wrong-leg projection (self-overlapping shape) and re-projected onto the
+# remainder of the line; anything inside the tolerance is ordinary projection
+# wobble and is clamped forward.
+_MONOTONE_TOL_M = 1.0
 
 
 @dataclass(frozen=True)
@@ -63,12 +76,18 @@ def _pick_canonical_trip(
     return str(st_counts.idxmax())
 
 
-@lru_cache(maxsize=64)
 def compute_route_stops(route_id: str, direction_id: int) -> RouteStops | None:
     """Return the ordered stops along the canonical shape for this route+direction.
 
     Returns ``None`` if the route+direction has no shape or no stop_times.
     """
+    return _compute_route_stops(bundle_token(), route_id, direction_id)
+
+
+@lru_cache(maxsize=128)
+def _compute_route_stops(
+    token: tuple[str, float], route_id: str, direction_id: int
+) -> RouteStops | None:
     static = load_all()
     canonical_trip_id = _pick_canonical_trip(static, route_id, direction_id)
     if canonical_trip_id is None:
@@ -77,8 +96,7 @@ def compute_route_stops(route_id: str, direction_id: int) -> RouteStops | None:
     trip_row = static.trips.loc[static.trips["trip_id"] == canonical_trip_id].iloc[0]
     shape_id = str(trip_row["shape_id"])
 
-    lines = build_linestrings(static.shapes.loc[static.shapes["shape_id"] == shape_id])
-    line = lines.get(shape_id)
+    line = load_shape_linestrings().get(shape_id)
     if line is None:
         return None
 
@@ -91,7 +109,7 @@ def compute_route_stops(route_id: str, direction_id: int) -> RouteStops | None:
 
     stops = static.stops.set_index("stop_id")
     seen: set[str] = set()
-    stops_out: list[StopOnRoute] = []
+    visit: list[tuple[str, str, float, float, int, float, float]] = []
     for row in ordered_st.itertuples(index=False):
         sid = str(row.stop_id)
         if sid in seen or sid not in stops.index:
@@ -99,22 +117,26 @@ def compute_route_stops(route_id: str, direction_id: int) -> RouteStops | None:
         seen.add(sid)
         s = stops.loc[sid]
         lon, lat = float(s["stop_lon"]), float(s["stop_lat"])
-        x, y = transform_lonlat_to_3857(lon, lat)
-        dist_m = float(line.project(Point(x, y)))
-        stops_out.append(
-            StopOnRoute(
-                stop_id=sid,
-                stop_name=str(s["stop_name"]),
-                stop_lat=lat,
-                stop_lon=lon,
-                stop_sequence=int(row.stop_sequence),
-                distance_m=dist_m,
-            )
-        )
+        x, y = transform_lonlat_to_meters(lon, lat)
+        visit.append((sid, str(s["stop_name"]), lat, lon, int(row.stop_sequence), x, y))
 
-    # Enforce monotonic distance — interpolated projections occasionally wobble
-    # by a few cm when a stop sits on an almost-straight segment; sort by distance
-    # so the binary search remains well-defined.
+    distances = _monotone_stop_distances(
+        line, [(x, y) for *_head, x, y in visit], shape_id=shape_id
+    )
+    stops_out = [
+        StopOnRoute(
+            stop_id=sid,
+            stop_name=name,
+            stop_lat=lat,
+            stop_lon=lon,
+            stop_sequence=seq,
+            distance_m=dist_m,
+        )
+        for (sid, name, lat, lon, seq, _x, _y), dist_m in zip(visit, distances, strict=False)
+    ]
+
+    # The monotone projection guarantees non-decreasing distances, so this sort
+    # is a no-op safety net keeping the binary search well-defined regardless.
     stops_out.sort(key=lambda s: s.distance_m)
 
     return RouteStops(
@@ -124,6 +146,62 @@ def compute_route_stops(route_id: str, direction_id: int) -> RouteStops | None:
         shape_length_m=float(line.length),
         stops=tuple(stops_out),
     )
+
+
+def _monotone_stop_distances(
+    line: LineString,
+    stop_xy: list[tuple[float, float]],
+    *,
+    shape_id: str | None = None,
+) -> list[float]:
+    """Project stops onto ``line`` in visit order, distances non-decreasing.
+
+    A canonical trip visits its stops in shape order, so distance-along-shape
+    must be non-decreasing by definition. Unconstrained nearest-point
+    projection breaks that on self-overlapping (out-and-back) shapes: a stop
+    on the return leg can snap to the outbound leg, and the old sort-by-
+    distance then silently reordered stops. Here a stop whose free projection
+    lands more than ``_MONOTONE_TOL_M`` behind its predecessor is re-projected
+    onto the *remainder* of the line; sub-tolerance backward wobble (almost-
+    straight segments) is clamped forward.
+
+    Greedy by construction: a wrong-leg projection that happens to land
+    *ahead* of its predecessor is not detectable from ordering alone. Those
+    cases are logged when a later stop exposes them via a re-projection.
+    """
+    out: list[float] = []
+    prev = 0.0
+    length = float(line.length)
+    n_reprojected = 0
+    for x, y in stop_xy:
+        pt = Point(x, y)
+        d_free = float(line.project(pt))
+        if d_free >= prev:
+            d = d_free
+        elif d_free >= prev - _MONOTONE_TOL_M:
+            d = prev
+        elif prev >= length:
+            d = length
+        else:
+            rest = substring(line, prev, length)
+            d = prev + float(rest.project(pt))
+            n_reprojected += 1
+        out.append(d)
+        prev = d
+    if n_reprojected:
+        _logger.warning(
+            "stop_projection_nonmonotone_fixed",
+            extra={
+                "shape_id": shape_id,
+                "stops_reprojected": n_reprojected,
+                "detail": (
+                    "free nearest-point projection violated stop order — the "
+                    "shape likely self-overlaps; affected stops were re-projected "
+                    "onto the remainder of the shape"
+                ),
+            },
+        )
+    return out
 
 
 def distance_to_stop_index(distance_m: float, route_stops: RouteStops) -> float:

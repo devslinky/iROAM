@@ -36,6 +36,8 @@ class Settings(BaseSettings):
         "https://gtfsrt.ttc.ca/vehicles/position?format=binary"
     )
     gtfs_rt_trip_updates_url: str = "https://gtfsrt.ttc.ca/trips/update?format=binary"
+    gtfs_rt_subway_trip_updates_url: str = "https://gtfsrt.ttc.ca/trips/subway?format=binary"
+    gtfs_rt_trip_modifications_url: str = "https://gtfsrt.ttc.ca/trips/detour?format=binary"
     gtfs_rt_alerts_url: str = "https://gtfsrt.ttc.ca/alerts?format=binary"
 
     # Collector
@@ -71,6 +73,9 @@ class Settings(BaseSettings):
     )
     analytics_upsample_resolution_s: int = 10
     analytics_max_orthogonal_distance_m: float = 200.0
+    # Along-route teleport filter: drop GPS points implying speeds above this
+    # between consecutive samples (126 km/h default). Set <= 0 to disable.
+    analytics_max_implied_speed_m_s: float = 35.0
     analytics_worker_interval_seconds: int = 120
     analytics_worker_service_date_tz: str = "America/Toronto"
 

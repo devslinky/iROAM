@@ -1,8 +1,8 @@
 """Shared constants.
 
-VehiclePositions is the canonical feed for this MVP. Adding another GTFS-RT
-feed (trip-updates, alerts) is a one-line change here plus a new ``FeedSpec``
-and normalizer in ``apps/collector/feed_specs.py``.
+VehiclePositions is the canonical feed. Adding another GTFS-RT feed (alerts)
+is a one-line change here plus a new ``FeedSpec`` and normalizer in
+``apps/collector/feed_specs.py``.
 """
 
 from __future__ import annotations
@@ -10,7 +10,9 @@ from __future__ import annotations
 from typing import Final
 
 FEED_VEHICLE_POSITIONS: Final[str] = "vehicle-positions"
-FEED_TRIP_UPDATES: Final[str] = "trip-updates"  # future
+FEED_TRIP_UPDATES: Final[str] = "trip-updates"
+FEED_SUBWAY_TRIP_UPDATES: Final[str] = "subway-trip-updates"
+FEED_TRIP_MODIFICATIONS: Final[str] = "trip-modifications"
 FEED_ALERTS: Final[str] = "alerts"  # future
 
 CANONICAL_FEED: Final[str] = FEED_VEHICLE_POSITIONS
@@ -18,6 +20,8 @@ CANONICAL_FEED: Final[str] = FEED_VEHICLE_POSITIONS
 KNOWN_FEEDS: Final[tuple[str, ...]] = (
     FEED_VEHICLE_POSITIONS,
     FEED_TRIP_UPDATES,
+    FEED_SUBWAY_TRIP_UPDATES,
+    FEED_TRIP_MODIFICATIONS,
     FEED_ALERTS,
 )
 

@@ -14,7 +14,10 @@ import numpy as np
 
 from apps.analytics.anomalies import BusTrajectory, TrajectoryPoint
 from apps.api.services.forecast import run_forecast
-from apps.api.services.forecast_features import SEQ_LEN, STEP_SECONDS
+# Stub-bundle geometry used throughout these tests (matches the vendor
+# bundle: 60 ticks x 10 s).
+SEQ_LEN = 60
+STEP_SECONDS = 10
 
 
 def _mk_bus(idx: int, t0: datetime, *, start_dist: float, speed: float = 8.0) -> BusTrajectory:

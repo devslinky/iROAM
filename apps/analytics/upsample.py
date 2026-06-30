@@ -12,8 +12,8 @@ are copied from whichever of (current, next) is closer in distance.
 
 from __future__ import annotations
 
+import numpy as np
 import pandas as pd
-
 
 _FINAL_COLUMN_ORDER = [
     "trip_id", "start_date", "service_date", "route_id", "direction_id", "shape_id",
@@ -52,56 +52,61 @@ def upsample_df(df: pd.DataFrame, resolution_seconds: int) -> pd.DataFrame:
     rows are NOT appended here — the boundary-point logic preserves one row's
     identity at each midpoint, matching the legacy pipeline's behavior.
 
+    Vectorized but semantics-identical to the legacy per-pair loop (guarded by
+    a randomized parity test): per consecutive pair (i, i+1) with positive
+    time delta, boundaries are the multiples of ``resolution_seconds`` in
+    ``[ceil_to_res(floor(t_i)), floor(t_{i+1}))``; each boundary row copies
+    the identity columns of whichever endpoint is nearer in *distance*, with
+    distance extrapolated from row i at row i+1's speed.
+
     Requires columns: ``datetime``, ``travel_distance_m``, ``moving_speed_m_s``.
     """
     if len(df) < 2:
         return pd.DataFrame(columns=df.columns)
 
-    rows = []
-    for i in range(len(df) - 1):
-        current_row = df.iloc[i].copy()
-        next_row = df.iloc[i + 1].copy()
+    res = int(resolution_seconds)
+    ts_ns = df["datetime"].astype("int64").to_numpy()  # epoch nanoseconds
+    travel = df["travel_distance_m"].to_numpy(dtype=float)
+    speed = df["moving_speed_m_s"].to_numpy(dtype=float)
 
-        t_current = current_row["datetime"]
-        t_next = next_row["datetime"]
+    ns_cur, ns_next = ts_ns[:-1], ts_ns[1:]
+    # int(Timestamp.timestamp()) truncates toward zero; epochs are positive.
+    epoch_cur = ns_cur // 1_000_000_000
+    epoch_next = ns_next // 1_000_000_000
 
-        t_current_travel = current_row["travel_distance_m"]
-        t_next_travel = next_row["travel_distance_m"]
-        middle_travel = (t_current_travel + t_next_travel) / 2
-        t_next_speed = next_row["moving_speed_m_s"]
+    first_boundary = (epoch_cur // res) * res
+    first_boundary = np.where(first_boundary < epoch_cur, first_boundary + res, first_boundary)
 
-        total_delta = (t_next - t_current).total_seconds()
-        if total_delta <= 0:
-            continue
+    # Number of candidates with first_boundary + k*res < epoch_next, k >= 0.
+    count = np.ceil((epoch_next - first_boundary) / res).astype(np.int64)
+    count = np.where(ns_next > ns_cur, np.maximum(count, 0), 0)
 
-        epoch_current = int(t_current.timestamp())
-        first_boundary = (epoch_current // resolution_seconds) * resolution_seconds
-        if first_boundary < epoch_current:
-            first_boundary += resolution_seconds
-        while first_boundary < epoch_current:
-            first_boundary += resolution_seconds
-
-        candidate = first_boundary
-        epoch_next = int(t_next.timestamp())
-        while candidate < epoch_next:
-            t_candidate = pd.to_datetime(candidate, unit="s", utc=True)
-            partial_delta = (t_candidate - t_current).total_seconds()
-            dist_candidate = t_current_travel + (partial_delta * t_next_speed)
-
-            if dist_candidate < middle_travel:
-                new_row = current_row.copy()
-            else:
-                new_row = next_row.copy()
-            new_row["moving_speed_m_s"] = t_next_speed
-            new_row["datetime"] = t_candidate
-            new_row["travel_distance_m"] = dist_candidate
-            new_row["observed"] = False
-            rows.append(new_row)
-            candidate += resolution_seconds
-
-    if not rows:
+    total = int(count.sum())
+    if total == 0:
         return pd.DataFrame(columns=df.columns)
-    return pd.DataFrame(rows).sort_values("datetime").reset_index(drop=True)
+
+    pair_idx = np.repeat(np.arange(len(ns_cur)), count)
+    # k = 0..count-1 within each pair: global arange minus each pair's offset.
+    starts = np.concatenate(([0], np.cumsum(count)[:-1]))
+    k = np.arange(total) - np.repeat(starts, count)
+
+    cand_epoch = first_boundary[pair_idx] + k * res
+    # Subtract in the ns domain, divide once — matches Timedelta.total_seconds()
+    # bit-for-bit (divide-then-subtract drifts at the 1e-6 level).
+    partial = (cand_epoch * 1_000_000_000 - ns_cur[pair_idx]) / 1e9
+    dist = travel[:-1][pair_idx] + partial * speed[1:][pair_idx]
+    middle = (travel[:-1] + travel[1:]) / 2.0
+    use_next = dist >= middle[pair_idx]
+
+    src_iloc = pair_idx + use_next.astype(np.int64)
+    out = df.iloc[src_iloc].copy()
+    out["moving_speed_m_s"] = speed[1:][pair_idx]
+    out["datetime"] = pd.to_datetime(cand_epoch, unit="s", utc=True)
+    out["travel_distance_m"] = dist
+    out["observed"] = False
+    # Candidate epochs are strictly increasing across and within pairs, so this
+    # sort is a stability no-op kept for parity with the legacy implementation.
+    return out.sort_values("datetime").reset_index(drop=True)
 
 
 def last_step_clean_up(df: pd.DataFrame) -> pd.DataFrame:

@@ -23,7 +23,6 @@ from apps.analytics.anomalies import (
     detect_bunch_events_distance,
 )
 
-
 UTC = timezone.utc
 EPOCH = datetime(2026, 4, 24, 13, 0, 0, tzinfo=UTC)  # ~09:00 America/Toronto
 
@@ -169,3 +168,85 @@ def test_detect_all_both_methods_tags_events_distinctly() -> None:
     bunch_events = [ev for ev in events if ev.type == "bunch"]
     assert any(ev.method == "distance" for ev in bunch_events)
     assert all(ev.method in ("time", "distance") for ev in bunch_events)
+
+
+def _oscillating_pair(amplitude_m: float, period_s: int = 120) -> list[BusTrajectory]:
+    """Leader fixed-speed; follower's gap oscillates 130↔190 m around a 150 m
+    threshold (crosses it every half period)."""
+    import math
+
+    leader = _trajectory(0, start_dist_m=1000.0, speed_m_s=8.0, duration_s=600)
+    points = []
+    for s in range(0, 601, 10):
+        gap = 160.0 + amplitude_m * math.sin(2 * math.pi * s / period_s)
+        d = 1000.0 + 8.0 * s - gap
+        points.append(
+            TrajectoryPoint(
+                datetime=EPOCH + timedelta(seconds=s),
+                travel_distance_m=d,
+                moving_speed_m_s=8.0,
+                occupancy_status=None,
+                stop_index=d / 250.0,
+            )
+        )
+    follower = BusTrajectory(
+        bus_index=1, trip_id="t1", start_date="2026-04-24", vehicle_id="v1", points=points
+    )
+    return [leader, follower]
+
+
+def test_hysteresis_merges_oscillating_runs() -> None:
+    buses = _oscillating_pair(amplitude_m=30.0)  # gap swings 130..190 m
+
+    flickery = detect_bunch_events_distance(buses, bunch_distance_threshold_m=150.0)
+    merged = detect_bunch_events_distance(
+        buses, bunch_distance_threshold_m=150.0, bunch_distance_exit_m=200.0
+    )
+    # Without hysteresis each dip below 150 m is its own event; with a 200 m
+    # exit threshold the whole oscillation reads as one continuous run.
+    assert len(flickery) > 1
+    assert len(merged) == 1
+
+
+def test_min_duration_drops_brief_brushes() -> None:
+    # Follower dips inside the threshold for a single ~30 s tick window.
+    leader = _trajectory(0, start_dist_m=1000.0, speed_m_s=8.0, duration_s=600)
+    points = []
+    for s in range(0, 601, 10):
+        gap = 80.0 if 290 <= s <= 310 else 400.0
+        d = 1000.0 + 8.0 * s - gap
+        points.append(
+            TrajectoryPoint(
+                datetime=EPOCH + timedelta(seconds=s),
+                travel_distance_m=d,
+                moving_speed_m_s=8.0,
+                occupancy_status=None,
+                stop_index=d / 250.0,
+            )
+        )
+    follower = BusTrajectory(
+        bus_index=1, trip_id="t1", start_date="2026-04-24", vehicle_id="v1", points=points
+    )
+
+    no_filter = detect_bunch_events_distance(
+        [leader, follower], bunch_distance_threshold_m=150.0
+    )
+    filtered = detect_bunch_events_distance(
+        [leader, follower], bunch_distance_threshold_m=150.0, min_duration_s=120.0
+    )
+    assert len(no_filter) >= 1
+    assert filtered == []
+
+
+def test_defaults_preserve_pre_hysteresis_behaviour() -> None:
+    buses = _oscillating_pair(amplitude_m=30.0)
+    legacy = detect_bunch_events_distance(buses, bunch_distance_threshold_m=150.0)
+    explicit = detect_bunch_events_distance(
+        buses,
+        bunch_distance_threshold_m=150.0,
+        bunch_distance_exit_m=None,
+        min_duration_s=0.0,
+    )
+    assert [(e.bus_index, e.minute_of_day, e.stop_index) for e in legacy] == [
+        (e.bus_index, e.minute_of_day, e.stop_index) for e in explicit
+    ]

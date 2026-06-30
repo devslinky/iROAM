@@ -60,17 +60,24 @@ def test_parse_start_datetime_normal() -> None:
     dt = _parse_start_datetime("20260420", "08:15:00")
     assert dt is not None
     assert dt.tzinfo is not None
-    # 08:15 Toronto (UTC-5) == 13:15 UTC
-    assert dt.hour == 13 and dt.minute == 15
+    # April is DST: 08:15 Toronto (EDT, UTC-4) == 12:15 UTC.
+    assert dt.hour == 12 and dt.minute == 15
 
 
 def test_parse_start_datetime_overnight_27_15() -> None:
     # 27:15:00 == 03:15 the following service-day morning.
     dt = _parse_start_datetime("20260420", "27:15:00")
     assert dt is not None
-    # 27:15 Toronto == 03:15 next day Toronto == 08:15 UTC on 2026-04-21.
+    # 27:15 Toronto == 03:15 next day Toronto (EDT) == 07:15 UTC on 2026-04-21.
     assert dt.day == 21
-    assert dt.hour == 8 and dt.minute == 15
+    assert dt.hour == 7 and dt.minute == 15
+
+
+def test_parse_start_datetime_standard_time_winter() -> None:
+    # January is standard time: 08:15 Toronto (EST, UTC-5) == 13:15 UTC.
+    dt = _parse_start_datetime("20260120", "08:15:00")
+    assert dt is not None
+    assert dt.hour == 13 and dt.minute == 15
 
 
 def test_parse_start_datetime_invalid_returns_none() -> None:
@@ -92,7 +99,8 @@ def test_build_trip_trajectory_joins_shape_id_and_sorts() -> None:
     assert df["source_vehicle_position_id"].tolist() == [1, 2, 3]
     assert df["shape_id"].tolist() == ["S1", "S1", "S1"]
     assert "trip_start_datetime" in df.columns
-    assert df["time_offset_seconds"].tolist() == [0, 10, 20]
+    # Trip start 08:00 EDT == 12:00 UTC; observations begin 13:00 UTC.
+    assert df["time_offset_seconds"].tolist() == [3600, 3610, 3620]
 
 
 def test_build_trip_trajectory_drops_null_latlon() -> None:

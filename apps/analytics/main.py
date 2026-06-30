@@ -85,6 +85,7 @@ def main(argv: list[str] | None = None) -> int:
             route_id=args.route,
             upsample_resolution_s=upsample_s,
             max_orthogonal_distance_m=max_orth,
+            max_implied_speed_m_s=settings.analytics_max_implied_speed_m_s,
             export_csv_dir=args.export_csv,
             only_changed_since=args.since,
         )

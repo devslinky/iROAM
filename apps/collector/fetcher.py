@@ -89,7 +89,10 @@ def fetch_bytes(url: str) -> FetchResult:
                     error_type="HTTPStatusError",
                     http_status=exc.response.status_code,
                 ) from exc
-            except (httpx.ConnectError, httpx.ReadTimeout, httpx.ConnectTimeout) as exc:
+            except (httpx.TimeoutException, httpx.TransportError) as exc:
+                # TimeoutException covers connect/read/write/pool timeouts;
+                # TransportError covers connect/read/write errors and protocol
+                # hiccups — all transient classes worth retrying.
                 last_exc = exc
                 _logger.warning(
                     "fetch_transient_error",

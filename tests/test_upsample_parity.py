@@ -106,6 +106,82 @@ def test_upsample_skips_non_positive_delta() -> None:
     assert out.empty
 
 
+def _legacy_upsample_df(df: pd.DataFrame, resolution_seconds: int) -> pd.DataFrame:
+    """The pre-vectorization implementation, kept verbatim as the parity oracle."""
+    if len(df) < 2:
+        return pd.DataFrame(columns=df.columns)
+
+    rows = []
+    for i in range(len(df) - 1):
+        current_row = df.iloc[i].copy()
+        next_row = df.iloc[i + 1].copy()
+        t_current = current_row["datetime"]
+        t_next = next_row["datetime"]
+        t_current_travel = current_row["travel_distance_m"]
+        t_next_travel = next_row["travel_distance_m"]
+        middle_travel = (t_current_travel + t_next_travel) / 2
+        t_next_speed = next_row["moving_speed_m_s"]
+        if (t_next - t_current).total_seconds() <= 0:
+            continue
+        epoch_current = int(t_current.timestamp())
+        first_boundary = (epoch_current // resolution_seconds) * resolution_seconds
+        if first_boundary < epoch_current:
+            first_boundary += resolution_seconds
+        candidate = first_boundary
+        epoch_next = int(t_next.timestamp())
+        while candidate < epoch_next:
+            t_candidate = pd.to_datetime(candidate, unit="s", utc=True)
+            partial_delta = (t_candidate - t_current).total_seconds()
+            dist_candidate = t_current_travel + (partial_delta * t_next_speed)
+            new_row = current_row.copy() if dist_candidate < middle_travel else next_row.copy()
+            new_row["moving_speed_m_s"] = t_next_speed
+            new_row["datetime"] = t_candidate
+            new_row["travel_distance_m"] = dist_candidate
+            new_row["observed"] = False
+            rows.append(new_row)
+            candidate += resolution_seconds
+    if not rows:
+        return pd.DataFrame(columns=df.columns)
+    return pd.DataFrame(rows).sort_values("datetime").reset_index(drop=True)
+
+
+def test_vectorized_upsample_matches_legacy_on_randomized_trajectories() -> None:
+    """Bit-level parity with the legacy loop across awkward inputs: fractional
+    seconds, on-boundary timestamps, zero/negative deltas, negative speeds."""
+    rng = __import__("numpy").random.default_rng(42)
+    base = 1_750_000_000
+    for trial in range(25):
+        n = int(rng.integers(2, 40))
+        # Timestamps: mixed whole/fractional seconds, occasional duplicates.
+        deltas = rng.choice([0.0, 3.0, 9.5, 10.0, 20.0, 31.25, 61.0], size=n - 1)
+        ts = [float(base + trial * 10_000)]
+        for d in deltas:
+            ts.append(ts[-1] + float(d))
+        dist = list(rng.normal(0, 80, size=n).cumsum() + 1000.0)
+        speed = list(rng.normal(8, 6, size=n))  # includes negatives
+        df = pd.DataFrame(
+            {
+                "datetime": pd.to_datetime(ts, unit="s", utc=True),
+                "travel_distance_m": dist,
+                "moving_speed_m_s": speed,
+                "observed": [True] * n,
+                "trip_id": [f"T{j % 3}" for j in range(n)],
+                "vehicle_id": [f"V{j}" for j in range(n)],
+            }
+        )
+        for res in (10, 30):
+            got = upsample_df(df, res)
+            want = _legacy_upsample_df(df, res)
+            assert len(got) == len(want), f"trial={trial} res={res}"
+            if want.empty:
+                continue
+            for col in ["datetime", "travel_distance_m", "moving_speed_m_s",
+                        "observed", "trip_id", "vehicle_id"]:
+                assert got[col].tolist() == want[col].tolist(), (
+                    f"trial={trial} res={res} col={col}"
+                )
+
+
 def test_last_step_clean_up_rounds_and_reorders() -> None:
     df = pd.DataFrame(
         {

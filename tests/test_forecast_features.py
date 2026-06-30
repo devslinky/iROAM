@@ -1,7 +1,13 @@
-"""Unit tests for feature-window construction and the running-bus eligibility rules.
+"""Unit tests for live feature-window construction and the running-bus
+eligibility rules (``apps.prediction.live_features`` — what production
+serves; the old ``apps.api.services.forecast_features`` duplicate is gone).
 
-Pure-Python: no DB, no model. Synthesises ``BusTrajectory`` objects with hand-crafted
-geometry so we can assert exact outcomes.
+Exercises the legacy vendor schema v1 (60×9, target/u1/u2 triples) because
+its eligibility rules — freshness, edge exclusion, contiguous history,
+at-least-one-upstream-tick, finite values — are the contract these tests pin.
+
+Pure-Python: no DB, no model. Synthesises ``BusTrajectory`` objects with
+hand-crafted geometry so we can assert exact outcomes.
 """
 
 from __future__ import annotations
@@ -9,18 +15,26 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 
 import numpy as np
-import pytest
 
 from apps.analytics.anomalies import BusTrajectory, TrajectoryPoint
-from apps.api.services.forecast_features import (
-    N_CHANNELS,
-    SEQ_LEN,
-    STEP_SECONDS,
-    build_bus_window,
-)
+from apps.prediction.live_features import LiveWindow, build_bus_window
+
+SEQ_LEN = 60
+STEP_SECONDS = 10
+N_CHANNELS = 9  # vendor schema v1: (target, u1, u2) × (speed, gap, aux)
 
 
-TORONTO_UTC_OFFSET_H = 4  # DST-dependent in reality — tests pick a date that's stable (UTC directly).
+def _build_v1(target: BusTrajectory, peers: list[BusTrajectory], *, t_ref_min: float, num_stops: int) -> LiveWindow:
+    return build_bus_window(
+        target,
+        peers,
+        t_ref_min=t_ref_min,
+        num_stops=num_stops,
+        seq_len=SEQ_LEN,
+        step_seconds=STEP_SECONDS,
+        feature_set="vendor",
+        vendor_schema_v=1,
+    )
 
 
 def _mk_points(
@@ -84,7 +98,7 @@ def test_eligible_bus_produces_60x9_float32_window():
     # t_ref = minute-of-day at the 75th point (so we have ≥60 ticks before it).
     t_ref = _minute_of_day(target_points[75].datetime)
 
-    result = build_bus_window(target, [target, u1, u2], t_ref_min=t_ref, num_stops=40)
+    result = _build_v1(target, [target, u1, u2], t_ref_min=t_ref, num_stops=40)
 
     assert result.reason is None, result.reason
     assert result.window is not None
@@ -108,7 +122,7 @@ def test_stale_bus_rejected():
     t_last = target_points[-1].datetime
     t_ref = _minute_of_day(t_last + timedelta(minutes=10))
 
-    result = build_bus_window(
+    result = _build_v1(
         _bus(0, target_points), [_bus(0, target_points), u1],
         t_ref_min=t_ref, num_stops=40,
     )
@@ -125,7 +139,7 @@ def test_edge_exclude_near_origin_rejected():
     u1 = _bus(1, _mk_points(t0, count=80, start_dist=50.0, speed=0.0))
 
     t_ref = _minute_of_day(target_points[75].datetime)
-    result = build_bus_window(
+    result = _build_v1(
         _bus(0, target_points), [_bus(0, target_points), u1],
         t_ref_min=t_ref, num_stops=40,
     )
@@ -141,7 +155,7 @@ def test_edge_exclude_near_terminus_rejected():
     u1 = _bus(1, _mk_points(t0, count=80, start_dist=11500.0, speed=0.0))
 
     t_ref = _minute_of_day(target_points[75].datetime)
-    result = build_bus_window(
+    result = _build_v1(
         _bus(0, target_points), [_bus(0, target_points), u1],
         t_ref_min=t_ref, num_stops=40,
     )
@@ -157,7 +171,7 @@ def test_short_history_rejected():
     u1 = _bus(1, _mk_points(t0, count=40, start_dist=1600.0, speed=8.0))
 
     t_ref = _minute_of_day(target_points[-1].datetime)
-    result = build_bus_window(
+    result = _build_v1(
         _bus(0, target_points), [_bus(0, target_points), u1],
         t_ref_min=t_ref, num_stops=40,
     )
@@ -173,7 +187,7 @@ def test_gap_in_history_rejected():
     u1 = _bus(1, _mk_points(t0, count=80, start_dist=1600.0, speed=8.0))
 
     t_ref = _minute_of_day(t0 + timedelta(seconds=75 * STEP_SECONDS))
-    result = build_bus_window(
+    result = _build_v1(
         _bus(0, pts), [_bus(0, pts), u1],
         t_ref_min=t_ref, num_stops=40,
     )
@@ -190,7 +204,7 @@ def test_no_upstream_anywhere_rejected():
     leader = _bus(1, _mk_points(t0, count=80, start_dist=3000.0, speed=8.0))
 
     t_ref = _minute_of_day(target.points[75].datetime)
-    result = build_bus_window(target, [target, leader], t_ref_min=t_ref, num_stops=40)
+    result = _build_v1(target, [target, leader], t_ref_min=t_ref, num_stops=40)
     assert result.window is None
     assert "no upstream" in (result.reason or "")
 
@@ -203,7 +217,7 @@ def test_partial_upstream_fills_sentinel_and_succeeds():
     u1 = _bus(1, _mk_points(late_start, count=30, start_dist=1600.0, speed=8.0))
 
     t_ref = _minute_of_day(target.points[75].datetime)
-    result = build_bus_window(target, [target, u1], t_ref_min=t_ref, num_stops=40)
+    result = _build_v1(target, [target, u1], t_ref_min=t_ref, num_stops=40)
     assert result.reason is None, result.reason
     assert result.window is not None
     # Early ticks should show the no-upstream sentinel speed = 0.
@@ -228,7 +242,7 @@ def test_nan_speed_rejected():
     u1 = _bus(1, _mk_points(t0, count=80, start_dist=1600.0, speed=8.0))
 
     t_ref = _minute_of_day(t0 + timedelta(seconds=75 * STEP_SECONDS))
-    result = build_bus_window(
+    result = _build_v1(
         _bus(0, pts), [_bus(0, pts), u1],
         t_ref_min=t_ref, num_stops=40,
     )

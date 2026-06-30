@@ -11,7 +11,8 @@ from dataclasses import dataclass
 from datetime import datetime
 
 from google.protobuf.json_format import MessageToDict
-from google.transit import gtfs_realtime_pb2
+
+from apps.collector import gtfs_realtime_pb2
 
 from core.time import epoch_to_utc
 from db.models.vehicle_position import VehiclePosition

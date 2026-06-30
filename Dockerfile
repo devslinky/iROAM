@@ -26,8 +26,7 @@ RUN pip install \
       'psycopg[binary]>=3.2,<3.3' \
       'geoalchemy2>=0.15,<0.18' \
       'httpx>=0.27,<0.29' \
-      'gtfs-realtime-bindings>=1.0.0,<2' \
-      'protobuf>=4.25,<6' \
+      'protobuf>=6.33.5,<7' \
       'pydantic>=2.7,<3' \
       'pydantic-settings>=2.3,<3' \
       'python-dateutil>=2.9,<3' \

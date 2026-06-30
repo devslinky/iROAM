@@ -31,7 +31,10 @@ from apps.api.services.forecast import (
     _useful_horizon_steps,
     run_forecast,
 )
-from apps.api.services.forecast_features import SEQ_LEN, STEP_SECONDS
+# Stub-bundle geometry used throughout these tests (matches the vendor
+# bundle: 60 ticks x 10 s).
+SEQ_LEN = 60
+STEP_SECONDS = 10
 
 
 # ───────────────────── _useful_horizon_steps unit tests ─────────────────────

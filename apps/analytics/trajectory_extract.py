@@ -7,26 +7,25 @@ GTFS static bundle.
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from datetime import date, datetime, timedelta, timezone
-from typing import Iterable
 
 import pandas as pd
 
+from core.time import TORONTO_TZ
 from db.models.vehicle_position import VehiclePosition
-
-# Toronto is UTC-5 standard / UTC-4 DST; using a fixed UTC-5 is fine for
-# trip_start_datetime derivation because GTFS schedule times are in
-# agency-local clock, and the resulting timestamp is only used for
-# ``time_offset_seconds`` (a duration, which is TZ-invariant).
-_TORONTO_OFFSET = timedelta(hours=-5)
 
 
 def _parse_start_datetime(start_date: str, start_time: str | None) -> datetime | None:
     """Combine GTFS-RT ``start_date`` (YYYYMMDD) + ``start_time`` (HH:MM:SS, may
     exceed 24h for overnight trips) into an absolute UTC datetime.
 
-    ``start_time`` formats like ``27:15:00`` are handled by parsing hours/minutes/
-    seconds separately and using ``timedelta``.
+    The GTFS service day starts at local *noon minus 12 h* — in practice,
+    local midnight — and schedule times are agency wall-clock, so the anchor
+    must use the real Toronto zone (UTC-5/-4 across DST), not a fixed offset:
+    a fixed UTC-5 shifts every summer trip's ``time_offset_seconds`` by 1 h.
+    ``start_time`` like ``27:15:00`` (overnight trips) is handled by adding a
+    plain timedelta to the local-midnight anchor.
     """
     if not start_date:
         return None
@@ -34,7 +33,7 @@ def _parse_start_datetime(start_date: str, start_time: str | None) -> datetime |
         d = date(int(start_date[:4]), int(start_date[4:6]), int(start_date[6:8]))
     except (ValueError, IndexError):
         return None
-    base = datetime(d.year, d.month, d.day, tzinfo=timezone(_TORONTO_OFFSET))
+    base = datetime(d.year, d.month, d.day, tzinfo=TORONTO_TZ)
     if not start_time:
         return base.astimezone(timezone.utc)
     try:

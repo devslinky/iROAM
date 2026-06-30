@@ -1,4 +1,4 @@
-"""Tests for ``apps.api.routers.iroam._group_into_buses``.
+"""Tests for ``apps.api.services.bus_grouping.group_into_buses``.
 
 Covers the case where two physical vehicles report the **same** ``trip_id`` on
 the **same** ``service_date`` (the TTC feed reuses scheduled-trip IDs across
@@ -16,7 +16,7 @@ from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
 from apps.analytics.stop_projection import RouteStops, StopOnRoute
-from apps.api.routers.iroam import _group_into_buses
+from apps.api.services.bus_grouping import group_into_buses as _group_into_buses
 
 
 UTC = timezone.utc

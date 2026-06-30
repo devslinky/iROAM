@@ -239,6 +239,9 @@ def fit_and_write_bag(
         ).isoformat(),
         "bag_dirs": [f"bag_{k:02d}/model" for k in range(bags)],
         "threshold_strategy": threshold_strategy,
+        # Distances/speeds in the training data are true meters (UTM 17N)
+        # since the EPSG:3857 fix; the serving shim is a no-op for "m".
+        "distance_units": "m",
         # Also store a flat copy of scaler + thresholds at the top level so
         # BunchingPredictor would partially recognise the bundle if a user
         # accidentally points BUNCHING_MODEL_DIR at it.

@@ -21,6 +21,8 @@ from pathlib import Path
 import pandas as pd
 import pytest
 from pyproj import Transformer
+
+from apps.analytics.shapes import METRIC_CRS
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -42,15 +44,13 @@ from tests.test_pipeline_roundtrip import (
 
 
 def _wire_static_gtfs(monkeypatch: pytest.MonkeyPatch, gtfs_dir: Path) -> None:
-    import apps.analytics.gtfs_static as gs
-    import apps.analytics.runner as rn
+    """Point every gtfs_static entry point (load_all, bundle_token,
+    load_shape_linestrings) at the synthetic bundle via one settings patch."""
+    from types import SimpleNamespace
 
-    monkeypatch.setattr(
-        gs,
-        "load_all",
-        lambda gtfs_dir=gtfs_dir: gs._load(str(gtfs_dir), gs._dir_mtime_key(gtfs_dir)),
-    )
-    monkeypatch.setattr(rn, "load_all", gs.load_all)
+    import apps.analytics.gtfs_static as gs
+
+    monkeypatch.setattr(gs, "get_settings", lambda: SimpleNamespace(gtfs_static_dir=gtfs_dir))
 
 
 def _seed_additional_vp_batch(
@@ -61,8 +61,9 @@ def _seed_additional_vp_batch(
     start_fraction: float,
 ) -> datetime:
     """Append ``n`` VP rows further along the shape, returning the max fetched_at."""
-    transformer = Transformer.from_crs("EPSG:3857", "EPSG:4326", always_xy=True)
-    x0, y0 = -8_838_000.0, 5_416_000.0
+    # Anchor in the metric CRS near Toronto (UTM 17N easting/northing).
+    transformer = Transformer.from_crs(METRIC_CRS, "EPSG:4326", always_xy=True)
+    x0, y0 = 630_000.0, 4_833_000.0
     base_dt = datetime(2026, 4, 20, 13, 0, 0, tzinfo=timezone.utc) + timedelta(
         seconds=start_seconds_offset
     )

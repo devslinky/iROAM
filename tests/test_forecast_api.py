@@ -17,7 +17,9 @@ from fastapi.testclient import TestClient
 
 from apps.analytics.stop_projection import RouteStops, StopOnRoute
 from apps.api.main import create_app
-from apps.api.services.forecast_features import STEP_SECONDS
+# Stub-bundle geometry used throughout these tests (matches the vendor
+# bundle: 60 ticks x 10 s).
+STEP_SECONDS = 10
 
 
 class _FakeTripRow:
