@@ -7,7 +7,7 @@ from datetime import date
 from pathlib import Path
 from apps.analytics.pipeline import _EFFECTIVE_START_DATE
 from apps.analytics.stop_projection import compute_route_stops
-from apps.api.routers.iroam import _group_into_buses
+from apps.api.services.bus_grouping import group_into_buses
 from db.queries.iroam import fetch_trajectories_for_slice
 from sqlalchemy import func, select
 from apps.analytics.gtfs_static import load_all, resolve_shape_id
@@ -156,7 +156,7 @@ def _run(argv=None):
         ].sort_values(by=["trip_id", "start_date", "vehicle_id", "datetime"])
 
         print(f"\nProcessing trip_trajectories for route {route_id}, direction {direction_id} on date {service_date} through ghost segment and stale speed filter")
-        buses = _group_into_buses(list(trip_trajectories_slice.itertuples(index=False)), route_stops)
+        buses = group_into_buses(list(trip_trajectories_slice.itertuples(index=False)), route_stops)
 
         # get number of trip_trajectories rows dropped by ghost segment and stale speed filter
         total_points_before = len(trip_trajectories_slice)

@@ -7,7 +7,7 @@ import pandas as pd
 from apps.analytics.project_to_shape import project_trajectory
 from apps.analytics.shapes import build_linestrings
 from shapely.geometry import Point
-from apps.analytics.shapes import transform_lonlat_to_3857
+from apps.analytics.shapes import transform_lonlat_to_meters
 
 # load static gtfs trips data
 
@@ -90,7 +90,7 @@ else:
     non_canonical_shape_lines = build_linestrings(static.shapes.loc[static.shapes["shape_id"] == actual_shape_id])
 
     # project the same stop onto the canonical shape and the non-canonical shape to see the difference in travel distance (travel_distance_m)
-    stop_x, stop_y = transform_lonlat_to_3857(stop_info["stop_lon"], stop_info["stop_lat"])
+    stop_x, stop_y = transform_lonlat_to_meters(stop_info["stop_lon"], stop_info["stop_lat"])
     stop_point = Point(stop_x, stop_y)
 
     canonical_distance = canonical_shape_lines[canonical_shape_id].project(stop_point)
