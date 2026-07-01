@@ -201,3 +201,40 @@ def test_last_step_clean_up_rounds_and_reorders() -> None:
     assert "extra_unused_col" not in out.columns
     assert out["travel_distance_m"].iloc[0] == 123.46
     assert out["moving_speed_m_s"].iloc[0] == 1.23
+
+def test_upsample_short_gap_unchanged_with_max_gap_seconds() -> None:
+    df = pd.DataFrame(
+        {
+            "datetime": [_ts(8, 0, 0), _ts(8, 0, 30)],
+            "travel_distance_m": [0.0, 300.0],
+            "moving_speed_m_s": [0.0, 10.0],
+            "observed": [True, True],
+            "trip_id": ["T1", "T1"],
+        }
+    )
+    out_with_gap = upsample_df(df, resolution_seconds=10, max_gap_seconds=60)
+    out_without_gap = upsample_df(df, resolution_seconds=10, max_gap_seconds=None)
+
+    # Both outputs should be identical since the gap is less than max_gap_seconds
+    assert out_with_gap.equals(out_without_gap) 
+
+def test_upsample_long_gap_skipped_with_max_gap_seconds() -> None:
+    df = pd.DataFrame(
+        {
+            "datetime": [_ts(8, 0, 0), _ts(8, 1, 0)],  # 60 seconds gap
+            "travel_distance_m": [0.0, 600.0],
+            "moving_speed_m_s": [0.0, 10.0],
+            "observed": [True, True],
+            "trip_id": ["T1", "T1"],
+        }
+    )
+    out_with_gap = upsample_df(df, resolution_seconds=10, max_gap_seconds=30)
+    out_without_gap = upsample_df(df, resolution_seconds=10, max_gap_seconds=None)
+
+    # Both outputs should not be identical since the gap is greater than max_gap_seconds
+    assert not out_with_gap.equals(out_without_gap)
+
+    # The output with max_gap_seconds should have no synthetic rows since the gap exceeds the threshold
+    assert out_with_gap.empty
+
+

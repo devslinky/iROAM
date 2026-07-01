@@ -45,7 +45,7 @@ def compute_moving_speed(df: pd.DataFrame) -> pd.DataFrame:
     return out
 
 
-def upsample_df(df: pd.DataFrame, resolution_seconds: int) -> pd.DataFrame:
+def upsample_df(df: pd.DataFrame, resolution_seconds: int, max_gap_seconds: float | None = None) -> pd.DataFrame:
     """Insert rows at fixed time boundaries between every consecutive pair.
 
     Each output row has ``observed`` set to False (it is synthesized). Source
@@ -63,7 +63,7 @@ def upsample_df(df: pd.DataFrame, resolution_seconds: int) -> pd.DataFrame:
     """
     if len(df) < 2:
         return pd.DataFrame(columns=df.columns)
-
+    
     res = int(resolution_seconds)
     ts_ns = df["datetime"].astype("int64").to_numpy()  # epoch nanoseconds
     travel = df["travel_distance_m"].to_numpy(dtype=float)
@@ -79,8 +79,15 @@ def upsample_df(df: pd.DataFrame, resolution_seconds: int) -> pd.DataFrame:
 
     # Number of candidates with first_boundary + k*res < epoch_next, k >= 0.
     count = np.ceil((epoch_next - first_boundary) / res).astype(np.int64)
-    count = np.where(ns_next > ns_cur, np.maximum(count, 0), 0)
 
+    # If the gap between two rows is larger than max_gap_seconds, do not upsample that pair.
+    if max_gap_seconds is not None:
+        gap_seconds = (ns_next - ns_cur) / 1e9
+        large_gap_mask = gap_seconds > max_gap_seconds
+        count = np.where(large_gap_mask, 0, count)
+
+    count = np.where(ns_next > ns_cur, np.maximum(count, 0), 0)
+    
     total = int(count.sum())
     if total == 0:
         return pd.DataFrame(columns=df.columns)

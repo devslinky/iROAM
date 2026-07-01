@@ -125,6 +125,7 @@ def process_trip_instance(
     upsample_resolution_s: int = 10,
     max_orthogonal_distance_m: float = 200.0,
     max_implied_speed_m_s: float | None = None,
+    max_gap_seconds: float | None = None,
 ) -> pd.DataFrame:
     """Full per-trip transform: fetch -> extract -> project -> speed -> upsample.
 
@@ -213,7 +214,7 @@ def process_trip_instance(
 
     df = compute_moving_speed(df)
     df["observed"] = True
-    df_up = upsample_df(df, upsample_resolution_s)
+    df_up = upsample_df(df, upsample_resolution_s, max_gap_seconds=max_gap_seconds)
     if df_up.empty:
         return pd.DataFrame()
 
