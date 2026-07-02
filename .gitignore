@@ -23,7 +23,7 @@ htmlcov/
 /Complete GTFS*.bak/
 /data/
 # Analytics CSV exports (written by --export-csv)
-/out/
+
 
 # Local handoff bundles, feed archives, and scratch images
 /*.zip

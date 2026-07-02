@@ -1,0 +1,3 @@
+Task #1:  Roughly 25% of all trips use a non-canonical trip shape. For atleast one non-canonical trip, we find that the same shared stop location projects to different trip_distance_m measurements. 
+
+Task #2: The chain of calls for the teleport filter can be traced through: project_to_shape.project_trajectory -> pipeline.process_trip_instance -> runner.run_for_date -> worker._tick -> config.settings; from this we find that the teleport filter is ON and the max_implied_speed is 35.0 m/s
