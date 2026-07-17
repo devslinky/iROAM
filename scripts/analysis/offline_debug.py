@@ -356,6 +356,7 @@ def _stage_group(sd: date, route: str, direction: int, ctx: SimpleNamespace, vie
         return pd.DataFrame(records)
     else: return buses
 
+## EDIT TO MAKE FULLY OFFLINE ###
 def _stage_label(sd: date, route: str, direction: int, ctx: SimpleNamespace, view_examples_as_df:bool = False):
     """label: extract_for_date from data_process/bunching/labels.py."""
 
