@@ -19,7 +19,6 @@ from db.queries.vehicles import fetch_by_trip_instance
 from sqlalchemy import create_engine, text
 from apps.analytics.gtfs_static import load_shape_linestrings, resolve_route_id
 from apps.analytics import pipeline
-from apps.analytics.pipeline import build_trip_trajectory
 from apps.analytics.gtfs_static import resolve_shape_id
 from apps.analytics.project_to_shape import project_trajectory
 from apps.analytics.gtfs_static import load_all
@@ -28,7 +27,10 @@ from apps.analytics.upsample import compute_moving_speed, upsample_df
 from apps.analytics.stop_projection import compute_route_stops
 from apps.api.services.bus_grouping import group_into_buses
 from db.models.trip_trajectory import TripTrajectory
-from data_process.bunching.labels import extract_for_date
+from data_process.bunching.labels import extract_for_date, extract_labelled_examples
+from apps.analytics.trajectory_extract import build_trip_trajectory
+from apps.analytics.schedule_headways import scheduled_headway_s
+from apps.api.services.bus_grouping import group_into_buses
 import numpy as np
 ###########################################################
 
@@ -356,22 +358,22 @@ def _stage_group(sd: date, route: str, direction: int, ctx: SimpleNamespace, vie
         return pd.DataFrame(records)
     else: return buses
 
-## EDIT TO MAKE FULLY OFFLINE ###
 def _stage_label(sd: date, route: str, direction: int, ctx: SimpleNamespace, view_examples_as_df:bool = False):
     """label: extract_for_date from data_process/bunching/labels.py."""
+   
+    route_stops,buses = return_group(sd, route, direction, ctx, view_buses_as_flat_df=False)
 
-    m = read_manifest(ctx.MANIFEST)
-    BUNDLE_TAG = str(m["bundle_version"])
-    label_name = f"labels_{route}_{direction}_{sd}_{BUNDLE_TAG}" 
+    sched_by_trip: dict[str, float] = {}
+    for bus in buses:
+        if bus.trip_id in sched_by_trip:
+            continue
+        hw = scheduled_headway_s(bus.trip_id, route, direction, sd)
+        if hw is not None:
+            sched_by_trip[bus.trip_id] = hw
     
-    if ctx.OFFLINE:
-        examples = load_obj(label_name, ctx.CACHE)
-        if examples is None:
-            print(f"offline and labels not primed for {sd} (bundle {BUNDLE_TAG}) — run once with DATA_MODE='live'"); examples = []
-    else:
-        with ctx.SessionLocal() as s:
-            examples = extract_for_date(s, route_id=route, direction_id=direction, service_date=sd)
-        save_obj(label_name, examples, ctx.CACHE)
+    examples = extract_labelled_examples(buses,route_id=route,direction_id=direction,service_date=sd,num_stops=len(route_stops.stops),
+        step_seconds=60,seq_len=20,pred_len= 30,edge_exclude=2,route_shape_length_m=float(route_stops.shape_length_m),
+        extras_schema_v=4,terminal_mask=True,persist_ticks=2,sched_headway_by_trip=sched_by_trip or None)
         
     # if we want a flat DataFrame of the labelled examples, we can construct it here
     if view_examples_as_df:
@@ -397,6 +399,66 @@ def _stage_label(sd: date, route: str, direction: int, ctx: SimpleNamespace, vie
         return pd.DataFrame(rows)
     else:
         return examples
+
+def return_group(sd: date, route: str, direction: int, ctx: SimpleNamespace, view_buses_as_flat_df: bool = False) -> pd.DataFrame:
+    """ returns grouped buses + route stops"""
+ 
+    rows = fetch_slice_rows(
+        sd, direction, route,
+        CACHE=ctx.CACHE, OFFLINE=ctx.OFFLINE,
+        SessionLocal=ctx.SessionLocal,
+        _TT_COLS=_tt_cols(),
+    )
+    route_stops = compute_route_stops(route, direction)
+
+    assert rows and route_stops is not None, f"no slice rows or route stops for {sd}/{route}/dir{direction}"
+
+    buses = group_into_buses(rows, route_stops)
+
+    return route_stops, buses
+
+##########################################
+# A/B comparator for each stage for different functions #
+
+def compare_stage(stage: str, old_stg_fn, new_stg_fn, service_date: str = "2026-06-18", route: str = "29", direction: int = 0, trip_id: str | None = None) -> None:
+    """Compare the output of two stage functions for the same input parameters."""
+
+    # set up the context for the comparison
+    ctx = setup(data_mode="cache")
+
+    # ensure static GTFS is loaded before any stage runs
+    if not hasattr(ctx, "STATIC"):
+        _load_static(ctx)
+
+    service_date = date.fromisoformat(service_date)
+    sd = pd.to_datetime(service_date).date()
+    st = sd.strftime("%Y%m%d")
+
+
+    if stage in ("extract", "project", "upsample"):
+        # pick a happy trip if trip_id is not provided
+        if not trip_id:
+            print(f"stage '{stage}' requires a trip_id; picking a happy trip instead")
+            trip_id = pick_happy_trip(sd, route, SessionLocal=ctx.SessionLocal, pipeline=pipeline, ctx=ctx)
+        
+        old_output = old_stg_fn(trip_id, st, ctx)
+        new_output = new_stg_fn(trip_id, st, ctx)
+
+    elif stage in ("group", "label"):
+        old_output = old_stg_fn(sd, route, direction, ctx,True)
+        new_output = new_stg_fn(sd, route, direction, ctx, True)
+    
+    # A/B comparison or before/after comparison of the outputs
+    try:
+        pd.testing.assert_frame_equal(old_output, new_output, check_exact=False, rtol=1e-5)
+        print(f"✓ stage '{stage}' output is identical between old and new function")
+    except AssertionError as e:
+        print("new stage function returned different output than old stage function :\n", e)
+        try:
+            print("\nCell-level diff:\n", old_output.compare(new_output))
+        except ValueError:
+            print("\n(shapes/labels differ — can't use .compare() directly)")
+    return
 
 ##########################################
 # Prime slice + CLI commands #
@@ -678,7 +740,6 @@ python3 -m scripts.analysis.offline_debug --mode cache run-stage --stage extract
 python3 -m scripts.analysis.offline_debug --mode cache run-stage --stage project --date 2026-06-18 --route 29 --direction 0
 python3 -m scripts.analysis.offline_debug --mode cache run-stage --stage upsample --date 2026-06-18 --route 29 --direction 0
 python3 -m scripts.analysis.offline_debug --mode cache run-stage --stage group --date 2026-06-18 --route 29 --direction 0
-python3 -m scripts.analysis.offline_debug --mode live run-stage --stage label --date 2026-06-18 --route 29 --direction 0 
 python3 -m scripts.analysis.offline_debug --mode cache run-stage --stage label --date 2026-06-18 --route 29 --direction 0 
 
 # clear cache
