@@ -219,6 +219,9 @@ class LabelledExample:
     sched_headway_s: float | None = None         # trip's scheduled headway
     headway_at_ref_s: float | None = None        # realised time headway at t_ref
 
+    # ── labels schema v3 ────────────────────────────
+    # using time-headway based bunching detection instead of distance-based detection.
+    headway_labels_s: float | None = None # binary bunching label based on time-headway instead of distance-based bunching label.
 
 # ───────────────────────── geometry helpers ──────────────────────────────────
 
@@ -664,6 +667,13 @@ def extract_labelled_examples(
             label_gaps = np.full(pred_len, np.nan, dtype=np.float32)
             labels_persist = np.full(pred_len, np.nan, dtype=np.float32)
             labels_headway = np.full(pred_len, np.nan, dtype=np.float32)
+            # v3: time-headway based bunching label (binary) for each horizon.
+            headway_labels = np.full(pred_len, np.nan, dtype=np.float32)
+            
+            sched_hw: float | None = None
+            if sched_headway_by_trip is not None:
+                sched_hw = sched_headway_by_trip.get(str(bus.trip_id))
+            
             for h in range(pred_len):
                 k_fut = k_ref + (h + 1)
                 if k_fut >= n_ticks:
@@ -683,6 +693,13 @@ def extract_labelled_examples(
                 label_gaps[h] = float(g_fut)
                 labels[h] = 1.0 if g_fut < BUNCHING_THRESHOLD_M else 0.0
                 labels_headway[h] = _headway_at(b, k_fut)
+
+                # add time-based bunching label (v3) to the example
+                if sched_hw is not None:
+                    headway_labels[h] = 1.0 if labels_headway[h] <= HEADWAY_RATIO_BUNCHED *  sched_hw else 0.0
+                else: 
+                    headway_labels[h] = np.nan # exclude from training if scheduled headway is not available/ unknown
+
                 # Debounced label: bunched only when the gap held below the
                 # threshold for the trailing ``persist_ticks`` ticks.
                 if persist_ticks <= 1:
@@ -697,9 +714,6 @@ def extract_labelled_examples(
                         )
                         labels_persist[h] = 1.0 if held else 0.0
 
-            sched_hw: float | None = None
-            if sched_headway_by_trip is not None:
-                sched_hw = sched_headway_by_trip.get(str(bus.trip_id))
 
             local_ref = datetime.fromtimestamp(grid_utc[k_ref], tz=timezone.utc).astimezone(tz)
             t_ref_min = local_ref.hour * 60 + local_ref.minute + local_ref.second / 60.0
@@ -722,6 +736,7 @@ def extract_labelled_examples(
                     label_gaps=label_gaps,
                     labels_persist=labels_persist,
                     labels_headway_s=labels_headway,
+                    headway_labels_s=headway_labels,
                     sched_headway_s=sched_hw,
                     headway_at_ref_s=_headway_at(b, k_ref),
                 )
