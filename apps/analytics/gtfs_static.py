@@ -26,6 +26,8 @@ import pandas as pd
 from core.config import get_settings
 from core.logging import get_logger
 
+from scripts.GTFS_Update_monitor import download_ttc_gtfs, check_feed_stale as _is_stale
+
 _logger = get_logger(__name__)
 
 # Columns actually consumed downstream (resolve_* helpers, trajectory_extract,
@@ -198,8 +200,20 @@ def feed_covers(static: GtfsStatic, service_date: date) -> bool:
     return static.feed_start_date <= ymd <= static.feed_end_date
 
 
-def load_all(gtfs_dir: Path | None = None) -> GtfsStatic:
+def load_all(gtfs_dir: Path | None = None, auto_refresh: bool = False) -> GtfsStatic:
     """Return the cached ``GtfsStatic`` bundle."""
+
+    # auto-refresh if bundle is stale
+    if auto_refresh:
+        if _is_stale(gtfs_dir):
+            _logger.warning("gtfs_bundle_stale — auto-downloading new bundle")
+            try:
+                download_ttc_gtfs(str(gtfs_dir) if gtfs_dir is not None else None)
+                _load.cache_clear()
+                _logger.info("gtfs_bundle_refreshed")
+            except Exception as e:
+                _logger.error("gtfs_bundle_refresh_failed", extra={"error": str(e)})
+
     token = bundle_token(gtfs_dir)
     return _load(token[0], token[1])
 
