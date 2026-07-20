@@ -221,7 +221,7 @@ class LabelledExample:
 
     # ── labels schema v3 ────────────────────────────
     # using time-headway based bunching detection instead of distance-based detection.
-    headway_labels_s: float | None = None # binary bunching label based on time-headway instead of distance-based bunching label.
+    headway_labels: np.ndarray | None = None # binary bunching label based on time-headway instead of distance-based bunching label.
 
 # ───────────────────────── geometry helpers ──────────────────────────────────
 
@@ -694,11 +694,11 @@ def extract_labelled_examples(
                 labels[h] = 1.0 if g_fut < BUNCHING_THRESHOLD_M else 0.0
                 labels_headway[h] = _headway_at(b, k_fut)
 
-                # add time-based bunching label (v3) to the example
-                if sched_hw is not None:
-                    headway_labels[h] = 1.0 if labels_headway[h] <= HEADWAY_RATIO_BUNCHED *  sched_hw else 0.0
-                else: 
-                    headway_labels[h] = np.nan # exclude from training if scheduled headway is not available/ unknown
+                # add time-based bunching label (v3) to the example (label is nan if scheduled headway is not available or leader outside data window)
+                if sched_hw is not None and np.isfinite(labels_headway[h]):
+                    headway_labels[h] = 1.0 if labels_headway[h] <= HEADWAY_RATIO_BUNCHED * sched_hw else 0.0
+                else:
+                    headway_labels[h] = np.nan  # exclude from training if scheduled headway is not available or leader outside data window
 
                 # Debounced label: bunched only when the gap held below the
                 # threshold for the trailing ``persist_ticks`` ticks.
@@ -736,7 +736,7 @@ def extract_labelled_examples(
                     label_gaps=label_gaps,
                     labels_persist=labels_persist,
                     labels_headway_s=labels_headway,
-                    headway_labels_s=headway_labels,
+                    headway_labels=headway_labels,
                     sched_headway_s=sched_hw,
                     headway_at_ref_s=_headway_at(b, k_ref),
                 )
@@ -813,3 +813,4 @@ __all__ = [
     "extract_labelled_examples",
     "extract_for_date",
 ]
+

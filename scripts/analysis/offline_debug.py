@@ -396,7 +396,7 @@ def _stage_label(sd: date, route: str, direction: int, ctx: SimpleNamespace, vie
                 "label_gaps":          ex.label_gaps.tolist() if ex.label_gaps is not None else None,
                 "labels_persist":      ex.labels_persist.tolist() if ex.labels_persist is not None else None,
                 "labels_headway_s":    ex.labels_headway_s.tolist() if ex.labels_headway_s is not None else None,
-                "headway_labels_s":    ex.headway_labels_s.tolist() if hasattr(ex, "headway_labels_s") and ex.headway_labels_s is not None else None,
+                "headway_labels":    ex.headway_labels.tolist() if hasattr(ex, "headway_labels") and ex.headway_labels is not None else None,
                 "sched_headway_s":     ex.sched_headway_s,
                 "headway_at_ref_s":    ex.headway_at_ref_s,
             })
