@@ -6,7 +6,10 @@ from apps.analytics.gtfs_static import *
 from datetime import datetime,date
 from datetime import date
 import pandas as pd
+from apps.analytics.gtfs_static import _load
+from core.logging import get_logger
 
+_logger = get_logger(__name__)
 GTFS_ZIP_URL = "https://ckan0.cf.opendata.inter.prod-toronto.ca/dataset/b811ead4-6eaf-4adb-8408-d389fb5a069c/resource/c920e221-7a1c-488b-8c5b-6d8cd4e85eaf/download/completegtfs.zip"
 
 def download_ttc_gtfs(output_dir: str = "Complete GTFS") -> None:
@@ -41,6 +44,18 @@ def check_feed_stale(GTFS_DIR: str = "Complete GTFS") -> bool:
     is_stale = not (feed_start <= today <= feed_end)
 
     return is_stale
+
+def refresh_gtfs_if_stale(gtfs_dir: str = "Complete GTFS") -> None:
+    """Checks if the TTC GTFS feed is stale and downloads a new bundle if it is."""
+
+    if check_feed_stale(gtfs_dir):
+        _logger.warning("gtfs_bundle_stale — auto-downloading new bundle")
+        try:
+            download_ttc_gtfs(str(gtfs_dir) if gtfs_dir is not None else None)
+            _load.cache_clear()
+            _logger.info("gtfs_bundle_refreshed")
+        except Exception as e:
+            _logger.error("gtfs_bundle_refresh_failed", extra={"error": str(e)})
 
 
 if __name__ == "__main__":
