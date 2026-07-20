@@ -22,6 +22,8 @@ htmlcov/
 /Complete GTFS/
 /Complete GTFS*.bak/
 /data/
+/test_gtfs/
+
 # Analytics CSV exports (written by --export-csv)
 /out/
 

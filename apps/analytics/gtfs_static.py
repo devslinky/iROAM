@@ -26,7 +26,7 @@ import pandas as pd
 from core.config import get_settings
 from core.logging import get_logger
 
-from scripts.GTFS_Update_monitor import refresh_gtfs_if_stale
+from scripts.GTFS_Update_monitor import check_feed_stale, download_ttc_gtfs
 
 _logger = get_logger(__name__)
 
@@ -205,7 +205,14 @@ def load_all(gtfs_dir: Path | None = None, auto_refresh: bool = False) -> GtfsSt
 
     # auto-refresh if bundle is stale
     if auto_refresh:
-        refresh_gtfs_if_stale(gtfs_dir)
+        if check_feed_stale(gtfs_dir):
+            _logger.warning("gtfs_bundle_stale — auto-downloading new bundle")
+            try:
+                download_ttc_gtfs(str(gtfs_dir) if gtfs_dir is not None else None)
+                _load.cache_clear()
+                _logger.info("gtfs_bundle_refreshed")
+            except Exception as e:
+                _logger.error("gtfs_bundle_refresh_failed", extra={"error": str(e)})
 
     token = bundle_token(gtfs_dir)
     return _load(token[0], token[1])

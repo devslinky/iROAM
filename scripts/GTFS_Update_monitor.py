@@ -2,11 +2,9 @@ import requests
 import zipfile
 import io
 from pathlib import Path
-from apps.analytics.gtfs_static import *
 from datetime import datetime,date
 from datetime import date
 import pandas as pd
-from apps.analytics.gtfs_static import _load
 from core.logging import get_logger
 
 _logger = get_logger(__name__)
@@ -45,18 +43,23 @@ def check_feed_stale(GTFS_DIR: str = "Complete GTFS") -> bool:
 
     return is_stale
 
-def refresh_gtfs_if_stale(gtfs_dir: str = "Complete GTFS") -> None:
-    """Checks if the TTC GTFS feed is stale and downloads a new bundle if it is."""
+def check_if_refresh_works(gtfs_dir: str = "Complete GTFS") -> None:
+    """checks a local (unseen) GTFS bundle will be refreshed if stale."""
+    """in this case we populate a test_gtfs directory with a stale feed and check if the refresh works."""
 
     if check_feed_stale(gtfs_dir):
-        _logger.warning("gtfs_bundle_stale — auto-downloading new bundle")
+        print("GTFS feed is stale. Attempting to refresh...")
         try:
-            download_ttc_gtfs(str(gtfs_dir) if gtfs_dir is not None else None)
-            _load.cache_clear()
-            _logger.info("gtfs_bundle_refreshed")
+            download_ttc_gtfs(gtfs_dir)
+            print("GTFS feed refreshed successfully.")
         except Exception as e:
-            _logger.error("gtfs_bundle_refresh_failed", extra={"error": str(e)})
+            print(f"Failed to refresh GTFS feed: {e}")
+    
+    else: print("GTFS feed is not stale. No refresh needed.")
+
 
 
 if __name__ == "__main__":
-    download_ttc_gtfs("test_gtfs")
+    #download_ttc_gtfs("test_gtfs")
+    check_if_refresh_works("test_gtfs")
+
