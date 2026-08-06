@@ -95,6 +95,9 @@ PERSIST_TICKS_DEFAULT = 2
 HEADWAY_RATIO_BUNCHED = 0.25  # h ≤ 0.25 × scheduled ⇒ bunched (literature rule)
 
 
+HEADWAY_METHODS = ("tick", "station")  # realised time headway computation methods
+
+
 def n_channels_for(schema_v: int) -> int:
     """Channel count for the given schema. Use this everywhere instead of the
     module-level ``N_CHANNELS`` when serving multiple schemas in one process."""
@@ -379,7 +382,15 @@ def extract_labelled_examples(
     # trip_id → scheduled headway seconds (see apps.analytics.schedule_headways);
     # None disables the per-example sched_headway_s metadata.
     sched_headway_by_trip: dict[str, float] | None = None,
+
+    # headway method (tick: realised time headway at current gps position of buses at tick k, station: realised time headway at 
+    #                 the nearest canonical stop)
+
+    headway_method: str = "tick",
+    stop_distances_m: np.ndarray | None = None,  # required if headway_method == "station"
 ) -> list[LabelledExample]:
+    
+
     """Build labelled examples for every (bus, valid t_ref) pair on this slice.
 
     Geometry kwargs are configurable so the same code produces both the
@@ -476,7 +487,7 @@ def extract_labelled_examples(
     ]
 
     def _headway_at(b: int, k: int) -> float:
-        """Realised time headway of bus ``b`` at tick ``k`` (seconds), NaN if
+        """Realised time headway of bus b at tick k (seconds), NaN if
         the leader's passage of b's position isn't inside the data window."""
         j = int(leader_idx_arr[b, k])
         if j < 0:
@@ -486,6 +497,76 @@ def extract_labelled_examples(
         if t_pass is None:
             return float("nan")
         return float(grid_utc[k] - t_pass)
+
+    def _station_headway_at(b: int, k: int) -> float:
+        """Station-level time headway of bus b at tick k (seconds).
+
+        Finds the previous/last cannonical stop bus b has passed, then finds the last bus that passed that stop before bus b.
+        Returns the time difference between bus b and its stop-level leader at that stop.
+
+        Returns NaN for:
+        - bus b not having passed any stop yet (no stop to measure headway at)
+        - bus b not having a leader at this tick (no leader to measure headway against)
+        - bus b or its leader not having a passage time at the stop (outside the data window)
+
+        May produce redundant rows for multiple ticks at the same stop
+        May produce innacurate headway values for vehicles running non-cannonical trips
+
+        Remember, if this method is used, then t_ref is the current tick time NOT the time when bus b passed the last stop.
+        Furthermore, stop_idx at time of headway computation (when bus passed previous stop) = floor(stop_idx_at_ref) NOT stop_idx_at_ref (which is the stop index at the current tick).
+        """
+        if stop_distances_m is None or len(stop_distances_m) == 0:
+            return float("nan")
+
+        d_b = float(interp[b]["dist"][k])
+
+        # find the latest stop bus b has already passed
+        passed = stop_distances_m[stop_distances_m <= d_b] # assumes vehicle is travelling the canonical trip shape
+        if len(passed) == 0:
+            return float("nan")
+        d_stop = float(passed[-1])
+
+        # when did bus b cross this stop?
+        t_bus = _time_at_distance(
+            passage_tracks[b][0], passage_tracks[b][1], d_stop
+        )
+        if t_bus is None:
+            return float("nan")
+
+        # find which bus crossed this stop just before bus b
+        t_prev = None
+        for other in range(n_bus):
+            if other == b:
+                continue
+            t_other = _time_at_distance(
+                passage_tracks[other][0], passage_tracks[other][1], d_stop
+            )
+            if t_other is None:
+                continue
+            if t_other >= t_bus:
+                continue  # crossed after bus b — not the leader at this stop
+            # t_other < t_bus — this bus crossed before bus b
+            if t_prev is None or t_other > t_prev:
+                t_prev = t_other  # keep the most recent one before bus b
+
+        if t_prev is None:
+            return float("nan")  # no bus crossed this stop before bus b; bus b is the leader
+
+        return float(t_bus - t_prev)
+
+    # select headway function based on method
+    if headway_method == "station":
+        if stop_distances_m is None:
+            raise ValueError(
+                "stop_distances_m must be provided when headway_method='station'"
+            )
+        _get_headway = _station_headway_at
+    elif headway_method == "tick":
+        _get_headway = _headway_at
+    else:
+        raise ValueError(f"headway_method must be 'tick' or 'station', got {headway_method!r}")
+
+    
 
     si_lo = float(edge_exclude)
     si_hi = float(num_stops - edge_exclude)
@@ -692,7 +773,7 @@ def extract_labelled_examples(
                 g_fut = fwd_gap[b, k_fut]
                 label_gaps[h] = float(g_fut)
                 labels[h] = 1.0 if g_fut < BUNCHING_THRESHOLD_M else 0.0
-                labels_headway[h] = _headway_at(b, k_fut)
+                labels_headway[h] = _get_headway(b, k_fut)
 
                 # add time-based bunching label (v3) to the example (label is nan if scheduled headway is not available or leader outside data window)
                 if sched_hw is not None and np.isfinite(labels_headway[h]):
@@ -738,7 +819,7 @@ def extract_labelled_examples(
                     labels_headway_s=labels_headway,
                     headway_labels=headway_labels,
                     sched_headway_s=sched_hw,
-                    headway_at_ref_s=_headway_at(b, k_ref),
+                    headway_at_ref_s=_get_headway(b, k_ref),
                 )
             )
 
@@ -758,6 +839,7 @@ def extract_for_date(
     extras_schema_v: int = EXTRAS_SCHEMA_V,
     terminal_mask: bool = True,
     persist_ticks: int = PERSIST_TICKS_DEFAULT,
+    headway_method: str = "tick",
 ) -> list[LabelledExample]:
     """End-to-end: pull from DB, group into buses, extract labelled examples."""
     from apps.analytics.schedule_headways import scheduled_headway_s
@@ -779,6 +861,12 @@ def extract_for_date(
         if hw is not None:
             sched_by_trip[bus.trip_id] = hw
 
+    # extract stop distances from route_stops for station-level headway
+    stop_distances_m = np.array(
+        [s.distance_m for s in route_stops.stops], dtype=np.float64
+    ) if headway_method == "station" else None
+
+    
     return extract_labelled_examples(
         buses,
         route_id=route_id,
@@ -794,6 +882,8 @@ def extract_for_date(
         terminal_mask=terminal_mask,
         persist_ticks=persist_ticks,
         sched_headway_by_trip=sched_by_trip or None,
+        headway_method=headway_method,           
+        stop_distances_m=stop_distances_m,  
     )
 
 
@@ -812,5 +902,7 @@ __all__ = [
     "LabelledExample",
     "extract_labelled_examples",
     "extract_for_date",
+    "HEADWAY_METHODS",
+
 ]
 
